@@ -1,0 +1,88 @@
+#pragma once
+
+#include <array>
+#include <cstddef>
+
+enum class BossId
+{
+    Leviathan, // the great predator: stalks, telegraphs, charges
+    Medusa,    // the bloom sovereign: drifts and pulses rings of stingers
+    Worm,      // the trench worm: dives, vanishes, erupts somewhere else
+    Count
+};
+
+// How the body is built and drawn.
+enum class BossBody
+{
+    Serpent, // a head towing a chain of segments that follow it
+    Bell,    // a single pulsing dome with tentacles hanging off it
+};
+
+// How it thinks. One of these plus the numbers below is a whole fight.
+enum class BossMind
+{
+    Prowler,  // circles at range, winds up, then charges the player down
+    Drifter,  // creeps in and attacks on a slow rhythm
+    Burrower, // surfaces, sweeps, dives, comes back somewhere else
+};
+
+// What a body part is for, and therefore what breaking it costs the creature.
+enum class PartRole
+{
+    Eye,      // its aim gets worse
+    Fin,      // it gets slower and clumsier
+    Tentacle, // one fewer thing firing at you
+    Armour,   // shields the organ on its own segment
+    Organ,    // the actual life of the animal
+};
+
+struct BossPartDef
+{
+    PartRole role;
+    const char* texture;
+    int   segment;   // which body segment it rides on; 0 is the head
+    float along;     // offset along that segment's forward axis
+    float lateral;   // offset across it, sign picks the side
+    float radius;    // hitbox
+    float scale;
+    float baseAngle; // extra rotation in degrees, for fins and tentacles
+    int   health;
+};
+
+inline constexpr std::size_t MaxBossParts = 10;
+
+struct BossDef
+{
+    const char* name;
+    const char* brief;
+
+    BossBody body;
+    BossMind mind;
+
+    const char* headTexture;
+    const char* segmentTexture;
+    float headScale;
+    float segmentScale;
+    float segmentTaper;   // each link this much smaller than the one ahead
+    int   segmentCount;   // trailing links, not counting the head
+    float segmentSpacing;
+    float headRadius;
+
+    int   contactDamage;
+    int   salvage;
+    float speed;
+    float preferredDistance;
+
+    float attackCooldown;
+    int   attackShots;
+    float attackSpread;   // degrees the volley covers; 360 is a ring
+
+    std::size_t partCount;
+    std::array<BossPartDef, MaxBossParts> parts;
+};
+
+const BossDef& bossDefFor(BossId id);
+
+// Which creature guards the end of a depth. Past the authored list they come
+// back around, scaled by the level table.
+BossId bossForDepth(int depth);

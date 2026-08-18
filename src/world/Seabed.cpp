@@ -1,0 +1,262 @@
+#include "world/Seabed.h"
+
+#include "core/Assets.h"
+#include "core/Config.h"
+#include "core/Random.h"
+
+#include <SFML/System/Angle.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdint>
+
+namespace
+{
+    // The sand is drawn well past the view so nothing ever shows an edge, even
+    // when the window is letterboxed into an odd aspect ratio.
+    constexpr float WorldLeft = -240.0f;
+    constexpr float WorldTop = -240.0f;
+    constexpr float WorldRight = 1520.0f;
+    constexpr float WorldBottom = 960.0f;
+
+    sf::Color randomTint(sf::Color base, float spread)
+    {
+        const auto shift = [spread](std::uint8_t channel) {
+            const float value = static_cast<float>(channel) * rng::range(1.0f - spread, 1.0f + spread);
+            return static_cast<std::uint8_t>(std::clamp(value, 0.0f, 255.0f));
+        };
+        return sf::Color(shift(base.r), shift(base.g), shift(base.b), base.a);
+    }
+}
+
+Seabed::Seabed(const Assets& assets, sf::Vector2f center, float arenaRadius)
+    : m_assets(&assets)
+    , m_center(center)
+    , m_arenaRadius(arenaRadius)
+    , m_time(0.0f)
+    , m_sand(sf::PrimitiveType::Triangles)
+    , m_critterTimer(rng::range(1.0f, 3.0f))
+{
+    buildSand();
+    scatterProps();
+    buildReef();
+
+    // Painter's order: whatever sits lower on the screen is nearer, so it goes
+    // on top. Sorting once here means draw() never has to think about it.
+    std::sort(m_props.begin(), m_props.end(), [](const Prop& a, const Prop& b) {
+        return a.sprite.getPosition().y < b.sprite.getPosition().y;
+    });
+}
+
+void Seabed::buildSand()
+{
+    m_sand.clear();
+
+    const auto quad = [this](sf::Vector2f topLeft, sf::Vector2f size,
+                             sf::Color topColor, sf::Color bottomColor) {
+        const sf::Vector2f a{ topLeft.x, topLeft.y };
+        const sf::Vector2f b{ topLeft.x + size.x, topLeft.y };
+        const sf::Vector2f c{ topLeft.x + size.x, topLeft.y + size.y };
+        const sf::Vector2f d{ topLeft.x, topLeft.y + size.y };
+
+        m_sand.append(sf::Vertex{ a, topColor });
+        m_sand.append(sf::Vertex{ b, topColor });
+        m_sand.append(sf::Vertex{ c, bottomColor });
+        m_sand.append(sf::Vertex{ a, topColor });
+        m_sand.append(sf::Vertex{ c, bottomColor });
+        m_sand.append(sf::Vertex{ d, bottomColor });
+    };
+
+    quad({ WorldLeft, WorldTop },
+         { WorldRight - WorldLeft, WorldBottom - WorldTop },
+         config::SandFarColor, config::SandNearColor);
+
+    // Grain, so the floor is not a flat wash of one colour.
+    for (std::size_t i = 0; i < config::SandGrainCount; ++i)
+    {
+        const sf::Vector2f position{ rng::range(WorldLeft, WorldRight),
+                                     rng::range(WorldTop, WorldBottom) };
+        const float size = rng::range(1.5f, 4.5f);
+        const auto alpha = static_cast<std::uint8_t>(rng::range(10.0f, 46.0f));
+
+        const sf::Color speck = rng::range(0.0f, 1.0f) < 0.5f
+                                    ? sf::Color(70, 110, 124, alpha)
+                                    : sf::Color(0, 0, 0, alpha);
+
+        quad(position, { size, size }, speck, speck);
+    }
+}
+
+void Seabed::addProp(const sf::Texture& texture, sf::Vector2f position, float scale,
+                     sf::Color tint, float swayAmount)
+{
+    Prop prop{ sf::Sprite(texture), 0.0f, swayAmount, rng::range(0.35f, 0.8f),
+               rng::range(0.0f, 6.28f) };
+
+    const sf::Vector2f size(texture.getSize());
+
+    // Origin at the foot of the sprite: props stand on the seabed, and anything
+    // that sways has to pivot where it is rooted.
+    prop.sprite.setOrigin({ size.x / 2.0f, size.y });
+    prop.sprite.setPosition(position);
+    prop.sprite.setScale({ scale, scale });
+    prop.sprite.setColor(tint);
+
+    prop.baseRotation = rng::range(-4.0f, 4.0f);
+    prop.sprite.setRotation(sf::degrees(prop.baseRotation));
+
+    m_props.push_back(std::move(prop));
+}
+
+void Seabed::scatterProps()
+{
+    m_props.reserve(config::ScatterPropCount + config::ReefPropCount);
+
+    for (std::size_t i = 0; i < config::ScatterPropCount; ++i)
+    {
+        // Even area coverage out to the field radius, then skip anything that
+        // would land in the middle of the fight.
+        const float distance = config::PropFieldRadius * std::sqrt(rng::range(0.0f, 1.0f));
+        const sf::Vector2f position =
+            m_center + sf::Vector2f(distance, sf::degrees(rng::range(0.0f, 360.0f)));
+
+        const bool insideArena = distance < m_arenaRadius;
+        const float roll = rng::range(0.0f, 1.0f);
+
+        if (insideArena)
+        {
+            // Only small flat things inside, so nothing hides an incoming shot.
+            addProp(roll < 0.6f ? m_assets->rockB : m_assets->coralB, position,
+                    rng::range(0.18f, 0.36f),
+                    randomTint(sf::Color(30, 50, 60), 0.25f), 0.0f);
+            continue;
+        }
+
+        // Everything out here sits outside the light pool, so it is tinted
+        // darker than the reef. That contrast is what makes the reef read as
+        // the edge of the lit area rather than just more scenery.
+        if (roll < 0.34f)
+        {
+            addProp(rng::range(0.0f, 1.0f) < 0.5f ? m_assets->rockA : m_assets->rockB,
+                    position, rng::range(0.35f, 0.95f),
+                    randomTint(sf::Color(26, 42, 50), 0.3f), 0.0f);
+        }
+        else if (roll < 0.62f)
+        {
+            addProp(rng::range(0.0f, 1.0f) < 0.5f ? m_assets->coralA : m_assets->coralB,
+                    position, rng::range(0.3f, 0.7f),
+                    randomTint(sf::Color(40, 32, 50), 0.3f), 1.6f);
+        }
+        else
+        {
+            addProp(m_assets->kelp, position, rng::range(0.35f, 0.85f),
+                    randomTint(sf::Color(28, 50, 40), 0.3f), 5.5f);
+        }
+    }
+}
+
+void Seabed::buildReef()
+{
+    // A dense ring of rock and coral exactly where the wall is. The player never
+    // sees an abstract boundary, they see something they cannot swim through.
+    for (std::size_t i = 0; i < config::ReefPropCount; ++i)
+    {
+        const float angle = 360.0f * static_cast<float>(i) / static_cast<float>(config::ReefPropCount)
+                            + rng::range(-3.0f, 3.0f);
+        const float distance = m_arenaRadius + config::ReefOffset + rng::range(-8.0f, 26.0f);
+        const sf::Vector2f position = m_center + sf::Vector2f(distance, sf::degrees(angle));
+
+        const float roll = rng::range(0.0f, 1.0f);
+
+        if (roll < 0.45f)
+        {
+            addProp(rng::range(0.0f, 1.0f) < 0.5f ? m_assets->rockA : m_assets->rockB,
+                    position, rng::range(0.75f, 1.3f),
+                    randomTint(sf::Color(48, 70, 80), 0.22f), 0.0f);
+        }
+        else if (roll < 0.78f)
+        {
+            addProp(rng::range(0.0f, 1.0f) < 0.5f ? m_assets->coralA : m_assets->coralB,
+                    position, rng::range(0.55f, 0.95f),
+                    randomTint(sf::Color(78, 62, 92), 0.25f), 1.8f);
+        }
+        else
+        {
+            addProp(m_assets->kelp, position, rng::range(0.6f, 1.1f),
+                    randomTint(sf::Color(50, 86, 66), 0.25f), 6.0f);
+        }
+    }
+}
+
+void Seabed::spawnCritter()
+{
+    Critter critter{ sf::Sprite(m_assets->fish), {}, {}, rng::range(0.0f, 6.28f) };
+
+    const sf::Vector2f size(m_assets->fish.getSize());
+    critter.sprite.setOrigin(size / 2.0f);
+    critter.sprite.setScale({ rng::range(0.5f, 1.1f), rng::range(0.5f, 1.1f) });
+    critter.sprite.setColor(randomTint(sf::Color(46, 74, 84), 0.3f));
+
+    // In from one side, out through the other, always crossing the view.
+    const bool fromLeft = rng::range(0.0f, 1.0f) < 0.5f;
+    critter.position = { fromLeft ? WorldLeft + 40.0f : WorldRight - 40.0f,
+                         rng::range(-80.0f, 800.0f) };
+
+    const float speed = rng::range(38.0f, 78.0f);
+    critter.velocity = { fromLeft ? speed : -speed, rng::range(-14.0f, 14.0f) };
+
+    m_critters.push_back(std::move(critter));
+}
+
+void Seabed::updateCritters(float deltaTime)
+{
+    m_critterTimer -= deltaTime;
+    if (m_critterTimer <= 0.0f)
+    {
+        m_critterTimer = rng::range(config::CritterSpawnIntervalMin, config::CritterSpawnIntervalMax);
+        if (m_critters.size() < config::MaxCritters)
+            spawnCritter();
+    }
+
+    for (Critter& critter : m_critters)
+    {
+        critter.position += critter.velocity * deltaTime;
+        critter.sprite.setPosition(critter.position);
+
+        // A little tail wag, so they do not slide across like cardboard cutouts.
+        const float wobble = 7.0f * std::sin(m_time * 5.0f + critter.wobblePhase);
+        critter.sprite.setRotation(critter.velocity.angle() + sf::degrees(wobble));
+    }
+
+    std::erase_if(m_critters, [](const Critter& critter) {
+        return critter.position.x < WorldLeft - 80.0f || critter.position.x > WorldRight + 80.0f;
+    });
+}
+
+void Seabed::update(float deltaTime)
+{
+    m_time += deltaTime;
+
+    for (Prop& prop : m_props)
+    {
+        if (prop.swayAmount <= 0.0f)
+            continue;
+
+        const float sway = prop.swayAmount * std::sin(m_time * prop.swaySpeed + prop.swayPhase);
+        prop.sprite.setRotation(sf::degrees(prop.baseRotation + sway));
+    }
+
+    updateCritters(deltaTime);
+}
+
+void Seabed::draw(sf::RenderTarget& target) const
+{
+    target.draw(m_sand);
+
+    for (const Prop& prop : m_props)
+        target.draw(prop.sprite);
+
+    for (const Critter& critter : m_critters)
+        target.draw(critter.sprite);
+}

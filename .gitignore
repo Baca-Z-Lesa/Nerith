@@ -1,0 +1,25 @@
+# Build output
+x64/
+Debug/
+Release/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.idb
+*.iobj
+*.ipdb
+*.tlog
+*.log
+*.lastbuildstate
+*.recipe
+
+# Visual Studio user state
+*.vcxproj.user
+.vs/
+
+# Generated art previews
+tools/preview/
+
+# Local run state
+nerith_save.txt

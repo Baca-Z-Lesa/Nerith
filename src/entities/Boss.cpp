@@ -1,0 +1,804 @@
+#include "entities/Boss.h"
+
+#include "core/Assets.h"
+#include "core/Config.h"
+#include "core/Random.h"
+
+#include <algorithm>
+#include <cmath>
+
+namespace
+{
+    int scaled(int base, float multiplier)
+    {
+        return std::max(1, static_cast<int>(std::lround(static_cast<float>(base) * multiplier)));
+    }
+
+    sf::Vector2f unit(sf::Angle angle)
+    {
+        return { std::cos(angle.asRadians()), std::sin(angle.asRadians()) };
+    }
+
+    sf::Vector2f safeNormal(sf::Vector2f v, sf::Vector2f fallback = { 1.0f, 0.0f })
+    {
+        return v.lengthSquared() > 0.000001f ? v.normalized() : fallback;
+    }
+}
+
+Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemyScaling& scaling)
+    : m_def(&bossDefFor(id))
+    , m_id(id)
+    , m_heading(1.0f, 0.0f)
+    , m_playerPosition(position)
+    , m_strikeTarget(position)
+    , m_phase(Phase::Stalk)
+    , m_phaseTimer(config::BossStalkTime)
+    , m_attackTimer(1.0f)
+    , m_time(0.0f)
+    , m_bellPulse(0.0f)
+    , m_visibility(1.0f)
+    , m_strafe(rng::range(0.0f, 1.0f) < 0.5f ? -1.0f : 1.0f)
+    , m_rhythmOpen(false)
+    , m_enraged(false)
+    , m_hasEntered(false)
+    , m_dead(false)
+    , m_contactDamage(m_def->contactDamage + scaling.bonusDamage)
+    , m_salvage(m_def->salvage)
+    , m_speed(m_def->speed * scaling.speed)
+    , m_startingOrganHealth(0)
+{
+    // The body: a head plus however many links trail behind it, each a little
+    // smaller than the one in front so the animal tapers.
+    const int links = std::max(0, m_def->segmentCount);
+    m_segments.reserve(static_cast<std::size_t>(links) + 1);
+
+    for (int i = 0; i <= links; ++i)
+    {
+        const bool head = i == 0;
+        const sf::Texture& texture = assets.boss(head ? m_def->headTexture : m_def->segmentTexture);
+
+        float scale = head ? m_def->headScale : m_def->segmentScale;
+        for (int t = 1; t < i; ++t)
+            scale *= m_def->segmentTaper;
+
+        Segment segment{ position - m_heading * (m_def->segmentSpacing * static_cast<float>(i)),
+                         sf::degrees(0.0f), scale, sf::Sprite(texture) };
+
+        segment.sprite.setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
+        segment.sprite.setScale({ scale, scale });
+        m_segments.push_back(std::move(segment));
+    }
+
+    // The parts that make it an animal rather than a shape.
+    m_parts.reserve(m_def->partCount);
+    for (std::size_t i = 0; i < m_def->partCount; ++i)
+    {
+        const BossPartDef& def = m_def->parts[i];
+        const sf::Texture& texture = assets.boss(def.texture);
+        const int health = scaled(def.health, scaling.health);
+
+        Part part{ def, health, health, 0.0f, true, position, position,
+                   sf::degrees(0.0f), sf::Sprite(texture) };
+
+        const sf::Vector2f size(texture.getSize());
+        switch (def.role)
+        {
+            case PartRole::Tentacle: part.sprite.setOrigin({ size.x / 2.0f, 0.0f }); break;
+            case PartRole::Fin:      part.sprite.setOrigin({ 0.0f, size.y / 2.0f }); break;
+            default:                 part.sprite.setOrigin(size / 2.0f); break;
+        }
+        part.sprite.setScale({ def.scale, def.scale });
+
+        if (def.role == PartRole::Organ)
+            m_startingOrganHealth += health;
+
+        m_parts.push_back(std::move(part));
+    }
+
+    refreshVitals();
+    followChain();
+    placeParts(0.0f);
+}
+
+// ---------------------------------------------------------------------------
+//  Body
+// ---------------------------------------------------------------------------
+
+void Boss::refreshVitals()
+{
+    int eyes = 0, eyesAlive = 0, fins = 0, finsAlive = 0;
+    m_vitals.emitters = 0;
+    m_vitals.organs = 0;
+
+    for (const Part& part : m_parts)
+    {
+        switch (part.def.role)
+        {
+            case PartRole::Eye:      ++eyes; if (part.alive) ++eyesAlive; break;
+            case PartRole::Fin:      ++fins; if (part.alive) ++finsAlive; break;
+            case PartRole::Tentacle: if (part.alive) ++m_vitals.emitters; break;
+            case PartRole::Organ:    if (part.alive) ++m_vitals.organs; break;
+            case PartRole::Armour:   break;
+        }
+    }
+
+    // Blind it and it still lunges, it just stops lunging where you are.
+    m_vitals.tracking = eyes > 0
+                            ? 0.25f + 0.75f * static_cast<float>(eyesAlive) / static_cast<float>(eyes)
+                            : 1.0f;
+    // Clipped fins cost it speed and, through steer(), its ability to turn.
+    m_vitals.mobility = fins > 0
+                            ? 0.45f + 0.55f * static_cast<float>(finsAlive) / static_cast<float>(fins)
+                            : 1.0f;
+}
+
+void Boss::steer(float deltaTime, sf::Vector2f target, float turnScale)
+{
+    const sf::Vector2f desired = target - m_segments[0].position;
+    if (desired.lengthSquared() <= 0.000001f)
+        return;
+
+    const sf::Angle wanted = desired.angle();
+    const sf::Angle current = m_heading.angle();
+    const float delta = (wanted - current).wrapSigned().asDegrees();
+
+    const float allowed = config::BossTurnRate * m_vitals.mobility * turnScale * deltaTime;
+    const float step = std::clamp(delta, -allowed, allowed);
+
+    m_heading = m_heading.rotatedBy(sf::degrees(step));
+    m_segments[0].angle = m_heading.angle();
+}
+
+void Boss::advance(float deltaTime, float speed)
+{
+    m_segments[0].position += m_heading * speed * deltaTime;
+}
+
+void Boss::followChain()
+{
+    Segment& head = m_segments[0];
+    head.sprite.setPosition(head.position);
+    head.sprite.setRotation(head.angle);
+
+    for (std::size_t i = 1; i < m_segments.size(); ++i)
+    {
+        Segment& previous = m_segments[i - 1];
+        Segment& segment = m_segments[i];
+
+        const sf::Vector2f delta = previous.position - segment.position;
+        const float distance = delta.length();
+        const float spacing = m_def->segmentSpacing * segment.scale;
+
+        if (distance > 0.0001f)
+        {
+            segment.angle = delta.angle();
+            // Pulling each link up behind the one ahead is what makes the whole
+            // animal swim instead of sliding around as a rigid shape.
+            if (distance > spacing)
+                segment.position = previous.position - (delta / distance) * spacing;
+        }
+
+        segment.sprite.setPosition(segment.position);
+        segment.sprite.setRotation(segment.angle);
+    }
+}
+
+void Boss::placeParts(float deltaTime)
+{
+    const auto tint = [this](float flash) {
+        sf::Color colour = flash > 0.0f ? config::EnemyHitFlashTint : sf::Color::White;
+        colour.a = static_cast<std::uint8_t>(std::clamp(m_visibility, 0.0f, 1.0f) * 255.0f);
+        return colour;
+    };
+
+    for (Segment& segment : m_segments)
+    {
+        float scale = segment.scale;
+        if (m_def->body == BossBody::Bell)
+            scale *= 1.0f - 0.16f * m_bellPulse; // the bell visibly clenches
+
+        segment.sprite.setScale({ scale, scale });
+        segment.sprite.setColor(tint(0.0f));
+    }
+
+    for (Part& part : m_parts)
+    {
+        if (part.flash > 0.0f)
+            part.flash = std::max(0.0f, part.flash - deltaTime);
+
+        const std::size_t index = std::min(static_cast<std::size_t>(std::max(0, part.def.segment)),
+                                           m_segments.size() - 1);
+        const Segment& segment = m_segments[index];
+
+        const sf::Vector2f local{ part.def.along, part.def.lateral };
+        part.anchor = segment.position + local.rotatedBy(segment.angle);
+        part.angle = segment.angle + sf::degrees(part.def.baseAngle);
+
+        if (part.def.role == PartRole::Tentacle)
+        {
+            // Tentacles sway on their own beat and their hitbox sits halfway
+            // down the arm rather than at the root nobody aims for.
+            const float sway = 11.0f * std::sin(m_time * 1.7f + part.def.baseAngle * 0.05f);
+            part.angle += sf::degrees(sway);
+
+            const sf::Vector2f outward = unit(part.angle);
+            part.world = part.anchor + outward * config::BossTentacleHitOffset;
+            part.sprite.setRotation(part.angle - sf::degrees(90.0f));
+        }
+        else
+        {
+            part.world = part.anchor;
+            part.sprite.setRotation(part.angle);
+        }
+
+        part.sprite.setPosition(part.anchor);
+
+        const float punch = 1.0f + 0.18f * (part.flash / config::BossFlashDuration);
+        part.sprite.setScale({ part.def.scale * punch, part.def.scale * punch });
+        part.sprite.setColor(tint(part.flash));
+    }
+}
+
+bool Boss::organExposed(const Part& part) const
+{
+    // Anything still plated on the same segment keeps that organ sealed.
+    for (const Part& other : m_parts)
+    {
+        if (other.alive && other.def.role == PartRole::Armour && other.def.segment == part.def.segment)
+            return false;
+    }
+
+    // A bell only opens on its own rhythm, so the window is the fight.
+    if (m_def->body == BossBody::Bell)
+        return m_rhythmOpen;
+
+    return true;
+}
+
+float Boss::aimError() const
+{
+    const float spread = (1.0f - m_vitals.tracking) * config::BossAimErrorMax;
+    return rng::range(-spread, spread);
+}
+
+// ---------------------------------------------------------------------------
+//  Minds
+// ---------------------------------------------------------------------------
+
+void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
+{
+    const sf::Vector2f head = m_segments[0].position;
+    const sf::Vector2f toPlayer = player - head;
+    const float distance = toPlayer.length();
+    const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
+
+    // Hurt badly enough and it breaks off, circles wide, and comes back angry.
+    if (!m_enraged && getCoreFraction() < config::BossEnrageThreshold && m_phase != Phase::Flee)
+    {
+        m_enraged = true;
+        m_phase = Phase::Flee;
+        m_phaseTimer = config::BossFleeTime;
+    }
+
+    switch (m_phase)
+    {
+        case Phase::Stalk:
+        {
+            const sf::Vector2f tangent{ -direction.y * m_strafe, direction.x * m_strafe };
+            const float pull = (distance - m_def->preferredDistance) / m_def->preferredDistance;
+            steer(deltaTime, head + tangent * 150.0f + direction * (pull * 200.0f), 1.0f);
+            advance(deltaTime, m_speed * m_vitals.mobility);
+
+            m_attackTimer -= deltaTime;
+            if (m_attackTimer <= 0.0f)
+            {
+                m_attackTimer = m_def->attackCooldown * (m_enraged ? 0.6f : 1.0f);
+                const sf::Vector2f muzzle = head + m_heading * m_def->headRadius;
+                const sf::Vector2f aim = direction.rotatedBy(sf::degrees(aimError()));
+
+                const sf::Angle base = aim.angle();
+                for (int i = 0; i < m_def->attackShots; ++i)
+                {
+                    const float step = m_def->attackSpread / static_cast<float>(std::max(1, m_def->attackShots - 1));
+                    const sf::Angle angle = base + sf::degrees(-m_def->attackSpread / 2.0f + step * static_cast<float>(i));
+                    m_pending.push_back({ muzzle, unit(angle) });
+                }
+            }
+
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                m_phase = Phase::Wind;
+                m_phaseTimer = config::BossWindTime;
+            }
+            break;
+        }
+
+        case Phase::Wind:
+            // It stops and coils. This is the tell, and it is deliberately long
+            // enough to read and step out of.
+            advance(deltaTime, -m_speed * 0.3f);
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                // Blind eyes are paid for here: the lunge goes where it thinks
+                // you are, which stops being where you are.
+                m_strikeTarget = head + toPlayer.rotatedBy(sf::degrees(aimError())) * 2.2f;
+                m_phase = Phase::Strike;
+                m_phaseTimer = config::BossStrikeTime;
+            }
+            break;
+
+        case Phase::Strike:
+            steer(deltaTime, m_strikeTarget, 0.35f); // committed, barely corrects
+            advance(deltaTime, m_speed * config::BossChargeSpeed);
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                m_phase = Phase::Recover;
+                m_phaseTimer = config::BossRecoverTime;
+            }
+            break;
+
+        case Phase::Recover:
+            advance(deltaTime, m_speed * 0.35f);
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                m_phase = Phase::Stalk;
+                m_phaseTimer = config::BossStalkTime * (m_enraged ? 0.55f : 1.0f);
+                m_strafe = -m_strafe;
+            }
+            break;
+
+        case Phase::Flee:
+            steer(deltaTime, head - toPlayer, 1.0f);
+            advance(deltaTime, m_speed * 2.0f);
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                m_phase = Phase::Stalk;
+                m_phaseTimer = config::BossStalkTime * 0.5f;
+            }
+            break;
+
+        default:
+            m_phase = Phase::Stalk;
+            m_phaseTimer = config::BossStalkTime;
+            break;
+    }
+}
+
+void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
+{
+    steer(deltaTime, player, 0.7f);
+    advance(deltaTime, m_speed * m_vitals.mobility);
+
+    m_attackTimer -= deltaTime;
+
+    if (m_rhythmOpen)
+    {
+        m_bellPulse = std::min(1.0f, m_bellPulse + deltaTime * 3.0f);
+
+        if (m_attackTimer <= 0.0f)
+        {
+            m_rhythmOpen = false;
+            m_attackTimer = m_def->attackCooldown * (getCoreFraction() < 0.4f ? 0.65f : 1.0f);
+        }
+        return;
+    }
+
+    m_bellPulse = std::max(0.0f, m_bellPulse - deltaTime * 2.0f);
+
+    if (m_attackTimer > 0.0f)
+        return;
+
+    // The burst. Every living arm feeds the ring, so cutting them off is what
+    // thins the wall of stingers rather than just shortening a bar.
+    const sf::Vector2f centre = m_segments[0].position;
+    const int ring = 4 + 2 * m_vitals.emitters;
+
+    for (int i = 0; i < ring; ++i)
+    {
+        const sf::Angle angle = sf::degrees(360.0f * static_cast<float>(i) / static_cast<float>(ring)
+                                            + m_time * 24.0f);
+        m_pending.push_back({ centre + unit(angle) * (m_def->headRadius * 0.7f), unit(angle) });
+    }
+
+    for (const Part& part : m_parts)
+    {
+        if (!part.alive || part.def.role != PartRole::Tentacle)
+            continue;
+
+        const sf::Vector2f tip = part.anchor + unit(part.angle) * (config::BossTentacleHitOffset * 1.8f);
+        m_pending.push_back({ tip, safeNormal(player - tip) });
+    }
+
+    // Fewer arms means it has to hang open longer to recharge, which is the
+    // window the player is fighting for.
+    const float openTime = 1.0f + 0.3f * static_cast<float>(6 - m_vitals.emitters);
+    m_rhythmOpen = true;
+    m_attackTimer = openTime;
+}
+
+void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
+{
+    switch (m_phase)
+    {
+        case Phase::Stalk:
+            m_visibility = std::min(1.0f, m_visibility + deltaTime * 3.0f);
+
+            // A steady turn, so it carves a long arc through the arena rather
+            // than beelining at anyone.
+            m_heading = m_heading.rotatedBy(sf::degrees(config::BossSweepRate * m_strafe * deltaTime));
+            m_segments[0].angle = m_heading.angle();
+            advance(deltaTime, m_speed * m_vitals.mobility);
+
+            m_attackTimer -= deltaTime;
+            if (m_attackTimer <= 0.0f)
+            {
+                m_attackTimer = m_def->attackCooldown;
+                const sf::Vector2f muzzle = m_segments[0].position + m_heading * m_def->headRadius;
+                const sf::Vector2f aim = safeNormal(player - muzzle, m_heading)
+                                             .rotatedBy(sf::degrees(aimError()));
+                const sf::Angle base = aim.angle();
+
+                for (int i = 0; i < m_def->attackShots; ++i)
+                {
+                    const float step = m_def->attackSpread / static_cast<float>(std::max(1, m_def->attackShots - 1));
+                    const sf::Angle angle = base + sf::degrees(-m_def->attackSpread / 2.0f + step * static_cast<float>(i));
+                    m_pending.push_back({ muzzle, unit(angle) });
+                }
+            }
+
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                m_phase = Phase::Submerged;
+                m_phaseTimer = config::BossSubmergeTime;
+            }
+            break;
+
+        case Phase::Submerged:
+            m_visibility = std::max(0.0f, m_visibility - deltaTime * 2.4f);
+            steer(deltaTime, player, 1.0f);
+            advance(deltaTime, m_speed * 0.8f);
+
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                // Erupt beside the player, never on top of them.
+                const sf::Angle where = sf::degrees(rng::range(0.0f, 360.0f));
+                m_segments[0].position = player + unit(where) * config::BossEmergeDistance;
+                m_heading = safeNormal(player - m_segments[0].position);
+                m_segments[0].angle = m_heading.angle();
+
+                for (std::size_t i = 1; i < m_segments.size(); ++i)
+                {
+                    m_segments[i].position = m_segments[0].position
+                                             - m_heading * (m_def->segmentSpacing * static_cast<float>(i));
+                    m_segments[i].angle = m_segments[0].angle;
+                }
+
+                m_phase = Phase::Rising;
+                m_phaseTimer = config::BossRiseTime;
+            }
+            break;
+
+        case Phase::Rising:
+            m_visibility = std::min(1.0f, m_visibility + deltaTime * 2.4f);
+            m_phaseTimer -= deltaTime;
+            if (m_phaseTimer <= 0.0f)
+            {
+                // Coming up throws silt and stingers in every direction.
+                const sf::Vector2f centre = m_segments[0].position;
+                for (int i = 0; i < 12; ++i)
+                {
+                    const sf::Angle angle = sf::degrees(360.0f * static_cast<float>(i) / 12.0f);
+                    m_pending.push_back({ centre + unit(angle) * m_def->headRadius, unit(angle) });
+                }
+
+                m_phase = Phase::Stalk;
+                m_phaseTimer = config::BossSurfaceTime * (getCoreFraction() < 0.4f ? 0.7f : 1.0f);
+                m_strafe = -m_strafe;
+                m_attackTimer = 0.4f;
+            }
+            break;
+
+        default:
+            m_phase = Phase::Stalk;
+            m_phaseTimer = config::BossSurfaceTime;
+            break;
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Frame
+// ---------------------------------------------------------------------------
+
+void Boss::update(float deltaTime, sf::Vector2f playerPosition)
+{
+    m_time += deltaTime;
+    m_playerPosition = playerPosition;
+
+    switch (m_def->mind)
+    {
+        case BossMind::Prowler:  thinkProwler(deltaTime, playerPosition); break;
+        case BossMind::Drifter:  thinkDrifter(deltaTime, playerPosition); break;
+        case BossMind::Burrower: thinkBurrower(deltaTime, playerPosition); break;
+    }
+
+    followChain();
+    placeParts(deltaTime);
+}
+
+void Boss::confine(sf::Vector2f center, float maxDistance)
+{
+    const sf::Vector2f delta = m_segments[0].position - center;
+
+    if (delta.lengthSquared() <= maxDistance * maxDistance)
+    {
+        m_hasEntered = true;
+        return;
+    }
+
+    if (!m_hasEntered)
+        return; // still swimming in from off screen
+
+    m_segments[0].position = center + delta.normalized() * maxDistance;
+
+    // Turn it back inwards too, otherwise it grinds along the boundary trying
+    // to keep going the way it was.
+    m_heading = safeNormal(center - m_segments[0].position, m_heading);
+    m_segments[0].angle = m_heading.angle();
+
+    followChain();
+    placeParts(0.0f);
+}
+
+// ---------------------------------------------------------------------------
+//  Damage
+// ---------------------------------------------------------------------------
+
+Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float weakPointBonus)
+{
+    Hit result;
+
+    if (!isVulnerable())
+        return result; // nothing lands on something that is under the silt
+
+    for (std::size_t i = 0; i < m_parts.size(); ++i)
+    {
+        Part& part = m_parts[i];
+        if (!part.alive)
+            continue;
+
+        if (part.def.role == PartRole::Organ && !organExposed(part))
+            continue;
+
+        const float reach = radius + part.def.radius;
+        if ((part.world - position).lengthSquared() > reach * reach)
+            continue;
+
+        const bool organ = part.def.role == PartRole::Organ;
+        const int dealt = organ
+                              ? std::max(1, static_cast<int>(std::lround(
+                                                static_cast<float>(damage) * (1.0f + weakPointBonus))))
+                              : damage;
+
+        part.health -= dealt;
+        part.flash = config::BossFlashDuration;
+
+        result.hit = true;
+        result.at = part.world;
+        result.partIndex = i;
+        result.wasOrgan = organ;
+
+        if (part.health <= 0)
+        {
+            part.alive = false;
+            result.destroyedPart = true;
+            refreshVitals();
+
+            if (organ && m_vitals.organs == 0)
+            {
+                m_dead = true;
+                result.killedBoss = true;
+            }
+        }
+        return result;
+    }
+
+    // Hide and plating shrug shots off. The spark still shows, so the player
+    // learns where the soft parts are instead of wondering if they are hitting.
+    if (touches(position, radius))
+    {
+        result.hit = true;
+        result.blocked = true;
+        result.at = position;
+    }
+    return result;
+}
+
+void Boss::splashNeighbours(std::size_t partIndex, int damage)
+{
+    if (partIndex >= m_parts.size())
+        return;
+
+    const sf::Vector2f source = m_parts[partIndex].world;
+
+    for (std::size_t i = 0; i < m_parts.size(); ++i)
+    {
+        if (i == partIndex)
+            continue;
+
+        Part& part = m_parts[i];
+        if (!part.alive)
+            continue;
+
+        if ((part.world - source).lengthSquared() > config::BossChainRadius * config::BossChainRadius)
+            continue;
+
+        part.health -= damage;
+        part.flash = config::BossFlashDuration;
+
+        if (part.health <= 0)
+        {
+            part.alive = false;
+            refreshVitals();
+
+            if (part.def.role == PartRole::Organ && m_vitals.organs == 0)
+                m_dead = true;
+        }
+    }
+}
+
+bool Boss::touches(sf::Vector2f position, float radius) const
+{
+    for (const Segment& segment : m_segments)
+    {
+        const float reach = radius + m_def->headRadius * segment.scale;
+        if ((segment.position - position).lengthSquared() <= reach * reach)
+            return true;
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+//  Queries
+// ---------------------------------------------------------------------------
+
+std::vector<BossShot> Boss::takeShots()
+{
+    std::vector<BossShot> out;
+    out.swap(m_pending);
+    return out;
+}
+
+sf::Vector2f Boss::getPosition() const
+{
+    return m_segments.empty() ? m_playerPosition : m_segments[0].position;
+}
+
+float Boss::getRadius() const
+{
+    return m_def->headRadius;
+}
+
+int Boss::getSalvage() const
+{
+    return m_salvage;
+}
+
+bool Boss::isAlive() const
+{
+    return !m_dead;
+}
+
+bool Boss::isVulnerable() const
+{
+    return m_visibility > 0.55f;
+}
+
+float Boss::getCoreFraction() const
+{
+    if (m_startingOrganHealth <= 0)
+        return m_dead ? 0.0f : 1.0f;
+
+    int left = 0;
+    for (const Part& part : m_parts)
+    {
+        if (part.def.role == PartRole::Organ && part.alive)
+            left += std::max(0, part.health);
+    }
+    return static_cast<float>(left) / static_cast<float>(m_startingOrganHealth);
+}
+
+const char* Boss::getName() const { return m_def->name; }
+const char* Boss::getBrief() const { return m_def->brief; }
+
+std::string Boss::getStateLabel() const
+{
+    if (!isVulnerable())
+        return "BURIED";
+
+    // Whatever is currently stopping the player from hurting it comes first.
+    for (const Part& part : m_parts)
+    {
+        if (part.def.role == PartRole::Organ && part.alive && !organExposed(part))
+            return m_def->body == BossBody::Bell ? "BELL CLENCHED" : "PLATING HOLDS";
+    }
+
+    switch (m_def->mind)
+    {
+        case BossMind::Prowler:
+            switch (m_phase)
+            {
+                case Phase::Wind:    return "IT IS COMING";
+                case Phase::Strike:  return "CHARGING";
+                case Phase::Recover: return "WINDED";
+                case Phase::Flee:    return "IT IS RUNNING";
+                default:             return m_enraged ? "ENRAGED" : "CIRCLING";
+            }
+        case BossMind::Drifter: return "NUCLEUS EXPOSED";
+        case BossMind::Burrower: return "SURFACED";
+    }
+    return "";
+}
+
+bool Boss::isPartAlive(std::size_t index) const
+{
+    return index < m_parts.size() && m_parts[index].alive;
+}
+
+float Boss::getPartFraction(std::size_t index) const
+{
+    if (index >= m_parts.size())
+        return 0.0f;
+
+    const Part& part = m_parts[index];
+    return static_cast<float>(std::max(0, part.health)) / static_cast<float>(std::max(1, part.maxHealth));
+}
+
+PartRole Boss::getPartRole(std::size_t index) const
+{
+    return index < m_parts.size() ? m_parts[index].def.role : PartRole::Armour;
+}
+
+sf::Vector2f Boss::getPartPosition(std::size_t index) const
+{
+    return index < m_parts.size() ? m_parts[index].world : getPosition();
+}
+
+// ---------------------------------------------------------------------------
+//  Drawing
+// ---------------------------------------------------------------------------
+
+void Boss::draw(sf::RenderTarget& target) const
+{
+    if (m_visibility <= 0.02f)
+        return;
+
+    // Arms hang behind the body, the body hides the tail, and the organs sit on
+    // top so the thing the player is aiming at is never buried.
+    for (const Part& part : m_parts)
+    {
+        if (part.alive && part.def.role == PartRole::Tentacle)
+            target.draw(part.sprite);
+    }
+
+    for (std::size_t i = m_segments.size(); i-- > 0;)
+        target.draw(m_segments[i].sprite);
+
+    for (const Part& part : m_parts)
+    {
+        if (part.alive && part.def.role != PartRole::Tentacle && part.def.role != PartRole::Organ)
+            target.draw(part.sprite);
+    }
+
+    for (const Part& part : m_parts)
+    {
+        if (part.alive && part.def.role == PartRole::Organ && organExposed(part))
+            target.draw(part.sprite);
+    }
+}
