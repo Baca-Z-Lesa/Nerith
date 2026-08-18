@@ -27,8 +27,13 @@ namespace config
     inline constexpr sf::Color BackgroundColor{ 2, 5, 9 };
 
     // --- Arena ---
-    inline constexpr float ArenaRadius = 235.0f;
-    inline constexpr float ArenaLightRadius = 300.0f;
+    // The basin is far wider than the window, so the camera follows the sub and
+    // a boss no longer fills the whole playable space.
+    inline constexpr float ArenaRadius = 520.0f;
+    inline constexpr float WorldExtent = 1500.0f;   // half-size the seabed covers
+    inline constexpr float CameraClamp = 300.0f;    // how far the camera may leave the middle
+    inline constexpr float CameraLerp = 5.0f;       // how quickly it catches up
+    inline constexpr float ArenaLightRadius = 340.0f;
     inline constexpr sf::Color ArenaLightColor{ 32, 78, 90 };
     inline constexpr std::size_t ArenaCausticBands = 7;
     inline constexpr float ArenaCausticAngle = 24.0f;
@@ -42,11 +47,11 @@ namespace config
     // --- Seabed ---
     inline constexpr sf::Color SandNearColor{ 15, 30, 38 };
     inline constexpr sf::Color SandFarColor{ 9, 19, 26 };
-    inline constexpr std::size_t SandGrainCount = 900;
-    inline constexpr std::size_t ScatterPropCount = 210;
-    inline constexpr std::size_t ReefPropCount = 96;
+    inline constexpr std::size_t SandGrainCount = 2600;
+    inline constexpr std::size_t ScatterPropCount = 520;
+    inline constexpr std::size_t ReefPropCount = 180;
     inline constexpr float ReefOffset = 22.0f;
-    inline constexpr float PropFieldRadius = 780.0f;
+    inline constexpr float PropFieldRadius = 1400.0f;
 
     inline constexpr std::size_t MaxCritters = 4;
     inline constexpr float CritterSpawnIntervalMin = 3.5f;
@@ -167,7 +172,7 @@ namespace config
 
     // Once it has swum in, a boss is held this close to the middle so it can
     // never orbit a wall-hugging player straight off the bottom of the view.
-    inline constexpr float BossRoamRadius = 210.0f;
+    inline constexpr float BossRoamRadius = 430.0f;
 
     inline constexpr float BossStalkTime = 3.4f;
     inline constexpr float BossWindTime = 0.85f;
@@ -189,7 +194,7 @@ namespace config
     // =====================================================================
     inline constexpr float SpawnMarginX = 80.0f;
     inline constexpr float SpawnMarginY = 80.0f;
-    inline constexpr float MinSpawnDistanceFromPlayer = 320.0f;
+    inline constexpr float MinSpawnDistanceFromPlayer = 380.0f;
     inline constexpr float MinSpawnAngleSeparation = 45.0f;
     inline constexpr int   SpawnPlacementAttempts = 14;
 

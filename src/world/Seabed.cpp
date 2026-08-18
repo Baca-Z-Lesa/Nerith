@@ -15,10 +15,10 @@ namespace
 {
     // The sand is drawn well past the view so nothing ever shows an edge, even
     // when the window is letterboxed into an odd aspect ratio.
-    constexpr float WorldLeft = -240.0f;
-    constexpr float WorldTop = -240.0f;
-    constexpr float WorldRight = 1520.0f;
-    constexpr float WorldBottom = 960.0f;
+    const float WorldLeft = config::WindowWidth / 2.0f - config::WorldExtent;
+    const float WorldTop = config::WindowHeight / 2.0f - config::WorldExtent;
+    const float WorldRight = config::WindowWidth / 2.0f + config::WorldExtent;
+    const float WorldBottom = config::WindowHeight / 2.0f + config::WorldExtent;
 
     sf::Color randomTint(sf::Color base, float spread)
     {
@@ -201,7 +201,7 @@ void Seabed::spawnCritter()
     // In from one side, out through the other, always crossing the view.
     const bool fromLeft = rng::range(0.0f, 1.0f) < 0.5f;
     critter.position = { fromLeft ? WorldLeft + 40.0f : WorldRight - 40.0f,
-                         rng::range(-80.0f, 800.0f) };
+                         rng::range(WorldTop + 100.0f, WorldBottom - 100.0f) };
 
     const float speed = rng::range(38.0f, 78.0f);
     critter.velocity = { fromLeft ? speed : -speed, rng::range(-14.0f, 14.0f) };

@@ -60,10 +60,11 @@ void Arena::buildLightPool()
         const sf::Angle a0 = segmentAngle(i);
         const sf::Angle a1 = segmentAngle(i + 1);
 
+        // Built around the origin so drawLight can carry it to the sub.
         appendRingQuad(m_lightPool,
-                       m_center, m_center,
-                       m_center + sf::Vector2f(config::ArenaLightRadius, a0),
-                       m_center + sf::Vector2f(config::ArenaLightRadius, a1),
+                       { 0.0f, 0.0f }, { 0.0f, 0.0f },
+                       sf::Vector2f(config::ArenaLightRadius, a0),
+                       sf::Vector2f(config::ArenaLightRadius, a1),
                        core, edge);
     }
 }
@@ -111,7 +112,7 @@ void Arena::updateCaustics()
     const sf::Vector2f along(std::cos(bandAngle.asRadians()), std::sin(bandAngle.asRadians()));
     const sf::Vector2f across(-along.y, along.x);
 
-    const float length = config::GloomOuterX;
+    const float length = m_radius * 2.2f;
 
     for (std::size_t i = 0; i < config::ArenaCausticBands; ++i)
     {
@@ -119,7 +120,7 @@ void Arena::updateCaustics()
         // into an obvious repeating pattern.
         const float phase = static_cast<float>(i) * 1.37f;
         const float drift = std::sin(m_time * (0.10f + 0.024f * static_cast<float>(i)) + phase);
-        const float offset = drift * config::GloomInnerY * 1.1f;
+        const float offset = drift * m_radius * 0.95f;
         const float width = m_radius * (0.06f + 0.026f * std::sin(m_time * 0.35f + phase));
 
         const float pulse = 0.45f + 0.55f * std::sin(m_time * 0.5f + phase * 2.1f);
@@ -145,12 +146,16 @@ void Arena::update(float deltaTime)
     updateCaustics();
 }
 
-void Arena::drawLight(sf::RenderTarget& target) const
+void Arena::drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre) const
 {
     sf::RenderStates states;
     states.blendMode = sf::BlendAdd; // light adds to the sand, it does not paint over it
 
-    target.draw(m_lightPool, states);
+    // The pool is the sub's own lamp, so it travels with the player rather
+    // than sitting on the middle of a basin far larger than the screen.
+    sf::RenderStates lamp = states;
+    lamp.transform.translate(lampCentre);
+    target.draw(m_lightPool, lamp);
     target.draw(m_caustics, states);
 }
 

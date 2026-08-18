@@ -20,7 +20,7 @@ namespace
     // Where a ray from the middle of the screen leaves a rectangle a little
     // larger than the window. Every point on it is off screen in every
     // direction, which an ellipse would not guarantee near the diagonals.
-    sf::Vector2f offScreenPoint(float angleDegrees)
+    sf::Vector2f offScreenPoint(sf::Vector2f viewCentre, float angleDegrees)
     {
         const float radians = sf::degrees(angleDegrees).asRadians();
         const float cosine = std::cos(radians);
@@ -32,7 +32,9 @@ namespace
         const float toSide = halfWidth / std::max(std::abs(cosine), 0.0001f);
         const float toTop = halfHeight / std::max(std::abs(sine), 0.0001f);
 
-        return WorldCentre + sf::Vector2f{ cosine, sine } * std::min(toSide, toTop);
+        // Measured from where the camera is looking, not from the middle of the
+        // basin, because the basin is now far wider than the window.
+        return viewCentre + sf::Vector2f{ cosine, sine } * std::min(toSide, toTop);
     }
 
     float angleGap(float a, float b)
@@ -56,7 +58,8 @@ namespace
 }
 
 Game::Game()
-    : m_fullscreen(false)
+    : m_cameraCentre(WorldCentre)
+    , m_fullscreen(false)
     , m_arena(WorldCentre, config::ArenaRadius)
     , m_seabed(m_assets, WorldCentre, config::ArenaRadius)
     , m_player(m_assets, m_playerStats)
@@ -98,7 +101,7 @@ Game::Game()
 
     // Seed the water so the arena is not empty on the first frame.
     for (int i = 0; i < 260; ++i)
-        effects::marineSnow(m_ambience, m_arena.randomPointInside());
+        effects::marineSnow(m_ambience, randomVisiblePoint());
 
     m_audio.startAmbient();
 }
@@ -157,9 +160,41 @@ void Game::applyLetterboxView()
         offset.y = (1.0f - size.y) / 2.0f;
     }
 
-    sf::View view(sf::FloatRect({ 0.0f, 0.0f }, target));
-    view.setViewport(sf::FloatRect(offset, size));
-    m_window.setView(view);
+    const sf::FloatRect viewport(offset, size);
+
+    // Two views share the letterbox: one that travels with the sub and one
+    // pinned to the screen for the HUD, the vignette and every menu.
+    m_ui = sf::View(sf::FloatRect({ 0.0f, 0.0f }, target));
+    m_ui.setViewport(viewport);
+
+    m_camera.setSize(target);
+    m_camera.setCenter(m_cameraCentre);
+    m_camera.setViewport(viewport);
+
+    m_window.setView(m_camera);
+}
+
+void Game::updateCamera(float deltaTime)
+{
+    // Follow the sub, but never let the camera wander so far that the reef
+    // leaves the frame entirely.
+    sf::Vector2f target = m_player.getPosition();
+    const sf::Vector2f offset = target - WorldCentre;
+
+    if (offset.length() > config::CameraClamp)
+        target = WorldCentre + offset.normalized() * config::CameraClamp;
+
+    const float blend = std::min(1.0f, config::CameraLerp * deltaTime);
+    m_cameraCentre += (target - m_cameraCentre) * blend;
+    m_camera.setCenter(m_cameraCentre);
+}
+
+sf::Vector2f Game::randomVisiblePoint() const
+{
+    // Ambience is seeded around what the player can actually see; scattering it
+    // across the whole basin would leave the screen empty.
+    return m_cameraCentre + sf::Vector2f{ rng::range(-760.0f, 760.0f),
+                                          rng::range(-470.0f, 470.0f) };
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +428,8 @@ void Game::processEvents()
 
 sf::Vector2f Game::getMouseWorldPosition() const
 {
-    return m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window));
+    // Through the camera, so aiming survives the letterbox and the scrolling world.
+    return m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_camera);
 }
 
 // ---------------------------------------------------------------------------
@@ -661,14 +697,14 @@ void Game::spawnAmbience(float deltaTime)
     if (m_snowTimer <= 0.0f)
     {
         m_snowTimer = config::AmbientSnowInterval;
-        effects::marineSnow(m_ambience, m_arena.randomPointInside());
+        effects::marineSnow(m_ambience, randomVisiblePoint());
     }
 
     m_bubbleTimer -= deltaTime;
     if (m_bubbleTimer <= 0.0f)
     {
         m_bubbleTimer = config::AmbientBubbleInterval;
-        effects::ambientBubble(m_ambience, m_arena.randomPointInside());
+        effects::ambientBubble(m_ambience, randomVisiblePoint());
     }
 }
 
@@ -678,14 +714,14 @@ void Game::spawnAmbience(float deltaTime)
 
 sf::Vector2f Game::pickSpawnPosition()
 {
-    sf::Vector2f best = offScreenPoint(m_lastSpawnAngle + 180.0f);
+    sf::Vector2f best = offScreenPoint(m_cameraCentre, m_lastSpawnAngle + 180.0f);
     float bestAngle = m_lastSpawnAngle + 180.0f;
     float bestDistance = -1.0f;
 
     for (int attempt = 0; attempt < config::SpawnPlacementAttempts; ++attempt)
     {
         const float angle = rng::range(0.0f, 360.0f);
-        const sf::Vector2f candidate = offScreenPoint(angle);
+        const sf::Vector2f candidate = offScreenPoint(m_cameraCentre, angle);
         const float distance = (candidate - m_player.getPosition()).length();
 
         if (distance > bestDistance)
@@ -718,7 +754,7 @@ void Game::spawnEnemy(EnemyType type)
 
 void Game::updateProjectiles(float deltaTime)
 {
-    const float bound = config::GloomOuterX + 200.0f;
+    const float bound = config::ArenaRadius + 420.0f;
 
     const auto step = [deltaTime, bound](std::vector<Projectile>& shots) {
         for (Projectile& shot : shots)
@@ -736,7 +772,7 @@ void Game::updateProjectiles(float deltaTime)
 
 void Game::updateTorpedoes(float deltaTime)
 {
-    const float bound = config::GloomOuterX + 200.0f;
+    const float bound = config::ArenaRadius + 420.0f;
     const bool homing = m_playerStats.has(Trait::HomingTorpedoes);
 
     for (Projectile& torpedo : m_torpedoes)
@@ -1060,6 +1096,7 @@ void Game::update(float deltaTime)
     // The world keeps breathing in every state. Only the fight pauses.
     m_arena.update(deltaTime);
     m_seabed.update(deltaTime);
+    updateCamera(deltaTime);
     spawnAmbience(deltaTime);
 
     if (upgradesVisible())
@@ -1126,9 +1163,11 @@ void Game::render()
 {
     m_window.clear(config::BackgroundColor);
 
+    // Everything that lives in the basin is drawn through the camera.
+    m_window.setView(m_camera);
+
     m_seabed.draw(m_window);
-    m_arena.drawLight(m_window);
-    m_arena.drawGloom(m_window);
+    m_arena.drawLight(m_window, m_player.getPosition());
 
     m_ambience.draw(m_window);
 
@@ -1186,6 +1225,11 @@ void Game::render()
             m_window.draw(m_sonarMark);
         }
     }
+
+    // Everything from here is pinned to the screen: the darkness closing in is
+    // a vignette around the viewer, not a ring painted on the seabed.
+    m_window.setView(m_ui);
+    m_arena.drawGloom(m_window);
 
     if (m_state == State::GameOver)
         m_window.draw(m_deathOverlay);

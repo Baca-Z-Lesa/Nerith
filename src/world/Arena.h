@@ -15,7 +15,7 @@ public:
     void update(float deltaTime);
 
     // Additive light over the seabed. Drawn before the entities.
-    void drawLight(sf::RenderTarget& target) const;
+    void drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre) const;
     // Darkness swallowing the distance. Drawn after the seabed, before entities.
     void drawGloom(sf::RenderTarget& target) const;
 

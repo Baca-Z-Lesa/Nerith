@@ -19,6 +19,7 @@
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/View.hpp>
 #include <SFML/System/Clock.hpp>
 
 #include <optional>
@@ -67,6 +68,8 @@ private:
     void createWindow(bool fullscreen);
     void toggleFullscreen();
     void applyLetterboxView();
+    void updateCamera(float deltaTime);
+    sf::Vector2f randomVisiblePoint() const;
 
     // --- campaign flow ---
     void beginLevel(int number);
@@ -109,6 +112,9 @@ private:
     sf::Vector2f getMouseWorldPosition() const;
 
     sf::RenderWindow m_window;
+    sf::View         m_camera; // follows the sub through a basin larger than the screen
+    sf::View         m_ui;     // fixed 1280x720 for the HUD and the vignette
+    sf::Vector2f     m_cameraCentre;
     sf::Clock        m_clock;
     bool             m_fullscreen;
 
