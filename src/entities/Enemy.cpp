@@ -27,6 +27,9 @@ Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
     , m_burstTimer(rng::range(0.0f, 0.4f))
     , m_bursting(true)
     , m_spin(rng::range(0.0f, 360.0f))
+    , m_lanceHeading(1.0f, 0.0f)
+    , m_broodTimer(rng::range(1.0f, std::max(1.2f, config::enemyStats(type).broodInterval)))
+    , m_playerDistance(0.0f)
     , m_inFiringRange(false)
     , m_hasEntered(false)
 {
@@ -103,6 +106,41 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
             break;
         }
 
+        case EnemyBehaviour::Orbit:
+        {
+            // Never closes. It rides a ring around you and corrects its radius
+            // gently, so the only way to be safe is to keep moving yourself.
+            const sf::Vector2f tangent(-direction.y, direction.x);
+            const float gap = distance - m_stats->preferredDistance;
+
+            m_position += tangent * m_strafeDirection * speed * deltaTime;
+            m_position += direction * std::clamp(gap / 70.0f, -1.0f, 1.0f) * speed
+                          * config::OrbitCloseFactor * deltaTime;
+            break;
+        }
+
+        case EnemyBehaviour::Lance:
+        {
+            // Winds up in place, locks a heading, then commits to it. Once it
+            // is moving it cannot correct, which is the whole counterplay.
+            m_burstTimer -= deltaTime;
+            if (m_burstTimer <= 0.0f)
+            {
+                m_bursting = !m_bursting;
+                m_burstTimer = m_bursting ? m_stats->burstOn : m_stats->burstOff;
+
+                if (m_bursting)
+                    m_lanceHeading = direction;
+            }
+
+            if (m_bursting)
+                m_position += m_lanceHeading * speed * deltaTime;
+            else
+                m_position += direction * speed * config::LanceCreepFactor * deltaTime;
+            break;
+        }
+
+        case EnemyBehaviour::Brood:
         case EnemyBehaviour::Drift:
             // Creeps forward and does not care where you are. It is a hazard
             // you have to remove, not one you can walk away from.
@@ -140,6 +178,10 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
     }
 
     m_sprite.setPosition(m_position);
+    m_playerDistance = distance;
+
+    if (m_broodTimer > 0.0f)
+        m_broodTimer -= deltaTime;
 
     if (m_hitFlashTimer > 0.0f)
         m_hitFlashTimer = std::max(m_hitFlashTimer - deltaTime, 0.0f);
@@ -161,6 +203,21 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
     }
 
     applyHitFlash();
+}
+
+std::vector<EnemyType> Enemy::takeBrood()
+{
+    if (m_stats->broodCount <= 0 || !m_hasEntered || m_broodTimer > 0.0f)
+        return {};
+
+    m_broodTimer = m_stats->broodInterval;
+    return std::vector<EnemyType>(static_cast<std::size_t>(m_stats->broodCount),
+                                  m_stats->broodType);
+}
+
+int Enemy::getDeathShots() const
+{
+    return m_stats->deathShots;
 }
 
 std::vector<sf::Vector2f> Enemy::takeShots()
@@ -230,7 +287,15 @@ void Enemy::applyHitFlash()
     const float scale = m_stats->scale * (1.0f + config::EnemyHitFlashPunch * strength);
 
     m_sprite.setScale({ scale, scale });
-    m_sprite.setColor(strength > 0.0f ? config::EnemyHitFlashTint : sf::Color::White);
+
+    sf::Color tint = strength > 0.0f ? config::EnemyHitFlashTint : sf::Color::White;
+
+    // A stealth creature is only a shape in the dark until it is inside the
+    // lamp. Being hit gives it away, which is the one tell the player gets.
+    if (m_stats->stealth && strength <= 0.0f && m_playerDistance > config::StealthRevealRange)
+        tint.a = config::StealthAlpha;
+
+    m_sprite.setColor(tint);
 }
 
 void Enemy::applyBleed(float damagePerSecond, float seconds)

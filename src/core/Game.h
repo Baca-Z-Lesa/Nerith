@@ -102,6 +102,7 @@ private:
     void handleCollisions();
     void hurtPlayer(int amount);
     void killEnemy(Enemy& enemy);
+    void flushPendingShots();
     void removeDeadEntities();
 
     // Shared by the pressure burst, reactive plating, mines and clusters.
@@ -145,6 +146,12 @@ private:
     std::vector<Projectile> m_playerShots;
     std::vector<Projectile> m_torpedoes;
     std::vector<Projectile> m_enemyShots;
+
+    // Anything spawned while a shot list is being walked goes here first and is
+    // appended at the end of the frame. Pushing straight into the live vector
+    // reallocates it and leaves the loop holding a dangling reference.
+    std::vector<Projectile> m_pendingPlayerShots;
+    std::vector<Projectile> m_pendingEnemyShots;
     std::vector<Enemy>      m_enemies;
     std::vector<Drone>      m_drones;
     std::vector<Mine>       m_mines;

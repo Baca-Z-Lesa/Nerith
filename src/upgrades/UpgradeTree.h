@@ -63,6 +63,12 @@ private:
     void build();
     std::size_t indexOf(const std::string& id) const;
 
+public:
+    // The screen needs to look a node up by id when it draws the detail card.
+    std::size_t indexOfNode(const std::string& id) const { return indexOf(id); }
+
+private:
+
     std::vector<UpgradeNode> m_nodes;
     // char rather than bool: std::vector<bool> is a bitfield and hands out
     // proxies instead of references, which is a trap waiting to happen.

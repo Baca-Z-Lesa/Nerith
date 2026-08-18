@@ -2,6 +2,7 @@
 
 #include "upgrades/UpgradeTree.h"
 
+#include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
@@ -41,6 +42,8 @@ public:
 private:
     sf::Vector2f centreOf(const UpgradeNode& node) const;
     sf::FloatRect boundsOf(const UpgradeNode& node) const;
+    void drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
+                      const UpgradeNode& node, int salvage, int depth);
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
     void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth);
@@ -57,6 +60,7 @@ private:
 
     sf::RectangleShape m_backdrop;
     sf::RectangleShape m_box;
+    sf::CircleShape    m_node;
     sf::VertexArray    m_lines;
     sf::VertexArray    m_text;
 };

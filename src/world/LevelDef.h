@@ -55,25 +55,26 @@ const char* depthName(int depth);
 // =====================================================================
 inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // ---------------- DEPTH 1: THE SHALLOWS ----------------
-    // Deliberately weaker than baseline. This level exists to teach WASD and
-    // the mouse, and nothing else.
-    { "FIRST CONTACT", "SIX OF THEM. NOTHING ELSE.",
-      ObjectiveKind::ClearRoster, 0, 1.70f, 3, { 0.80f, 0.85f, 0 },
-      { { { EnemyType::Lurker, 6 } } }, false },
+    // Still the teaching level, but no longer a formality: the sub is fragile
+    // now and even lurkers will drown you if you stand still.
+    { "FIRST CONTACT", "TEN OF THEM. NOTHING ELSE.",
+      ObjectiveKind::ClearRoster, 0, 1.30f, 5, { 0.90f, 0.95f, 0 },
+      { { { EnemyType::Lurker, 10 } } }, false },
 
     { "THEY COME FASTER", "SOMETHING QUICK MOVES IN THE DARK.",
-      ObjectiveKind::ClearRoster, 0, 1.40f, 4, { 0.90f, 0.90f, 0 },
-      { { { EnemyType::Lurker, 4 }, { EnemyType::Darter, 3 }, { EnemyType::Lurker, 4 } } }, false },
+      ObjectiveKind::ClearRoster, 0, 1.05f, 6, { 0.95f, 1.00f, 0 },
+      { { { EnemyType::Lurker, 6 }, { EnemyType::Darter, 5 },
+          { EnemyType::Lurker, 5 }, { EnemyType::Darter, 4 } } }, false },
 
-    { "OPEN WATER", "THEY HAVE LEARNED TO SHOOT BACK.",
-      ObjectiveKind::ClearRoster, 0, 1.25f, 5, { 1.00f, 1.00f, 0 },
-      { { { EnemyType::Lurker, 4 }, { EnemyType::Spitter, 2 },
-          { EnemyType::Darter, 3 }, { EnemyType::Spitter, 2 } } }, false },
+    { "THE NURSERY", "KILL THE SACS. THE REST NEVER STOPS.",
+      ObjectiveKind::ClearRoster, 0, 1.20f, 8, { 1.00f, 1.00f, 0 },
+      { { { EnemyType::Lurker, 5 }, { EnemyType::Brooder, 2 },
+          { EnemyType::Darter, 4 }, { EnemyType::Brooder, 1 } } }, false },
 
     { "THE PACK", "ALL OF IT AT ONCE.",
-      ObjectiveKind::ClearRoster, 0, 1.05f, 6, { 1.05f, 1.02f, 0 },
-      { { { EnemyType::Darter, 4 }, { EnemyType::Lurker, 5 },
-          { EnemyType::Spitter, 3 }, { EnemyType::Darter, 4 } } }, false },
+      ObjectiveKind::ClearRoster, 0, 0.90f, 9, { 1.05f, 1.05f, 0 },
+      { { { EnemyType::Darter, 7 }, { EnemyType::Lurker, 8 },
+          { EnemyType::Brooder, 2 }, { EnemyType::Darter, 6 } } }, false },
 
     { "THE LEVIATHAN", "IT HAS BEEN CIRCLING SINCE YOU ARRIVED.",
       ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.00f, 1.00f, 0 },
@@ -81,71 +82,81 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
 
     // ---------------- DEPTH 2: THE SHELF ----------------
     { "THE SHELF", "SOMETHING SLOW AND ARMOURED DOWN HERE.",
-      ObjectiveKind::ClearRoster, 0, 1.20f, 6, { 1.00f, 1.00f, 0 },
-      { { { EnemyType::Lurker, 4 }, { EnemyType::Hulk, 2 }, { EnemyType::Lurker, 4 } } }, false },
+      ObjectiveKind::ClearRoster, 0, 1.05f, 9, { 1.10f, 1.05f, 0 },
+      { { { EnemyType::Lurker, 6 }, { EnemyType::Hulk, 3 },
+          { EnemyType::Darter, 5 }, { EnemyType::Hulk, 2 } } }, false },
 
     { "CROSSFIRE", "THE HEAVY ONES HERD YOU INTO THE GUNS.",
-      ObjectiveKind::ClearRoster, 0, 1.10f, 7, { 1.05f, 1.03f, 0 },
-      { { { EnemyType::Hulk, 2 }, { EnemyType::Spitter, 4 }, { EnemyType::Darter, 4 } } }, false },
+      ObjectiveKind::ClearRoster, 0, 0.95f, 9, { 1.12f, 1.06f, 0 },
+      { { { EnemyType::Hulk, 3 }, { EnemyType::Spitter, 6 },
+          { EnemyType::Darter, 6 }, { EnemyType::Spitter, 4 } } }, false },
 
-    { "BLOOM", "IT DOES NOT CHASE. IT FILLS THE WATER.",
-      ObjectiveKind::ClearRoster, 0, 1.20f, 6, { 1.05f, 1.03f, 0 },
-      { { { EnemyType::Bloom, 2 }, { EnemyType::Lurker, 5 }, { EnemyType::Bloom, 2 } } }, false },
+    { "THE CHARGE", "THEY AIM BEFORE THEY MOVE. WATCH FOR IT.",
+      ObjectiveKind::ClearRoster, 0, 0.90f, 10, { 1.15f, 1.08f, 0 },
+      { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 7 },
+          { EnemyType::Lancer, 5 }, { EnemyType::Spitter, 4 } } }, false },
 
     { "HOLD", "SURVIVE. THEY DO NOT STOP COMING.",
-      ObjectiveKind::SurviveTime, 50, 1.00f, 8, { 1.10f, 1.05f, 0 },
-      { { { EnemyType::Lurker, 3 }, { EnemyType::Darter, 3 },
-          { EnemyType::Spitter, 2 }, { EnemyType::Hulk, 1 } } }, false },
+      ObjectiveKind::SurviveTime, 65, 0.80f, 11, { 1.20f, 1.10f, 0 },
+      { { { EnemyType::Darter, 4 }, { EnemyType::Lancer, 3 },
+          { EnemyType::Hulk, 2 }, { EnemyType::Brooder, 1 },
+          { EnemyType::Spitter, 3 } } }, false },
 
     { "THE BLOOM SOVEREIGN", "IT DOES NOT HUNT. IT SIMPLY FILLS THE WATER.",
-      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.35f, 1.05f, 0 },
+      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.45f, 1.10f, 0 },
       { {} }, true },
 
     // ---------------- DEPTH 3: THE TRENCH ----------------
-    { "THE TRENCH", "DEEPER. EVERYTHING BITES HARDER.",
-      ObjectiveKind::KillCount, 24, 0.95f, 9, { 1.15f, 1.08f, 0 },
-      { { { EnemyType::Darter, 4 }, { EnemyType::Spitter, 3 },
-          { EnemyType::Lurker, 4 }, { EnemyType::Bloom, 1 } } }, false },
+    { "THE TRENCH", "THEY CIRCLE. THEY DO NOT CLOSE.",
+      ObjectiveKind::ClearRoster, 0, 0.85f, 10, { 1.30f, 1.12f, 0 },
+      { { { EnemyType::Weaver, 5 }, { EnemyType::Darter, 7 },
+          { EnemyType::Weaver, 4 }, { EnemyType::Lurker, 6 } } }, false },
 
-    { "GRINDER", "TWO WALLS OF ARMOUR AND NOWHERE TO STAND.",
-      ObjectiveKind::ClearRoster, 0, 0.95f, 9, { 1.20f, 1.08f, 0 },
-      { { { EnemyType::Hulk, 4 }, { EnemyType::Spitter, 4 }, { EnemyType::Darter, 6 } } }, false },
+    { "DEAD WEIGHT", "DO NOT BE STANDING NEXT TO THEM.",
+      ObjectiveKind::ClearRoster, 0, 0.85f, 10, { 1.35f, 1.14f, 0 },
+      { { { EnemyType::Husk, 6 }, { EnemyType::Hulk, 3 },
+          { EnemyType::Husk, 5 }, { EnemyType::Spitter, 4 } } }, false },
 
-    { "GARDEN", "THE BLOOMS HAVE TAKEN THE FLOOR.",
-      ObjectiveKind::ClearRoster, 0, 1.00f, 9, { 1.20f, 1.10f, 0 },
-      { { { EnemyType::Bloom, 4 }, { EnemyType::Darter, 6 }, { EnemyType::Lurker, 6 } } }, false },
+    { "GARDEN", "THE FLOOR IS THEIRS NOW.",
+      ObjectiveKind::ClearRoster, 0, 0.90f, 11, { 1.40f, 1.15f, 1 },
+      { { { EnemyType::Bloom, 4 }, { EnemyType::Weaver, 4 },
+          { EnemyType::Brooder, 3 }, { EnemyType::Bloom, 3 } } }, false },
 
-    { "NO QUARTER", "EVERYTHING THE TRENCH HAS LEFT.",
-      ObjectiveKind::SurviveTime, 65, 0.85f, 10, { 1.25f, 1.12f, 1 },
-      { { { EnemyType::Darter, 4 }, { EnemyType::Hulk, 2 },
-          { EnemyType::Spitter, 3 }, { EnemyType::Bloom, 2 } } }, false },
+    { "NO QUARTER", "FORTY OF THEM. GO.",
+      ObjectiveKind::KillCount, 40, 0.75f, 12, { 1.45f, 1.18f, 1 },
+      { { { EnemyType::Darter, 5 }, { EnemyType::Husk, 4 },
+          { EnemyType::Lancer, 4 }, { EnemyType::Spitter, 4 },
+          { EnemyType::Weaver, 3 } } }, false },
 
     { "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
-      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.70f, 1.10f, 1 },
+      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.90f, 1.15f, 1 },
       { {} }, true },
 
     // ---------------- DEPTH 4: THE ABYSS ----------------
-    { "THE ABYSS", "THE LIGHT STOPS HERE.",
-      ObjectiveKind::KillCount, 30, 0.90f, 10, { 1.30f, 1.14f, 1 },
-      { { { EnemyType::Lurker, 5 }, { EnemyType::Hulk, 2 },
-          { EnemyType::Darter, 5 }, { EnemyType::Spitter, 3 } } }, false },
+    { "THE ABYSS", "YOU WILL NOT SEE THEM UNTIL THEY ARE HERE.",
+      ObjectiveKind::ClearRoster, 0, 0.90f, 11, { 1.55f, 1.20f, 1 },
+      { { { EnemyType::Angler, 5 }, { EnemyType::Lurker, 7 },
+          { EnemyType::Angler, 5 }, { EnemyType::Darter, 6 } } }, false },
 
     { "PRESSURE", "HOLD. NOTHING IS COMING TO HELP.",
-      ObjectiveKind::SurviveTime, 70, 0.80f, 11, { 1.35f, 1.16f, 1 },
-      { { { EnemyType::Darter, 5 }, { EnemyType::Spitter, 4 },
-          { EnemyType::Bloom, 2 }, { EnemyType::Hulk, 2 } } }, false },
+      ObjectiveKind::SurviveTime, 80, 0.70f, 12, { 1.60f, 1.22f, 1 },
+      { { { EnemyType::Angler, 3 }, { EnemyType::Husk, 3 },
+          { EnemyType::Weaver, 3 }, { EnemyType::Lancer, 3 },
+          { EnemyType::Hulk, 2 } } }, false },
 
     { "THE SHOAL", "THEY MOVE LIKE ONE ANIMAL.",
-      ObjectiveKind::ClearRoster, 0, 0.72f, 12, { 1.30f, 1.20f, 1 },
-      { { { EnemyType::Darter, 12 }, { EnemyType::Bloom, 3 }, { EnemyType::Darter, 10 } } }, false },
+      ObjectiveKind::ClearRoster, 0, 0.75f, 13, { 1.65f, 1.24f, 1 },
+      { { { EnemyType::Brooder, 4 }, { EnemyType::Darter, 10 },
+          { EnemyType::Brooder, 3 }, { EnemyType::Lancer, 5 } } }, false },
 
     { "EVERYTHING", "ALL OF IT. AT ONCE. IN THE DARK.",
-      ObjectiveKind::ClearRoster, 0, 0.80f, 12, { 1.40f, 1.20f, 1 },
-      { { { EnemyType::Hulk, 4 }, { EnemyType::Spitter, 5 }, { EnemyType::Bloom, 3 },
-          { EnemyType::Darter, 8 }, { EnemyType::Lurker, 6 } } }, false },
+      ObjectiveKind::KillCount, 55, 0.65f, 14, { 1.75f, 1.26f, 1 },
+      { { { EnemyType::Angler, 4 }, { EnemyType::Weaver, 4 },
+          { EnemyType::Husk, 4 }, { EnemyType::Lancer, 4 },
+          { EnemyType::Hulk, 3 }, { EnemyType::Brooder, 2 } } }, false },
 
     { "THE LEVIATHAN, GROWN", "IT REMEMBERS WHAT YOU DID TO IT.",
-      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 2.30f, 1.22f, 1 },
+      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 2.60f, 1.25f, 1 },
       { {} }, true },
 } };
 

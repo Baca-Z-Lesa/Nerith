@@ -11,6 +11,29 @@
 
 namespace
 {
+    // A closed node shows its initials, so "PRESSURE VALVE" reads as PV.
+    std::string initialsOf(const std::string& name)
+    {
+        std::string icon;
+        bool boundary = true;
+
+        for (const char c : name)
+        {
+            if (c == ' ')
+            {
+                boundary = true;
+                continue;
+            }
+
+            if (boundary && icon.size() < 3)
+                icon += c;
+
+            boundary = false;
+        }
+
+        return icon;
+    }
+
     void appendLine(sf::VertexArray& vertices, sf::Vector2f from, sf::Vector2f to,
                     float thickness, sf::Color color)
     {
@@ -41,6 +64,9 @@ UpgradeScreen::UpgradeScreen()
 
     m_box.setSize({ config::NodeWidth, config::NodeHeight });
     m_box.setOutlineThickness(2.0f);
+
+    m_node.setPointCount(28);
+    m_node.setOutlineThickness(2.5f);
 }
 
 sf::Vector2f UpgradeScreen::centreOf(const UpgradeNode& node) const
@@ -50,8 +76,9 @@ sf::Vector2f UpgradeScreen::centreOf(const UpgradeNode& node) const
 
 sf::FloatRect UpgradeScreen::boundsOf(const UpgradeNode& node) const
 {
+    // Nodes are discs now, so this is only their bounding square.
     const sf::Vector2f centre = centreOf(node);
-    const sf::Vector2f size{ config::NodeWidth, config::NodeHeight };
+    const sf::Vector2f size{ config::NodeRadius * 2.0f, config::NodeRadius * 2.0f };
     return sf::FloatRect(centre - size / 2.0f, size);
 }
 
@@ -119,7 +146,8 @@ void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tre
     const std::vector<UpgradeNode>& nodes = tree.getNodes();
     for (std::size_t i = 0; i < nodes.size(); ++i)
     {
-        if (boundsOf(nodes[i]).contains(worldPosition))
+        const sf::Vector2f delta = worldPosition - centreOf(nodes[i]);
+        if (delta.lengthSquared() <= config::NodeRadius * config::NodeRadius)
         {
             m_hovered = i;
             return;
@@ -218,7 +246,7 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
     for (std::size_t i = 0; i < nodes.size(); ++i)
     {
         const UpgradeNode& node = nodes[i];
-        const sf::FloatRect bounds = boundsOf(node);
+        const sf::Vector2f centre = centreOf(node);
 
         const bool unlocked = tree.isUnlocked(i);
         const bool ready = tree.arePrerequisitesMet(i);
@@ -244,40 +272,108 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
             label = affordable ? config::HudTextColor : config::HudDimTextColor;
         }
 
-        if (m_hovered && *m_hovered == i)
+        const bool hovered = m_hovered && *m_hovered == i;
+        if (hovered)
             edge = sf::Color::White;
 
-        m_box.setPosition(bounds.position);
-        m_box.setFillColor(fill);
-        m_box.setOutlineColor(edge);
-        target.draw(m_box);
+        // Fifty six boxes of text is a wall. Closed, a node is a disc with its
+        // initials on it; what it actually does is only spelled out for the one
+        // the cursor is on.
+        m_node.setPosition(centre);
+        m_node.setFillColor(fill);
+        m_node.setOutlineColor(edge);
+        m_node.setRadius(config::NodeRadius);
+        m_node.setOrigin({ config::NodeRadius, config::NodeRadius });
+        target.draw(m_node);
 
-        pixelfont::append(m_text, node.name, bounds.position + sf::Vector2f{ 6.0f, 7.0f },
-                          1.3f, label);
+        const std::string icon = initialsOf(node.name);
+        pixelfont::append(m_text, icon,
+                          { centre.x - pixelfont::measure(icon, 1.8f) / 2.0f, centre.y - 6.0f },
+                          1.8f, label);
 
-        std::string bottom;
-        sf::Color bottomColour = config::HudDimTextColor;
-
-        if (unlocked)
+        // A small ring under the disc carries the one thing worth knowing at a
+        // glance: whether it is owned, out of depth, or just costs something.
+        if (!unlocked)
         {
-            bottom = "OWNED";
-        }
-        else if (!deepEnough)
-        {
-            // Depth locks are the main reason the tree cannot be rushed, so
-            // they say exactly how far down the node lives.
-            bottom = "DEPTH " + std::to_string(node.requiredDepth);
-            bottomColour = config::NodePricyEdge;
-        }
-        else
-        {
-            bottom = std::to_string(node.cost);
-            bottomColour = affordable ? config::HudSalvageColor : config::HudDimTextColor;
-        }
+            const std::string tag = deepEnough ? std::to_string(node.cost)
+                                               : "D" + std::to_string(node.requiredDepth);
+            const sf::Color tagColour = !deepEnough ? config::NodePricyEdge
+                                        : affordable ? config::HudSalvageColor
+                                                     : config::HudDimTextColor;
 
-        pixelfont::append(m_text, bottom, bounds.position + sf::Vector2f{ 6.0f, 25.0f },
-                          1.3f, bottomColour);
+            pixelfont::append(m_text, tag,
+                              { centre.x - pixelfont::measure(tag, 1.3f) / 2.0f,
+                                centre.y + config::NodeRadius + 5.0f },
+                              1.3f, tagColour);
+        }
     }
+
+    target.draw(m_text);
+
+    if (m_hovered)
+        drawNodeCard(target, tree, nodes[*m_hovered], salvage, depth);
+}
+
+void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
+                                 const UpgradeNode& node, int salvage, int depth)
+{
+    const sf::Vector2f centre = centreOf(node);
+
+    // Opens beside the disc, flipped whenever it would run off the screen.
+    const float width = config::NodeCardWidth;
+    const float height = config::NodeCardHeight;
+
+    sf::Vector2f corner{ centre.x + config::NodeRadius + 12.0f, centre.y - height / 2.0f };
+    if (corner.x + width > static_cast<float>(config::WindowWidth) - 10.0f)
+        corner.x = centre.x - config::NodeRadius - 12.0f - width;
+
+    corner.y = std::clamp(corner.y, 96.0f, static_cast<float>(config::WindowHeight) - height - 120.0f);
+
+    m_box.setSize({ width, height });
+    m_box.setPosition(corner);
+    m_box.setFillColor(sf::Color(6, 16, 22, 250));
+    m_box.setOutlineColor(sf::Color::White);
+    target.draw(m_box);
+    m_box.setSize({ config::NodeWidth, config::NodeHeight });
+
+    m_text.clear();
+
+    pixelfont::append(m_text, node.name, corner + sf::Vector2f{ 12.0f, 12.0f }, 1.9f,
+                      config::HudTextColor);
+    pixelfont::append(m_text, node.description, corner + sf::Vector2f{ 12.0f, 36.0f }, 1.3f,
+                      config::HudDimTextColor);
+
+    const std::size_t index = tree.indexOfNode(node.id);
+    std::string status;
+    sf::Color statusColour = config::HudSalvageColor;
+
+    if (tree.isUnlocked(index))
+    {
+        status = "INSTALLED";
+        statusColour = config::HudDimTextColor;
+    }
+    else if (!tree.isDepthMet(index, depth))
+    {
+        status = "NEEDS DEPTH " + std::to_string(node.requiredDepth);
+        statusColour = config::NodePricyEdge;
+    }
+    else if (!tree.arePrerequisitesMet(index))
+    {
+        status = "LOCKED BEHIND THE ROOT BEFORE IT";
+        statusColour = config::NodeLockedEdge;
+    }
+    else if (!tree.canAfford(index, salvage))
+    {
+        status = "COSTS " + std::to_string(node.cost) + " SALVAGE";
+        statusColour = config::NodePricyEdge;
+    }
+    else
+    {
+        status = "CLICK TO INSTALL   -   " + std::to_string(node.cost) + " SALVAGE";
+    }
+
+    pixelfont::append(m_text, status, corner + sf::Vector2f{ 12.0f, height - 24.0f }, 1.4f,
+                      statusColour);
 
     target.draw(m_text);
 }
@@ -420,6 +516,7 @@ void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, int 
 
     drawLinks(target, tree);
     drawNodes(target, tree, salvage, depth);
-    drawLevelStrip(target);
     drawChrome(target, tree, salvage, depth, prompt);
+    // Last, so the branch labels panning past cannot sit on top of it.
+    drawLevelStrip(target);
 }

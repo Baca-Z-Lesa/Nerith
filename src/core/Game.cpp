@@ -223,6 +223,8 @@ void Game::beginLevel(int number)
     m_audio.setDepth(theme.ambientPitch, theme.ambientVolume);
 
     m_playerShots.clear();
+    m_pendingPlayerShots.clear();
+    m_pendingEnemyShots.clear();
     m_torpedoes.clear();
     m_enemyShots.clear();
     m_enemies.clear();
@@ -617,7 +619,7 @@ void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming)
         const float step = config::SplitSpread / static_cast<float>(std::max(1, count - 1));
         const sf::Angle angle = base + sf::degrees(-config::SplitSpread / 2.0f
                                                    + step * static_cast<float>(i));
-        m_playerShots.emplace_back(m_assets.waterJet, at, unit(angle), fragment, damage, 0);
+        m_pendingPlayerShots.emplace_back(m_assets.waterJet, at, unit(angle), fragment, damage, 0);
     }
 }
 
@@ -917,6 +919,11 @@ void Game::updateEnemies(float deltaTime)
 {
     const float roam = m_arena.getRadius() + config::EnemyRoamMargin;
 
+    // Hatchlings are collected first and pushed after the loop: spawning into
+    // the vector we are walking would invalidate the reference under us.
+    struct Hatch { EnemyType type; sf::Vector2f at; };
+    std::vector<Hatch> hatched;
+
     for (Enemy& enemy : m_enemies)
     {
         const bool wasAlive = enemy.isAlive();
@@ -938,6 +945,22 @@ void Game::updateEnemies(float deltaTime)
                                       config::EnemyOrbDamage + m_level.getScaling().bonusDamage);
             effects::hostileMuzzle(m_effects, muzzle, direction);
         }
+
+        for (const EnemyType type : enemy.takeBrood())
+            hatched.push_back({ type, enemy.getPosition() });
+    }
+
+    for (const Hatch& hatch : hatched)
+    {
+        // Born out of the parent rather than swimming in from the dark, so the
+        // brooder reads as the source and killing it visibly stops the flow.
+        const sf::Vector2f offset(rng::range(26.0f, 44.0f),
+                                  sf::degrees(rng::range(0.0f, 360.0f)));
+
+        m_enemies.emplace_back(hatch.type, m_assets.forEnemy(hatch.type), hatch.at + offset,
+                               m_level.getScaling());
+        m_enemies.back().forceEntered();
+        effects::enemyDeath(m_effects, hatch.at + offset);
     }
 }
 
@@ -968,6 +991,21 @@ void Game::killEnemy(Enemy& enemy)
 {
     effects::enemyDeath(m_effects, enemy.getPosition());
     m_audio.play(Sfx::EnemyDie);
+
+    // Some things take a swing on the way out. Killing a husk in your own face
+    // is meant to hurt.
+    const int burst = enemy.getDeathShots();
+    for (int i = 0; i < burst; ++i)
+    {
+        const sf::Angle angle = sf::degrees(360.0f * static_cast<float>(i)
+                                            / static_cast<float>(burst));
+        const sf::Vector2f direction = unit(angle);
+
+        m_pendingEnemyShots.emplace_back(m_assets.enemyOrb,
+                                        enemy.getPosition() + direction * (enemy.getRadius() + 6.0f),
+                                        direction, config::EnemyOrb,
+                                        config::EnemyOrbDamage + m_level.getScaling().bonusDamage);
+    }
 
     const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
     m_salvage += std::max(1, static_cast<int>(std::lround(
@@ -1049,9 +1087,9 @@ void Game::handleCollisions()
                         {
                             const sf::Angle angle = sf::degrees(
                                 360.0f * static_cast<float>(i) / config::TorpedoClusterShots);
-                            m_playerShots.emplace_back(m_assets.waterJet, shot.getPosition(),
-                                                       unit(angle), config::WaterJet,
-                                                       std::max(1, shot.getDamage() / 2), 0);
+                            m_pendingPlayerShots.emplace_back(m_assets.waterJet, shot.getPosition(),
+                                                             unit(angle), config::WaterJet,
+                                                             std::max(1, shot.getDamage() / 2), 0);
                         }
                     }
                     shot.kill();
@@ -1156,6 +1194,18 @@ void Game::handleCollisions()
         hurtPlayer(m_boss->getContactDamage());
 }
 
+void Game::flushPendingShots()
+{
+    // Appended once a frame, well away from the loops that produced them.
+    for (Projectile& shot : m_pendingPlayerShots)
+        m_playerShots.push_back(std::move(shot));
+    for (Projectile& shot : m_pendingEnemyShots)
+        m_enemyShots.push_back(std::move(shot));
+
+    m_pendingPlayerShots.clear();
+    m_pendingEnemyShots.clear();
+}
+
 void Game::removeDeadEntities()
 {
     const auto dead = [](const Projectile& shot) { return !shot.isAlive(); };
@@ -1236,6 +1286,7 @@ void Game::update(float deltaTime)
                 updateSonar(deltaTime);
 
                 handleCollisions();
+                flushPendingShots();
                 removeDeadEntities();
 
                 if (!m_player.isAlive())

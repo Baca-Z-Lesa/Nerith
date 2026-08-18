@@ -61,12 +61,14 @@ namespace config
     inline constexpr const char* PlayerTexturePath = "assets/textures/player_sub.png";
     inline constexpr float PlayerScale = 0.5f;
     inline constexpr float PlayerRadius = 20.0f;
-    inline constexpr float PlayerSpeed = 260.0f;
-    inline constexpr float PlayerFireCooldown = 0.14f;
+    inline constexpr float PlayerSpeed = 240.0f;
+    inline constexpr float PlayerFireCooldown = 0.18f;
     inline constexpr float PlayerMuzzleOffset = 30.0f;
     inline constexpr float PlayerSternOffset = 26.0f;
-    inline constexpr int   PlayerMaxHealth = 5;
-    inline constexpr float PlayerInvulnerabilityDuration = 1.0f;
+    // Three hits. The campaign is meant to be beaten by learning a level, not
+    // by having enough hull to walk through it.
+    inline constexpr int   PlayerMaxHealth = 3;
+    inline constexpr float PlayerInvulnerabilityDuration = 0.85f;
     inline constexpr float PlayerBlinkInterval = 0.16f;
     inline constexpr float PlayerBubbleInterval = 0.045f;
 
@@ -106,8 +108,13 @@ namespace config
         float fireCooldown;      // 0 means it has no ranged attack
         int   shotCount;
         float shotSpread;        // degrees; 360 is a full ring
-        float burstOn;           // Dash only
-        float burstOff;          // Dash only
+        float burstOn;           // Dash and Lance: seconds committed
+        float burstOff;          // Dash and Lance: seconds recovering
+        EnemyType broodType;     // Brood only: what it hatches
+        int   broodCount;        // 0 means it hatches nothing
+        float broodInterval;
+        int   deathShots;        // ring of orbs fired as it dies
+        bool  stealth;           // barely visible outside the lamp
     };
 
     // Order must match EnemyType.
@@ -134,6 +141,39 @@ namespace config
         // with rings of orbs, so it has to be killed rather than avoided.
         { EnemyBehaviour::Drift, "assets/textures/enemy_bloom.png",
           0.7f, 26.0f, 30.0f, 6, 1, 3, 0.0f, 2.6f, 10, 360.0f, 0.0f, 0.0f },
+
+        // Spawnling: one jet kills it and it drops nothing. It exists to fill
+        // the water and take up the shots you wanted to spend elsewhere.
+        { EnemyBehaviour::Chase, "assets/textures/enemy_spawnling.png",
+          0.55f, 9.0f, 205.0f, 1, 1, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+
+        // Brooder: the tap the spawnlings come out of. Ignore it and the arena
+        // fills up; the answer is always to kill the source, not the swarm.
+        { EnemyBehaviour::Brood, "assets/textures/enemy_brooder.png",
+          0.9f, 30.0f, 34.0f, 16, 1, 5, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Spawnling, 3, 3.4f, 0, false },
+
+        // Lancer: telegraphs for most of a second, then commits to a straight
+        // line it cannot correct. Readable, and lethal if you read it late.
+        { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png",
+          0.75f, 15.0f, 430.0f, 3, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.42f, 1.05f },
+
+        // Weaver: never closes. It circles at range raking fans across the
+        // water, so standing still anywhere is the mistake.
+        { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png",
+          0.75f, 18.0f, 132.0f, 5, 1, 3, 265.0f, 1.9f, 3, 34.0f, 0.0f, 0.0f },
+
+        // Husk: slow, soft, and it fires a full ring the moment it dies. The
+        // punishment is for killing it while you are standing next to it.
+        { EnemyBehaviour::Chase, "assets/textures/enemy_husk.png",
+          0.8f, 22.0f, 58.0f, 5, 1, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 12, false },
+
+        // Angler: invisible until it is inside your lamp. Fast and it hits
+        // hard, so the sonar upgrades stop being a luxury.
+        { EnemyBehaviour::Chase, "assets/textures/enemy_angler.png",
+          0.8f, 17.0f, 168.0f, 4, 2, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 0, true },
     } };
 
     inline constexpr const EnemyStats& enemyStats(EnemyType type)
@@ -147,6 +187,10 @@ namespace config
     inline constexpr float SpitterStrafeFactor = 0.6f;
     inline constexpr float SpitterRangeBand = 24.0f;
     inline constexpr float BloomSpinSpeed = 42.0f;
+    inline constexpr float OrbitCloseFactor = 0.6f;   // how hard an orbiter corrects its range
+    inline constexpr float LanceCreepFactor = 0.14f;  // speed while it winds up
+    inline constexpr float StealthRevealRange = 300.0f; // inside this the angler is visible
+    inline constexpr std::uint8_t StealthAlpha = 26;    // how faint it is outside that
     inline constexpr float EnemyHitFlashDuration = 0.12f;
     inline constexpr float EnemyHitFlashPunch = 0.20f;
     inline constexpr sf::Color EnemyHitFlashTint{ 255, 170, 150 };
@@ -329,6 +373,9 @@ namespace config
     inline constexpr int   LevelStripMax = 24;
     inline constexpr float NodeWidth = 132.0f;
     inline constexpr float NodeHeight = 40.0f;
+    inline constexpr float NodeRadius = 27.0f;
+    inline constexpr float NodeCardWidth = 340.0f;
+    inline constexpr float NodeCardHeight = 92.0f;
 
     inline constexpr sf::Color ScreenBackdrop{ 2, 8, 14, 238 };
     inline constexpr sf::Color NodeUnlockedFill{ 20, 62, 60 };

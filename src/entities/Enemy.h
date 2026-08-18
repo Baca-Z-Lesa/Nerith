@@ -32,6 +32,14 @@ public:
     // not firing. One call covers aimed shots, shotguns and full rings alike.
     std::vector<sf::Vector2f> takeShots();
 
+    // Minions this creature wants hatched right now, empty otherwise.
+    std::vector<EnemyType> takeBrood();
+
+    int getDeathShots() const;
+
+    // Hatchlings are born inside the arena, so they skip the swim in.
+    void forceEntered() { m_hasEntered = true; }
+
     // Stops a creature that has already swum in from wandering back off screen
     // and sniping out of the dark.
     void confine(sf::Vector2f center, float maxDistance);
@@ -65,6 +73,9 @@ private:
     float        m_burstTimer;      // Dash only
     bool         m_bursting;
     float        m_spin;            // Drift only
+    sf::Vector2f m_lanceHeading;    // Lance only: locked when the charge starts
+    float        m_broodTimer;
+    float        m_playerDistance;  // kept for the stealth fade
     bool         m_inFiringRange;
     bool         m_hasEntered;      // has it crossed into the lit basin yet
 };
