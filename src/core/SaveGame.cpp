@@ -38,6 +38,8 @@ SaveGame SaveGame::load()
             stream >> data.bestLevel;
         else if (key == "best_depth")
             stream >> data.bestDepth;
+        else if (key == "story")
+            stream >> data.storySeen;
         else if (key == "upgrade")
         {
             std::string id;
@@ -66,6 +68,7 @@ void SaveGame::save() const
     file << "nerith 2\n";
     file << "best_level " << bestLevel << '\n';
     file << "best_depth " << bestDepth << '\n';
+    file << "story " << storySeen << '\n';
     file << "unlocked_level " << unlockedLevel << '\n';
     file << "level " << selectedLevel << '\n';
     file << "salvage " << salvage << '\n';

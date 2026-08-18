@@ -10,6 +10,7 @@
 #include "entities/Projectile.h"
 #include "ui/Hud.h"
 #include "ui/MainMenu.h"
+#include "ui/StoryScreen.h"
 #include "ui/UpgradeScreen.h"
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
@@ -40,6 +41,7 @@ private:
     enum class State
     {
         Menu,       // the screen the game opens on
+        Story,      // an interlude between depths
         LevelIntro, // title card, nothing spawns yet
         Fighting,
         LevelClear, // objective met, the water settles
@@ -110,6 +112,9 @@ private:
     void spawnSplit(sf::Vector2f at, sf::Vector2f incoming);
     int  getJetDamage() const;
 
+    // Shows a chapter if it has never been seen, otherwise goes straight on.
+    void maybePlayStory(int chapter, State next);
+
     void openMenu();
     void activateMenuChoice();
 
@@ -141,6 +146,7 @@ private:
     Player        m_player;
     Hud           m_hud;
     MainMenu      m_menu;
+    StoryScreen   m_story;
     UpgradeScreen m_upgradeScreen;
 
     std::vector<Projectile> m_playerShots;
@@ -165,6 +171,7 @@ private:
     State    m_state;
     float    m_stateTimer;
     float    m_menuTime;
+    State    m_afterStory;
 
     int   m_salvage;
     bool  m_showUpgrades;

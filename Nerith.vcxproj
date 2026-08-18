@@ -117,6 +117,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClCompile Include="src\ui\Hud.cpp" />
     <ClCompile Include="src\ui\MainMenu.cpp" />
     <ClCompile Include="src\ui\PixelFont.cpp" />
+    <ClCompile Include="src\ui\StoryScreen.cpp" />
     <ClCompile Include="src\ui\UpgradeScreen.cpp" />
     <ClCompile Include="src\upgrades\Stats.cpp" />
     <ClCompile Include="src\upgrades\UpgradeTree.cpp" />
@@ -145,6 +146,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClInclude Include="src\ui\Hud.h" />
     <ClInclude Include="src\ui\MainMenu.h" />
     <ClInclude Include="src\ui\PixelFont.h" />
+    <ClInclude Include="src\ui\StoryScreen.h" />
     <ClInclude Include="src\ui\UpgradeScreen.h" />
     <ClInclude Include="src\upgrades\Stats.h" />
     <ClInclude Include="src\upgrades\UpgradeTree.h" />

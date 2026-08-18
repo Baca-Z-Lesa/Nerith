@@ -348,6 +348,26 @@ void Game::diveIntoSelected()
 //  Upgrades
 // ---------------------------------------------------------------------------
 
+void Game::maybePlayStory(int chapter, State next)
+{
+    const int bit = 1 << chapter;
+
+    // Each chapter is shown once ever. Replaying a level should not replay the
+    // words that came with it the first time.
+    if (chapter < 0 || chapter >= StoryScreen::chapterCount() || (m_save.storySeen & bit) != 0)
+    {
+        m_state = next;
+        return;
+    }
+
+    m_save.storySeen |= bit;
+    persist();
+
+    m_story.begin(chapter);
+    m_afterStory = next;
+    m_state = State::Story;
+}
+
 void Game::openMenu()
 {
     m_state = State::Menu;
@@ -364,11 +384,12 @@ void Game::activateMenuChoice()
     {
         case MainMenu::Choice::Dive:
             // Straight into the hub: the level and what to spend salvage on are
-            // the same decision, so they share a screen.
-            m_state = State::Upgrading;
+            // the same decision, so they share a screen. The prologue only
+            // stands between them the very first time.
             m_showUpgrades = false;
             m_upgradeScreen.clearCursor();
             m_upgradeScreen.recentre();
+            maybePlayStory(0, State::Upgrading);
             break;
 
         case MainMenu::Choice::Reset:
@@ -440,7 +461,12 @@ void Game::processEvents()
         }
         else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>())
         {
-            if (m_state == State::Menu)
+            if (m_state == State::Story)
+            {
+                if (mousePressed->button == sf::Mouse::Button::Left)
+                    m_story.advance();
+            }
+            else if (m_state == State::Menu)
             {
                 if (mousePressed->button == sf::Mouse::Button::Left)
                     activateMenuChoice();
@@ -453,6 +479,17 @@ void Game::processEvents()
         }
         else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
         {
+            // An interlude owns the keyboard: one key finishes the line, the next
+            // moves on, and escape walks out of the whole chapter.
+            if (m_state == State::Story)
+            {
+                if (keyPressed->scancode == sf::Keyboard::Scancode::Escape)
+                    m_state = m_afterStory;
+                else
+                    m_story.advance();
+                continue;
+            }
+
             // The title screen owns the keyboard while it is up.
             if (m_state == State::Menu)
             {
@@ -959,7 +996,7 @@ void Game::updateEnemies(float deltaTime)
 
         m_enemies.emplace_back(hatch.type, m_assets.forEnemy(hatch.type), hatch.at + offset,
                                m_level.getScaling());
-        m_enemies.back().forceEntered();
+        m_enemies.back().markHatched();
         effects::enemyDeath(m_effects, hatch.at + offset);
     }
 }
@@ -1011,7 +1048,10 @@ void Game::killEnemy(Enemy& enemy)
     m_salvage += std::max(1, static_cast<int>(std::lround(
                                  static_cast<float>(enemy.getSalvage()) * bonus)));
 
-    m_level.notifyEnemyKilled(enemy.getType());
+    // Only what the level script sent counts: otherwise a brooder would clear
+    // its own level by hatching into the quota.
+    if (enemy.isScripted())
+        m_level.notifyEnemyKilled(enemy.getType());
 }
 
 void Game::hurtPlayer(int amount)
@@ -1254,6 +1294,12 @@ void Game::update(float deltaTime)
 
     switch (m_state)
     {
+        case State::Story:
+            m_story.update(deltaTime);
+            if (m_story.isFinished())
+                m_state = m_afterStory;
+            break;
+
         case State::Menu:
             m_menuTime += deltaTime;
             m_menu.setCursor(m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_ui));
@@ -1300,10 +1346,16 @@ void Game::update(float deltaTime)
             m_stateTimer -= deltaTime;
             if (m_stateTimer <= 0.0f)
             {
-                m_state = State::Upgrading;
                 m_showUpgrades = false;
                 m_upgradeScreen.clearCursor();
                 m_upgradeScreen.recentre();
+
+                // Killing a depth ends a chapter, so the story lands between
+                // the kill and the shopping rather than during either.
+                if (m_level.isBoss())
+                    maybePlayStory(m_level.getDepth(), State::Upgrading);
+                else
+                    m_state = State::Upgrading;
             }
             break;
 
@@ -1399,6 +1451,13 @@ void Game::render()
     // a vignette around the viewer, not a ring painted on the seabed.
     m_window.setView(m_ui);
     m_arena.drawGloom(m_window);
+
+    if (m_state == State::Story)
+    {
+        m_story.draw(m_window);
+        m_window.display();
+        return;
+    }
 
     if (m_state == State::Menu)
     {

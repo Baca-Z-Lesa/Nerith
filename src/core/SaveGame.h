@@ -17,6 +17,7 @@ struct SaveGame
     int salvage = 0;
     int bestLevel = 0;
     int bestDepth = 0;
+    int storySeen = 0; // bitmask of chapters already shown
     std::vector<std::string> unlocked;
 
     static const char* path();

@@ -32,6 +32,7 @@ Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
     , m_playerDistance(0.0f)
     , m_inFiringRange(false)
     , m_hasEntered(false)
+    , m_scripted(true)
 {
     m_sprite.setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
     m_sprite.setScale({ m_stats->scale, m_stats->scale });

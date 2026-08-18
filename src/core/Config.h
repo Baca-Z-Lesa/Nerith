@@ -61,14 +61,14 @@ namespace config
     inline constexpr const char* PlayerTexturePath = "assets/textures/player_sub.png";
     inline constexpr float PlayerScale = 0.5f;
     inline constexpr float PlayerRadius = 20.0f;
-    inline constexpr float PlayerSpeed = 240.0f;
-    inline constexpr float PlayerFireCooldown = 0.18f;
+    inline constexpr float PlayerSpeed = 228.0f;
+    inline constexpr float PlayerFireCooldown = 0.21f;
     inline constexpr float PlayerMuzzleOffset = 30.0f;
     inline constexpr float PlayerSternOffset = 26.0f;
     // Three hits. The campaign is meant to be beaten by learning a level, not
     // by having enough hull to walk through it.
     inline constexpr int   PlayerMaxHealth = 3;
-    inline constexpr float PlayerInvulnerabilityDuration = 0.85f;
+    inline constexpr float PlayerInvulnerabilityDuration = 0.62f;
     inline constexpr float PlayerBlinkInterval = 0.16f;
     inline constexpr float PlayerBubbleInterval = 0.045f;
 
@@ -121,58 +121,58 @@ namespace config
     inline constexpr std::array<EnemyStats, EnemyTypeCount> EnemyTable{ {
         // Lurker: the yardstick. Everything else is defined against it.
         { EnemyBehaviour::Chase, "assets/textures/enemy_lurker.png",
-          0.85f, 16.0f, 98.0f, 3, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+          0.85f, 16.0f, 124.0f, 4, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // Darter: dies to a single jet, but closes faster than you can back
         // away. Punishes standing still, harmless if you keep track of it.
         { EnemyBehaviour::Dash, "assets/textures/enemy_darter.png",
-          0.8f, 12.0f, 355.0f, 1, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.5f, 0.7f },
+          0.8f, 12.0f, 405.0f, 1, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.55f, 0.55f },
 
         // Hulk: cannot be outfought quickly, but can be walked away from all
         // day. It is there to take up space and soak your damage.
         { EnemyBehaviour::Chase, "assets/textures/enemy_hulk.png",
-          0.75f, 34.0f, 46.0f, 12, 2, 3, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+          0.75f, 34.0f, 58.0f, 20, 2, 3, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // Spitter: safe to ignore up close, lethal if left alone at range.
         { EnemyBehaviour::Standoff, "assets/textures/enemy_spitter.png",
-          0.8f, 20.0f, 72.0f, 4, 1, 2, 225.0f, 1.6f, 1, 0.0f, 0.0f, 0.0f },
+          0.8f, 20.0f, 88.0f, 6, 1, 2, 225.0f, 1.10f, 2, 16.0f, 0.0f, 0.0f },
 
         // Bloom: never chases and cannot be dodged by distance. It denies area
         // with rings of orbs, so it has to be killed rather than avoided.
         { EnemyBehaviour::Drift, "assets/textures/enemy_bloom.png",
-          0.7f, 26.0f, 30.0f, 6, 1, 3, 0.0f, 2.6f, 10, 360.0f, 0.0f, 0.0f },
+          0.7f, 26.0f, 38.0f, 8, 1, 3, 0.0f, 1.95f, 14, 360.0f, 0.0f, 0.0f },
 
         // Spawnling: one jet kills it and it drops nothing. It exists to fill
         // the water and take up the shots you wanted to spend elsewhere.
         { EnemyBehaviour::Chase, "assets/textures/enemy_spawnling.png",
-          0.55f, 9.0f, 205.0f, 1, 1, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+          0.55f, 9.0f, 240.0f, 1, 1, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // Brooder: the tap the spawnlings come out of. Ignore it and the arena
         // fills up; the answer is always to kill the source, not the swarm.
         { EnemyBehaviour::Brood, "assets/textures/enemy_brooder.png",
-          0.9f, 30.0f, 34.0f, 16, 1, 5, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
-          EnemyType::Spawnling, 3, 3.4f, 0, false },
+          0.9f, 30.0f, 42.0f, 26, 1, 5, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Spawnling, 4, 2.5f, 0, false },
 
         // Lancer: telegraphs for most of a second, then commits to a straight
         // line it cannot correct. Readable, and lethal if you read it late.
         { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png",
-          0.75f, 15.0f, 430.0f, 3, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.42f, 1.05f },
+          0.75f, 15.0f, 495.0f, 4, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.45f, 0.80f },
 
         // Weaver: never closes. It circles at range raking fans across the
         // water, so standing still anywhere is the mistake.
         { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png",
-          0.75f, 18.0f, 132.0f, 5, 1, 3, 265.0f, 1.9f, 3, 34.0f, 0.0f, 0.0f },
+          0.75f, 18.0f, 158.0f, 7, 1, 3, 265.0f, 1.35f, 4, 40.0f, 0.0f, 0.0f },
 
         // Husk: slow, soft, and it fires a full ring the moment it dies. The
         // punishment is for killing it while you are standing next to it.
         { EnemyBehaviour::Chase, "assets/textures/enemy_husk.png",
-          0.8f, 22.0f, 58.0f, 5, 1, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
-          EnemyType::Lurker, 0, 0.0f, 12, false },
+          0.8f, 22.0f, 70.0f, 7, 1, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 16, false },
 
         // Angler: invisible until it is inside your lamp. Fast and it hits
         // hard, so the sonar upgrades stop being a luxury.
         { EnemyBehaviour::Chase, "assets/textures/enemy_angler.png",
-          0.8f, 17.0f, 168.0f, 4, 2, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          0.8f, 17.0f, 205.0f, 6, 2, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, true },
     } };
 
@@ -241,6 +241,15 @@ namespace config
     inline constexpr float MinSpawnDistanceFromPlayer = 380.0f;
     inline constexpr float MinSpawnAngleSeparation = 45.0f;
     inline constexpr int   SpawnPlacementAttempts = 14;
+
+    // =====================================================================
+    //  GLOBAL DIFFICULTY SCREWS
+    //  Turning these is how the whole campaign gets harder without editing
+    //  twenty rows of the level table by hand.
+    // =====================================================================
+    inline constexpr float GlobalCountScale = 1.45f;    // more of everything
+    inline constexpr float GlobalIntervalScale = 0.74f; // arriving sooner
+    inline constexpr std::size_t GlobalMaxAliveBonus = 3;
 
     // --- Level flow ---
     inline constexpr float LevelIntroDuration = 2.8f;

@@ -38,7 +38,10 @@ public:
     int getDeathShots() const;
 
     // Hatchlings are born inside the arena, so they skip the swim in.
-    void forceEntered() { m_hasEntered = true; }
+    // Hatchlings are born inside the arena, so they skip the swim in. They also
+    // do not count toward a level's roster: only what the script sent does.
+    void markHatched() { m_hasEntered = true; m_scripted = false; }
+    bool isScripted() const { return m_scripted; }
 
     // Stops a creature that has already swum in from wandering back off screen
     // and sniping out of the dark.
@@ -78,4 +81,5 @@ private:
     float        m_playerDistance;  // kept for the stealth fade
     bool         m_inFiringRange;
     bool         m_hasEntered;      // has it crossed into the lit basin yet
+    bool         m_scripted;        // false once it was hatched rather than sent
 };

@@ -1,6 +1,9 @@
 #include "world/LevelManager.h"
 
+#include "core/Config.h"
+
 #include <algorithm>
+#include <cmath>
 
 LevelManager::LevelManager()
 {
@@ -14,9 +17,13 @@ void LevelManager::buildQueue()
 
     // Groups are expanded in the order the designer wrote them, so a level can
     // open with something soft and close with something that hurts.
+    // Every count is multiplied by the one global screw, so making the whole
+    // campaign harder is a single number rather than twenty edits.
     for (const SpawnGroup& group : m_def.script)
     {
-        for (int i = 0; i < group.count; ++i)
+        const int count = static_cast<int>(std::lround(static_cast<float>(group.count)
+                                                       * config::GlobalCountScale));
+        for (int i = 0; i < std::max(group.count > 0 ? 1 : 0, count); ++i)
             m_queue.push_back(group.type);
     }
 }
@@ -71,7 +78,7 @@ std::optional<EnemyType> LevelManager::takeSpawn(std::size_t aliveEnemies)
     if (!m_objective || !m_objective->wantsSpawning() || m_def.isBoss || m_queue.empty())
         return std::nullopt;
 
-    if (m_spawnTimer > 0.0f || aliveEnemies >= m_def.maxAlive)
+    if (m_spawnTimer > 0.0f || aliveEnemies >= m_def.maxAlive + config::GlobalMaxAliveBonus)
         return std::nullopt;
 
     if (m_queueIndex >= m_queue.size())
@@ -85,7 +92,7 @@ std::optional<EnemyType> LevelManager::takeSpawn(std::size_t aliveEnemies)
         m_queueIndex = 0;
     }
 
-    m_spawnTimer = m_def.spawnInterval;
+    m_spawnTimer = m_def.spawnInterval * config::GlobalIntervalScale;
     return m_queue[m_queueIndex++];
 }
 
