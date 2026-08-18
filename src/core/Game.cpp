@@ -398,6 +398,7 @@ void Game::processEvents()
                     {
                         m_showUpgrades = !m_showUpgrades;
                         m_upgradeScreen.clearCursor();
+                m_upgradeScreen.recentre();
                     }
                     break;
 
@@ -1107,7 +1108,13 @@ void Game::update(float deltaTime)
     spawnAmbience(deltaTime);
 
     if (upgradesVisible())
-        m_upgradeScreen.setCursor(getMouseWorldPosition(), m_tree);
+    {
+        // The tree lives in screen space, so the cursor has to be mapped through
+        // the fixed view rather than the camera that follows the sub.
+        m_upgradeScreen.update(deltaTime);
+        m_upgradeScreen.setCursor(m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_ui),
+                                  m_tree);
+    }
 
     switch (m_state)
     {
@@ -1154,6 +1161,7 @@ void Game::update(float deltaTime)
                 m_state = State::Upgrading;
                 m_showUpgrades = false;
                 m_upgradeScreen.clearCursor();
+                m_upgradeScreen.recentre();
             }
             break;
 

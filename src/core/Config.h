@@ -315,9 +315,12 @@ namespace config
     inline constexpr float BannerBriefScale = 2.0f;
 
     // --- Upgrade screen ---
-    inline constexpr sf::Vector2f TreeOrigin{ 61.0f, 172.0f };
-    inline constexpr float NodeWidth = 150.0f;
-    inline constexpr float NodeHeight = 44.0f;
+    // The tree is drawn around the middle of the screen and panned from there.
+    inline constexpr sf::Vector2f TreeOrigin{ 640.0f, 372.0f };
+    inline constexpr float TreePanSpeed = 620.0f;
+    inline constexpr float TreePanLimit = 1150.0f;
+    inline constexpr float NodeWidth = 132.0f;
+    inline constexpr float NodeHeight = 40.0f;
 
     inline constexpr sf::Color ScreenBackdrop{ 2, 8, 14, 238 };
     inline constexpr sf::Color NodeUnlockedFill{ 20, 62, 60 };

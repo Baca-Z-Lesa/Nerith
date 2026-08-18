@@ -3,6 +3,9 @@
 #include "core/Config.h"
 #include "ui/PixelFont.h"
 
+#include <SFML/Window/Keyboard.hpp>
+
+#include <algorithm>
 #include <string>
 
 namespace
@@ -27,7 +30,8 @@ namespace
 }
 
 UpgradeScreen::UpgradeScreen()
-    : m_lines(sf::PrimitiveType::Triangles)
+    : m_pan(0.0f, 0.0f)
+    , m_lines(sf::PrimitiveType::Triangles)
     , m_text(sf::PrimitiveType::Triangles)
 {
     m_backdrop.setSize({ static_cast<float>(config::WindowWidth),
@@ -38,16 +42,38 @@ UpgradeScreen::UpgradeScreen()
     m_box.setOutlineThickness(2.0f);
 }
 
-sf::Vector2f UpgradeScreen::centreOf(const UpgradeNode& node)
+sf::Vector2f UpgradeScreen::centreOf(const UpgradeNode& node) const
 {
-    return config::TreeOrigin + node.position;
+    return config::TreeOrigin + node.position + m_pan;
 }
 
-sf::FloatRect UpgradeScreen::boundsOf(const UpgradeNode& node)
+sf::FloatRect UpgradeScreen::boundsOf(const UpgradeNode& node) const
 {
     const sf::Vector2f centre = centreOf(node);
     const sf::Vector2f size{ config::NodeWidth, config::NodeHeight };
     return sf::FloatRect(centre - size / 2.0f, size);
+}
+
+void UpgradeScreen::update(float deltaTime)
+{
+    // The roots reach roughly 1100px out from the hull, so the whole tree can
+    // never be on screen at once and the view has to be drivable.
+    sf::Vector2f move{ 0.0f, 0.0f };
+
+    const auto held = [](sf::Keyboard::Scancode a, sf::Keyboard::Scancode b) {
+        return sf::Keyboard::isKeyPressed(a) || sf::Keyboard::isKeyPressed(b);
+    };
+
+    if (held(sf::Keyboard::Scancode::Left, sf::Keyboard::Scancode::A))  move.x += 1.0f;
+    if (held(sf::Keyboard::Scancode::Right, sf::Keyboard::Scancode::D)) move.x -= 1.0f;
+    if (held(sf::Keyboard::Scancode::Up, sf::Keyboard::Scancode::W))    move.y += 1.0f;
+    if (held(sf::Keyboard::Scancode::Down, sf::Keyboard::Scancode::S))  move.y -= 1.0f;
+
+    if (move.lengthSquared() > 0.0f)
+        m_pan += move.normalized() * config::TreePanSpeed * deltaTime;
+
+    m_pan.x = std::clamp(m_pan.x, -config::TreePanLimit, config::TreePanLimit);
+    m_pan.y = std::clamp(m_pan.y, -config::TreePanLimit, config::TreePanLimit);
 }
 
 void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tree)
@@ -172,6 +198,19 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
 {
     m_text.clear();
 
+    // Solid strips top and bottom. The roots pan underneath them, so without
+    // these the tree would slide across the text the player is reading.
+    m_box.setOutlineColor(sf::Color::Transparent);
+    m_box.setFillColor(sf::Color(2, 8, 14, 246));
+
+    m_box.setSize({ static_cast<float>(config::WindowWidth), 86.0f });
+    m_box.setPosition({ 0.0f, 0.0f });
+    target.draw(m_box);
+
+    m_box.setSize({ static_cast<float>(config::WindowWidth), 112.0f });
+    m_box.setPosition({ 0.0f, static_cast<float>(config::WindowHeight) - 112.0f });
+    target.draw(m_box);
+
     pixelfont::append(m_text, "UPGRADE TREE", { config::HudMargin, 24.0f }, 2.6f,
                       config::HudTextColor);
 
@@ -191,25 +230,30 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
                             - pixelfont::measure(depthLine, 1.6f), 54.0f },
                       1.6f, config::HudDimTextColor);
 
-    // Branch headers, so the seven columns read as seven decisions. Each gets a
-    // solid backing because the root's links fan out straight through this row.
+    // Each root is labelled at the node where it leaves the hull, so the name
+    // travels with the branch as the view pans instead of sitting in a header
+    // row that the roots grow straight through.
     target.draw(m_text);
     m_text.clear();
 
-    for (int column = 0; column < UpgradeBranchCount; ++column)
+    for (const UpgradeNode& node : tree.getNodes())
     {
-        const char* name = UpgradeTree::getBranchName(column);
-        const float width = pixelfont::measure(name, 1.5f);
-        const float centre = config::TreeOrigin.x + 75.0f + 168.0f * static_cast<float>(column);
-        const float y = config::TreeOrigin.y - 36.0f;
+        if (node.column < 0 || node.position.lengthSquared() > 200.0f * 200.0f)
+            continue; // only the first node of each root carries the name
 
-        m_box.setSize({ width + 16.0f, 20.0f });
-        m_box.setPosition({ centre - width / 2.0f - 8.0f, y - 5.0f });
+        const char* name = UpgradeTree::getBranchName(node.column);
+        const float width = pixelfont::measure(name, 1.4f);
+
+        // Pushed a little further out along the root than the node itself.
+        const sf::Vector2f label = centreOf(node) + node.position.normalized() * 46.0f;
+
+        m_box.setSize({ width + 14.0f, 18.0f });
+        m_box.setPosition({ label.x - width / 2.0f - 7.0f, label.y - 4.0f });
         m_box.setFillColor(config::ScreenBackdrop);
         m_box.setOutlineColor(sf::Color::Transparent);
         target.draw(m_box);
 
-        pixelfont::append(m_text, name, { centre - width / 2.0f, y }, 1.5f,
+        pixelfont::append(m_text, name, { label.x - width / 2.0f, label.y }, 1.4f,
                           config::HudDimTextColor);
     }
 
@@ -267,7 +311,7 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
     }
     else
     {
-        pixelfont::append(m_text, "HOVER A NODE FOR DETAILS. NO RUN REACHES ALL OF THIS.",
+        pixelfont::append(m_text, "ARROWS OR WASD TO MOVE. HOVER A NODE FOR DETAILS.",
                           { config::HudMargin, y }, 1.6f, config::HudDimTextColor);
     }
 

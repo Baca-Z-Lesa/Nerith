@@ -4,16 +4,25 @@
 
 namespace
 {
-    // Grid the screen lays the tree out on. Node positions are centres.
-    constexpr float ColumnSpacing = 168.0f;
-    constexpr float RowSpacing = 56.0f;
-    constexpr float FirstColumnX = 75.0f;
-    constexpr float FirstRowY = 22.0f;
+    // The tree grows outward from the hull in the middle: seven roots, each
+    // pushing further into the dark. Node positions are centres, relative to
+    // the root, and the screen pans across them because no run will ever see
+    // all of it at once anyway.
+    constexpr float FirstRing = 168.0f;
+    constexpr float RingStep = 132.0f;
 
-    sf::Vector2f cell(int column, int row)
+    sf::Vector2f cell(int branch, int index)
     {
-        return { FirstColumnX + ColumnSpacing * static_cast<float>(column),
-                 FirstRowY + RowSpacing * static_cast<float>(row) };
+        const float base = -90.0f + 360.0f * static_cast<float>(branch)
+                                        / static_cast<float>(UpgradeBranchCount);
+
+        // Alternating curl, growing with distance, so the roots bend away from
+        // each other instead of radiating like spokes on a wheel.
+        const float curl = (branch % 2 == 0 ? 1.0f : -1.0f) * 1.9f;
+        const float angle = base + curl * static_cast<float>(index * index);
+        const float distance = FirstRing + RingStep * static_cast<float>(index);
+
+        return sf::Vector2f(distance, sf::degrees(angle));
     }
 
     const char* const BranchNames[UpgradeBranchCount] = {
@@ -41,7 +50,7 @@ void UpgradeTree::build()
     // gates keep the deep half of every branch out of reach early on.
     m_nodes = {
         { "core", "THE SUB", "What you start with. Everything hangs off it.",
-          0, 1, -1, {}, {}, {}, {}, { 579.0f, -54.0f } },
+          0, 1, -1, {}, {}, {}, {}, { 0.0f, 0.0f } },
 
         // ================= WEAPONS =================
         { "wpn1", "GUN BAY", "+12% jet damage. Opens the weapon line.",

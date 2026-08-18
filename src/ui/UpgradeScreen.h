@@ -19,6 +19,10 @@ class UpgradeScreen
 public:
     UpgradeScreen();
 
+    // Arrow keys or WASD drag the view across the roots; nothing else fits.
+    void update(float deltaTime);
+    void recentre() { m_pan = { 0.0f, 0.0f }; }
+
     void setCursor(sf::Vector2f worldPosition, const UpgradeTree& tree);
 
     // Forgets what was under the cursor, so a hover from the last time the
@@ -31,8 +35,8 @@ public:
               const std::string& prompt);
 
 private:
-    static sf::Vector2f centreOf(const UpgradeNode& node);
-    static sf::FloatRect boundsOf(const UpgradeNode& node);
+    sf::Vector2f centreOf(const UpgradeNode& node) const;
+    sf::FloatRect boundsOf(const UpgradeNode& node) const;
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
     void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth);
@@ -40,6 +44,7 @@ private:
                     const std::string& prompt);
 
     std::optional<std::size_t> m_hovered;
+    sf::Vector2f               m_pan;
 
     sf::RectangleShape m_backdrop;
     sf::RectangleShape m_box;
