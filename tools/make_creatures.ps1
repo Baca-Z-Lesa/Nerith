@@ -100,33 +100,44 @@ $skull = @(
 )
 GradBlob $g $skull $hide $belly ($cy - 130) ($cy + 130) $ink 9
 
-# gill slits
+# gill slits, mirrored so the head reads as a top down animal
 foreach ($gx in @(118, 168, 218)) {
-    $pen = New-Object System.Drawing.Pen -ArgumentList $ridge, 9.0
-    $g.DrawArc($pen, (RectF ($gx - 46) ($cy - 62) 92 124), -70, 140)
-    $pen.Dispose()
+    foreach ($side in @(-1, 1)) {
+        # Windows PowerShell 5.1 has no ternary operator.
+        $start = -70
+        if ($side -gt 0) { $start = 110 }
+        $pen = New-Object System.Drawing.Pen -ArgumentList $ridge, 9.0
+        $g.DrawArc($pen, (RectF ($gx - 46) ($cy - 62) 92 124), $start, 140)
+        $pen.Dispose()
+    }
 }
 
-# The mouth: a dark wedge with the lower jaw dropped, so the head always reads
-# as open and hunting rather than as a smooth shape.
-$mouth = @( (P 664 ($cy + 6)), (P 520 ($cy + 44)), (P 380 ($cy + 62)), (P 372 ($cy + 96)),
-            (P 520 ($cy + 92)), (P 660 ($cy + 40)) )
-Blob $g $mouth (C 6 10 12) $ink 7
+# The maw opens at the FRONT and is symmetric about the spine. This is a top
+# down view: a jaw drawn on one side only put the lower eye socket inside the
+# teeth, which is exactly where the eye part used to end up.
+$maw = @( (P 676 $cy), (P 596 ($cy - 74)), (P 470 ($cy - 66)), (P 452 $cy),
+          (P 470 ($cy + 66)), (P 596 ($cy + 74)) )
+Blob $g $maw (C 6 10 12) $ink 7
 
-# teeth along both jaw edges
-for ($i = 0; $i -lt 9; $i++) {
-    $t = $i / 8.0
-    $x = 400 + $t * 250
-    $yTop = $cy + 46 - $t * 34
-    $tri = @( (P ($x - 14) $yTop), (P $x ($yTop + 30)), (P ($x + 14) $yTop) )
-    Blob $g $tri (C 214 224 214) $null 0 0.0
-    $yBot = $cy + 92 - $t * 46
-    $tri2 = @( (P ($x - 12) $yBot), (P $x ($yBot - 26)), (P ($x + 12) $yBot) )
-    Blob $g $tri2 (C 196 208 198) $null 0 0.0
+# teeth around the rim of the opening, both sides
+for ($i = 0; $i -lt 7; $i++) {
+    $t = $i / 6.0
+    $x = 480 + $t * 180
+    $spread = 66 - $t * 40
+    foreach ($side in @(-1, 1)) {
+        $y = $cy + $side * $spread
+        $tri = @( (P ($x - 13) $y), (P $x ($y - $side * 30)), (P ($x + 13) $y) )
+        Blob $g $tri (C 214 224 214) $null 0 0.0
+    }
 }
 
-# brow ridge over the eye socket
-Blob $g @( (P 300 ($cy - 74)), (P 470 ($cy - 92)), (P 520 ($cy - 52)), (P 320 ($cy - 40)) ) $ridge $null 0
+# brow ridges, one over each eye socket
+foreach ($side in @(-1, 1)) {
+    Blob $g @( (P 300 ($cy + $side * 106)), (P 470 ($cy + $side * 92)),
+               (P 486 ($cy + $side * 52)), (P 312 ($cy + $side * 58)) ) $ridge $null 0
+    # the socket itself, so the eye part has somewhere to sit
+    Disc $g (C 14 26 28) 390 ($cy + $side * 80) 40
+}
 Finish $bmp $g $outW $outH "lev_head.png"
 
 # --- body segment -------------------------------------------------------

@@ -158,6 +158,12 @@ namespace config
     inline constexpr float BossChainRadius = 78.0f; // Chain Reaction splash
     inline constexpr int   BossChainDamage = 8;
     inline constexpr float BossTentacleHitOffset = 62.0f;
+    // A shot that misses every part still has to be inside this much of the body
+    // to count as turned away, so parts win far more contests than the hide.
+    inline constexpr float BossBlockRadiusFactor = 0.72f;
+    // Once nothing is shielding an organ, hits anywhere on the animal chip it
+    // for this fraction. Before that they simply spark off.
+    inline constexpr float BossBodyHitFactor = 0.35f;
 
     // Once it has swum in, a boss is held this close to the middle so it can
     // never orbit a wall-hugging player straight off the bottom of the view.

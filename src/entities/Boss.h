@@ -124,6 +124,8 @@ private:
     void followChain();
     void placeParts(float deltaTime);
     bool organExposed(const Part& part) const;
+    bool bodyBlocks(sf::Vector2f position, float radius) const;
+    std::size_t nearestExposedOrgan(sf::Vector2f position) const;
     float aimError() const;
 
     void thinkProwler(float deltaTime, sf::Vector2f playerPosition);

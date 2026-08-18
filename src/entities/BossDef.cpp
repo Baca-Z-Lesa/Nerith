@@ -24,12 +24,12 @@ namespace
             2.2f, 3, 26.0f,
             6,
             { {
-                { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  22.0f, -26.0f, 15.0f, 0.55f,   0.0f, 18 },
-                { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  22.0f,  26.0f, 15.0f, 0.55f,   0.0f, 18 },
-                { PartRole::Fin,    "assets/textures/lev_fin.png",   1,  -4.0f, -34.0f, 22.0f, 0.8f,  -58.0f, 26 },
-                { PartRole::Fin,    "assets/textures/lev_fin.png",   1,  -4.0f,  34.0f, 22.0f, 0.8f,   58.0f, 26 },
-                { PartRole::Armour, "assets/textures/lev_plate.png", 2,   0.0f,   0.0f, 34.0f, 0.95f,   0.0f, 46 },
-                { PartRole::Organ,  "assets/textures/lev_organ.png", 2,   0.0f,   0.0f, 24.0f, 0.9f,    0.0f, 90 },
+                { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  11.0f, -20.0f, 20.0f, 0.62f,   0.0f, 18 },
+                { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  11.0f,  20.0f, 20.0f, 0.62f,   0.0f, 18 },
+                { PartRole::Fin,    "assets/textures/lev_fin.png",   2,  -4.0f, -32.0f, 24.0f, 0.8f,  -58.0f, 26 },
+                { PartRole::Fin,    "assets/textures/lev_fin.png",   2,  -4.0f,  32.0f, 24.0f, 0.8f,   58.0f, 26 },
+                { PartRole::Armour, "assets/textures/lev_plate.png", 1,   0.0f,   0.0f, 42.0f, 1.0f ,   0.0f, 46 },
+                { PartRole::Organ,  "assets/textures/lev_organ.png", 1,   0.0f,   0.0f, 30.0f, 1.05f,    0.0f, 90 },
             } }
         },
 
@@ -49,13 +49,13 @@ namespace
             3.0f, 9, 360.0f,
             7,
             { {
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  62.0f,   0.0f, 20.0f, 0.85f,   0.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  31.0f,  54.0f, 20.0f, 0.85f,  60.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -31.0f,  54.0f, 20.0f, 0.85f, 120.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -62.0f,   0.0f, 20.0f, 0.85f, 180.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -31.0f, -54.0f, 20.0f, 0.85f, 240.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  31.0f, -54.0f, 20.0f, 0.85f, 300.0f, 26 },
-                { PartRole::Organ,    "assets/textures/med_nucleus.png",  0,   0.0f,   0.0f, 28.0f, 0.9f,    0.0f, 120 },
+                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  62.0f,   0.0f, 26.0f, 0.85f,   0.0f, 26 },
+                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  31.0f,  54.0f, 26.0f, 0.85f,  60.0f, 26 },
+                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -31.0f,  54.0f, 26.0f, 0.85f, 120.0f, 26 },
+                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -62.0f,   0.0f, 26.0f, 0.85f, 180.0f, 26 },
+                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -31.0f, -54.0f, 26.0f, 0.85f, 240.0f, 26 },
+                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  31.0f, -54.0f, 26.0f, 0.85f, 300.0f, 26 },
+                { PartRole::Organ,    "assets/textures/med_nucleus.png",  0,   0.0f,   0.0f, 32.0f, 0.95f,    0.0f, 120 },
             } }
         },
 
@@ -77,9 +77,9 @@ namespace
             { {
                 { PartRole::Fin,   "assets/textures/lev_fin.png",    1,  0.0f, -32.0f, 20.0f, 0.7f, -62.0f, 30 },
                 { PartRole::Fin,   "assets/textures/lev_fin.png",    1,  0.0f,  32.0f, 20.0f, 0.7f,  62.0f, 30 },
-                { PartRole::Organ, "assets/textures/worm_vent.png",  2,  0.0f,   0.0f, 24.0f, 0.9f,   0.0f, 46 },
-                { PartRole::Organ, "assets/textures/worm_vent.png",  4,  0.0f,   0.0f, 24.0f, 0.9f,   0.0f, 46 },
-                { PartRole::Organ, "assets/textures/worm_vent.png",  6,  0.0f,   0.0f, 24.0f, 0.9f,   0.0f, 46 },
+                { PartRole::Organ, "assets/textures/worm_vent.png",  2,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+                { PartRole::Organ, "assets/textures/worm_vent.png",  4,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+                { PartRole::Organ, "assets/textures/worm_vent.png",  6,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
             } }
         },
     };

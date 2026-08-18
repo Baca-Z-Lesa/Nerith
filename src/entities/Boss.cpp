@@ -286,7 +286,10 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
         {
             const sf::Vector2f tangent{ -direction.y * m_strafe, direction.x * m_strafe };
             const float pull = (distance - m_def->preferredDistance) / m_def->preferredDistance;
-            steer(deltaTime, head + tangent * 150.0f + direction * (pull * 200.0f), 1.0f);
+            // Blinding it does not only spoil the lunge: it can no longer keep
+            // its nose on you while it circles either.
+            steer(deltaTime, head + tangent * 150.0f + direction * (pull * 200.0f),
+                  0.4f + 0.6f * m_vitals.tracking);
             advance(deltaTime, m_speed * m_vitals.mobility);
 
             m_attackTimer -= deltaTime;
@@ -609,15 +612,81 @@ Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float we
         return result;
     }
 
-    // Hide and plating shrug shots off. The spark still shows, so the player
-    // learns where the soft parts are instead of wondering if they are hitting.
-    if (touches(position, radius))
+    if (!bodyBlocks(position, radius))
+        return result;
+
+    result.hit = true;
+    result.at = position;
+
+    // Once nothing is shielding it any more, the whole animal is soft: a shot
+    // anywhere on the body chips the nearest reachable organ. While the plating
+    // holds, the same shot sparks off and does nothing, which is what teaches
+    // the player to break the plate before emptying into the hide.
+    const std::size_t organ = nearestExposedOrgan(position);
+    if (organ >= m_parts.size())
     {
-        result.hit = true;
         result.blocked = true;
-        result.at = position;
+        return result;
     }
+
+    Part& part = m_parts[organ];
+    const int dealt = std::max(1, static_cast<int>(std::lround(
+                                      static_cast<float>(damage) * config::BossBodyHitFactor
+                                      * (1.0f + weakPointBonus))));
+
+    part.health -= dealt;
+    part.flash = config::BossFlashDuration;
+
+    result.partIndex = organ;
+    result.wasOrgan = true;
+
+    if (part.health <= 0)
+    {
+        part.alive = false;
+        result.destroyedPart = true;
+        refreshVitals();
+
+        if (m_vitals.organs == 0)
+        {
+            m_dead = true;
+            result.killedBoss = true;
+        }
+    }
+
     return result;
+}
+
+bool Boss::bodyBlocks(sf::Vector2f position, float radius) const
+{
+    for (const Segment& segment : m_segments)
+    {
+        const float reach = radius + m_def->headRadius * segment.scale * config::BossBlockRadiusFactor;
+        if ((segment.position - position).lengthSquared() <= reach * reach)
+            return true;
+    }
+    return false;
+}
+
+std::size_t Boss::nearestExposedOrgan(sf::Vector2f position) const
+{
+    std::size_t best = m_parts.size();
+    float bestDistance = 0.0f;
+
+    for (std::size_t i = 0; i < m_parts.size(); ++i)
+    {
+        const Part& part = m_parts[i];
+        if (!part.alive || part.def.role != PartRole::Organ || !organExposed(part))
+            continue;
+
+        const float distance = (part.world - position).lengthSquared();
+        if (best >= m_parts.size() || distance < bestDistance)
+        {
+            best = i;
+            bestDistance = distance;
+        }
+    }
+
+    return best;
 }
 
 void Boss::splashNeighbours(std::size_t partIndex, int damage)
