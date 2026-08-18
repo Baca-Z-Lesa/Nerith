@@ -120,6 +120,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClCompile Include="src\upgrades\Stats.cpp" />
     <ClCompile Include="src\upgrades\UpgradeTree.cpp" />
     <ClCompile Include="src\world\Arena.cpp" />
+    <ClCompile Include="src\world\DepthTheme.cpp" />
     <ClCompile Include="src\world\LevelDef.cpp" />
     <ClCompile Include="src\world\LevelManager.cpp" />
     <ClCompile Include="src\world\Objective.cpp" />
@@ -146,6 +147,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClInclude Include="src\upgrades\Stats.h" />
     <ClInclude Include="src\upgrades\UpgradeTree.h" />
     <ClInclude Include="src\world\Arena.h" />
+    <ClInclude Include="src\world\DepthTheme.h" />
     <ClInclude Include="src\world\LevelDef.h" />
     <ClInclude Include="src\world\LevelManager.h" />
     <ClInclude Include="src\world\Objective.h" />

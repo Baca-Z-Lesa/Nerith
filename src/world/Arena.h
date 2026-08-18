@@ -1,5 +1,7 @@
 #pragma once
 
+#include "world/DepthTheme.h"
+
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/System/Vector2.hpp>
@@ -11,6 +13,9 @@ class Arena
 {
 public:
     Arena(sf::Vector2f center, float radius);
+
+    // Swapped in when the depth changes; rebuilds the lamp and the darkness.
+    void applyTheme(const DepthTheme& theme);
 
     void update(float deltaTime);
 
@@ -43,4 +48,5 @@ private:
     sf::VertexArray m_lightPool;
     sf::VertexArray m_caustics;
     sf::VertexArray m_gloom;
+    const DepthTheme* m_theme;
 };

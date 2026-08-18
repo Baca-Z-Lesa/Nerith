@@ -100,3 +100,12 @@ void AudioSystem::setMuted(bool muted)
         m_ambient->play();
     }
 }
+
+void AudioSystem::setDepth(float pitch, float volume)
+{
+    if (!m_ambient)
+        return;
+
+    m_ambient->setPitch(pitch);
+    m_ambient->setVolume(volume);
+}

@@ -210,6 +210,13 @@ void Game::beginLevel(int number)
 {
     m_level.start(number);
 
+    // The depth is the mood: the lamp, the sand, the darkness and the drone all
+    // change together, so descending is felt rather than announced.
+    const DepthTheme& theme = themeFor(m_level.getDepth());
+    m_arena.applyTheme(theme);
+    m_seabed.applyTheme(theme);
+    m_audio.setDepth(theme.ambientPitch, theme.ambientVolume);
+
     m_playerShots.clear();
     m_torpedoes.clear();
     m_enemyShots.clear();
@@ -1161,7 +1168,7 @@ void Game::update(float deltaTime)
 
 void Game::render()
 {
-    m_window.clear(config::BackgroundColor);
+    m_window.clear(themeFor(m_level.getDepth()).background);
 
     // Everything that lives in the basin is drawn through the camera.
     m_window.setView(m_camera);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "world/DepthTheme.h"
+
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
@@ -18,6 +20,8 @@ class Seabed
 public:
     Seabed(const Assets& assets, sf::Vector2f center, float arenaRadius);
 
+    void applyTheme(const DepthTheme& theme);
+
     void update(float deltaTime);
     void draw(sf::RenderTarget& target) const;
 
@@ -25,6 +29,7 @@ private:
     struct Prop
     {
         sf::Sprite sprite;
+        sf::Color  baseTint; // before the depth theme is multiplied in
         float baseRotation; // degrees
         float swayAmount;   // degrees; zero for anything rigid
         float swaySpeed;
@@ -53,6 +58,7 @@ private:
     float         m_time;
 
     sf::VertexArray      m_sand;  // base gradient plus grain, one draw call
+    const DepthTheme*    m_theme;
     std::vector<Prop>    m_props; // sorted back to front
     std::vector<Critter> m_critters;
     float                m_critterTimer;

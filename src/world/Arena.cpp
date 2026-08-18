@@ -42,6 +42,7 @@ Arena::Arena(sf::Vector2f center, float radius)
     , m_lightPool(sf::PrimitiveType::Triangles)
     , m_caustics(sf::PrimitiveType::Triangles)
     , m_gloom(sf::PrimitiveType::Triangles)
+    , m_theme(&themeFor(1))
 {
     buildLightPool();
     buildGloom();
@@ -52,7 +53,7 @@ void Arena::buildLightPool()
 {
     // A soft disc of light sitting over the sand, brightest in the middle and
     // gone by the time it reaches the reef. Blended additively when drawn.
-    const sf::Color core = config::ArenaLightColor;
+    const sf::Color core = m_theme->light;
     const sf::Color edge(core.r, core.g, core.b, 0);
 
     for (std::size_t i = 0; i < Segments; ++i)
@@ -63,8 +64,8 @@ void Arena::buildLightPool()
         // Built around the origin so drawLight can carry it to the sub.
         appendRingQuad(m_lightPool,
                        { 0.0f, 0.0f }, { 0.0f, 0.0f },
-                       sf::Vector2f(config::ArenaLightRadius, a0),
-                       sf::Vector2f(config::ArenaLightRadius, a1),
+                       sf::Vector2f(m_theme->lightRadius, a0),
+                       sf::Vector2f(m_theme->lightRadius, a1),
                        core, edge);
     }
 }
@@ -73,10 +74,10 @@ void Arena::buildGloom()
 {
     // An ellipse matched to the window's aspect ratio, so the darkness reaches
     // every screen edge at the same distance and the fade looks deliberate.
-    const sf::Color clear(config::BackgroundColor.r, config::BackgroundColor.g,
-                          config::BackgroundColor.b, 0);
-    const sf::Color dark(config::BackgroundColor.r, config::BackgroundColor.g,
-                         config::BackgroundColor.b, config::GloomMaxAlpha);
+    const sf::Color clear(m_theme->background.r, m_theme->background.g,
+                          m_theme->background.b, 0);
+    const sf::Color dark(m_theme->background.r, m_theme->background.g,
+                         m_theme->background.b, m_theme->vignetteAlpha);
 
     const auto onEllipse = [this](float semiX, float semiY, std::size_t index) {
         const float radians = segmentAngle(index).asRadians();
@@ -87,17 +88,17 @@ void Arena::buildGloom()
     {
         // Band one: transparent at the inner ellipse, full darkness at the outer.
         appendRingQuad(m_gloom,
-                       onEllipse(config::GloomInnerX, config::GloomInnerY, i),
-                       onEllipse(config::GloomInnerX, config::GloomInnerY, i + 1),
-                       onEllipse(config::GloomOuterX, config::GloomOuterY, i),
-                       onEllipse(config::GloomOuterX, config::GloomOuterY, i + 1),
+                       onEllipse(config::GloomInnerX * m_theme->vignetteTightness, config::GloomInnerY * m_theme->vignetteTightness, i),
+                       onEllipse(config::GloomInnerX * m_theme->vignetteTightness, config::GloomInnerY * m_theme->vignetteTightness, i + 1),
+                       onEllipse(config::GloomOuterX * m_theme->vignetteTightness, config::GloomOuterY * m_theme->vignetteTightness, i),
+                       onEllipse(config::GloomOuterX * m_theme->vignetteTightness, config::GloomOuterY * m_theme->vignetteTightness, i + 1),
                        clear, dark);
 
         // Band two: constant darkness out past any window we could be shown in,
         // which is also what clips the caustics back to the lit area.
         appendRingQuad(m_gloom,
-                       onEllipse(config::GloomOuterX, config::GloomOuterY, i),
-                       onEllipse(config::GloomOuterX, config::GloomOuterY, i + 1),
+                       onEllipse(config::GloomOuterX * m_theme->vignetteTightness, config::GloomOuterY * m_theme->vignetteTightness, i),
+                       onEllipse(config::GloomOuterX * m_theme->vignetteTightness, config::GloomOuterY * m_theme->vignetteTightness, i + 1),
                        onEllipse(config::GloomOuterX * 4.0f, config::GloomOuterY * 4.0f, i),
                        onEllipse(config::GloomOuterX * 4.0f, config::GloomOuterY * 4.0f, i + 1),
                        dark, dark);
@@ -124,10 +125,10 @@ void Arena::updateCaustics()
         const float width = m_radius * (0.06f + 0.026f * std::sin(m_time * 0.35f + phase));
 
         const float pulse = 0.45f + 0.55f * std::sin(m_time * 0.5f + phase * 2.1f);
-        const auto alpha = static_cast<std::uint8_t>(7.0f + 19.0f * pulse);
+        const auto alpha = static_cast<std::uint8_t>((7.0f + 19.0f * pulse) * m_theme->causticStrength);
 
-        const sf::Color bright(80, 175, 185, alpha);
-        const sf::Color fade(80, 175, 185, 0);
+        const sf::Color bright(m_theme->caustic.r, m_theme->caustic.g, m_theme->caustic.b, alpha);
+        const sf::Color fade(m_theme->caustic.r, m_theme->caustic.g, m_theme->caustic.b, 0);
 
         const sf::Vector2f middle = m_center + across * offset;
         const sf::Vector2f start = middle - along * length;
@@ -138,6 +139,19 @@ void Arena::updateCaustics()
         appendRingQuad(m_caustics, start, end, start - edge, end - edge, bright, fade);
         appendRingQuad(m_caustics, start, end, start + edge, end + edge, bright, fade);
     }
+}
+
+void Arena::applyTheme(const DepthTheme& theme)
+{
+    m_theme = &theme;
+
+    // The lamp and the darkness are the depth, so both are rebuilt outright
+    // rather than tinted after the fact.
+    m_lightPool.clear();
+    m_gloom.clear();
+    buildLightPool();
+    buildGloom();
+    updateCaustics();
 }
 
 void Arena::update(float deltaTime)

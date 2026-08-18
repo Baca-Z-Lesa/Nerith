@@ -31,6 +31,9 @@ public:
     void play(Sfx sound, float volumeScale = 1.0f);
     void startAmbient();
 
+    // Deeper water: the drone drops in pitch and leans on you harder.
+    void setDepth(float pitch, float volume);
+
     void setMuted(bool muted);
     bool isMuted() const { return m_muted; }
 

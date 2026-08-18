@@ -36,6 +36,7 @@ Seabed::Seabed(const Assets& assets, sf::Vector2f center, float arenaRadius)
     , m_arenaRadius(arenaRadius)
     , m_time(0.0f)
     , m_sand(sf::PrimitiveType::Triangles)
+    , m_theme(&themeFor(1))
     , m_critterTimer(rng::range(1.0f, 3.0f))
 {
     buildSand();
@@ -70,7 +71,7 @@ void Seabed::buildSand()
 
     quad({ WorldLeft, WorldTop },
          { WorldRight - WorldLeft, WorldBottom - WorldTop },
-         config::SandFarColor, config::SandNearColor);
+         m_theme->sandFar, m_theme->sandNear);
 
     // Grain, so the floor is not a flat wash of one colour.
     for (std::size_t i = 0; i < config::SandGrainCount; ++i)
@@ -80,9 +81,8 @@ void Seabed::buildSand()
         const float size = rng::range(1.5f, 4.5f);
         const auto alpha = static_cast<std::uint8_t>(rng::range(10.0f, 46.0f));
 
-        const sf::Color speck = rng::range(0.0f, 1.0f) < 0.5f
-                                    ? sf::Color(70, 110, 124, alpha)
-                                    : sf::Color(0, 0, 0, alpha);
+        const sf::Color grit(m_theme->light.r * 2, m_theme->light.g * 2, m_theme->light.b * 2, alpha);
+        const sf::Color speck = rng::range(0.0f, 1.0f) < 0.5f ? grit : sf::Color(0, 0, 0, alpha);
 
         quad(position, { size, size }, speck, speck);
     }
@@ -91,7 +91,7 @@ void Seabed::buildSand()
 void Seabed::addProp(const sf::Texture& texture, sf::Vector2f position, float scale,
                      sf::Color tint, float swayAmount)
 {
-    Prop prop{ sf::Sprite(texture), 0.0f, swayAmount, rng::range(0.35f, 0.8f),
+    Prop prop{ sf::Sprite(texture), tint, 0.0f, swayAmount, rng::range(0.35f, 0.8f),
                rng::range(0.0f, 6.28f) };
 
     const sf::Vector2f size(texture.getSize());
@@ -101,7 +101,9 @@ void Seabed::addProp(const sf::Texture& texture, sf::Vector2f position, float sc
     prop.sprite.setOrigin({ size.x / 2.0f, size.y });
     prop.sprite.setPosition(position);
     prop.sprite.setScale({ scale, scale });
-    prop.sprite.setColor(tint);
+    // The scattered tint is kept so the depth theme can be reapplied on top of
+    // it later without the two multiplying together every time.
+    prop.sprite.setColor(tintBy(tint, m_theme->propTint));
 
     prop.baseRotation = rng::range(-4.0f, 4.0f);
     prop.sprite.setRotation(sf::degrees(prop.baseRotation));
@@ -196,7 +198,7 @@ void Seabed::spawnCritter()
     const sf::Vector2f size(m_assets->fish.getSize());
     critter.sprite.setOrigin(size / 2.0f);
     critter.sprite.setScale({ rng::range(0.5f, 1.1f), rng::range(0.5f, 1.1f) });
-    critter.sprite.setColor(randomTint(sf::Color(46, 74, 84), 0.3f));
+    critter.sprite.setColor(tintBy(randomTint(sf::Color(46, 74, 84), 0.3f), m_theme->propTint));
 
     // In from one side, out through the other, always crossing the view.
     const bool fromLeft = rng::range(0.0f, 1.0f) < 0.5f;
@@ -232,6 +234,19 @@ void Seabed::updateCritters(float deltaTime)
     std::erase_if(m_critters, [](const Critter& critter) {
         return critter.position.x < WorldLeft - 80.0f || critter.position.x > WorldRight + 80.0f;
     });
+}
+
+void Seabed::applyTheme(const DepthTheme& theme)
+{
+    m_theme = &theme;
+
+    // The sand is repainted outright; the props keep the shade they were
+    // scattered with and get the depth multiplied over the top of it.
+    buildSand();
+
+    for (Prop& prop : m_props)
+        prop.sprite.setColor(tintBy(prop.baseTint, m_theme->propTint));
+
 }
 
 void Seabed::update(float deltaTime)

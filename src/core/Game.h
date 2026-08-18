@@ -13,6 +13,7 @@
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
 #include "world/Arena.h"
+#include "world/DepthTheme.h"
 #include "world/LevelManager.h"
 #include "world/Seabed.h"
 
