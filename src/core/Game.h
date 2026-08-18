@@ -79,6 +79,7 @@ private:
     void onLevelComplete();
     void advanceLevel();
     void startNewRun();
+    void diveIntoSelected();
     void onPlayerDied();
     void persist();
     int  getDepth() const;

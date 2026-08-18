@@ -39,17 +39,15 @@ void MainMenu::build(bool hasRun, int resumeLevel, int bestLevel, int bestDepth)
 {
     m_entries.clear();
 
-    if (hasRun)
-    {
-        m_entries.push_back({ "CONTINUE DIVE",
-                              "LEVEL " + std::to_string(resumeLevel) + "  -  "
-                                  + depthName(depthOf(resumeLevel)),
-                              Choice::Continue });
-    }
+    // Progress is permanent now, so there is no new-or-continue choice to make:
+    // there is only ever the one dive, and the hub decides where it goes.
+    m_entries.push_back({ "DIVE",
+                          "LEVEL " + std::to_string(resumeLevel) + "  -  "
+                              + depthName(depthOf(resumeLevel)),
+                          Choice::Dive });
 
-    m_entries.push_back({ "NEW DIVE",
-                          hasRun ? "ABANDONS THE RUN IN PROGRESS" : "START AT THE SHALLOWS",
-                          Choice::NewDive });
+    if (hasRun)
+        m_entries.push_back({ "SCUTTLE", "ERASE ALL SALVAGE AND UPGRADES", Choice::Reset });
 
     m_entries.push_back({ "SURFACE", "LEAVE", Choice::Quit });
 

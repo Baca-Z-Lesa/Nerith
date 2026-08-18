@@ -1,6 +1,7 @@
 #include "core/SaveGame.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <fstream>
 #include <sstream>
 
@@ -28,7 +29,9 @@ SaveGame SaveGame::load()
         // Unknown keys are skipped rather than rejected, so an older save still
         // loads after new fields are added.
         if (key == "level")
-            stream >> data.level;
+            stream >> data.selectedLevel;
+        else if (key == "unlocked_level")
+            stream >> data.unlockedLevel;
         else if (key == "salvage")
             stream >> data.salvage;
         else if (key == "best_level")
@@ -43,8 +46,14 @@ SaveGame SaveGame::load()
         }
     }
 
-    data.level = std::max(1, data.level);
+    data.selectedLevel = std::max(1, data.selectedLevel);
     data.salvage = std::max(0, data.salvage);
+
+    // A save written before levels could be replayed has no unlocked_level, so
+    // fall back to however far it had reached.
+    data.unlockedLevel = std::max({ 1, data.unlockedLevel, data.bestLevel, data.selectedLevel });
+    data.selectedLevel = std::min(data.selectedLevel, data.unlockedLevel);
+
     return data;
 }
 
@@ -54,23 +63,18 @@ void SaveGame::save() const
     if (!file)
         return; // read only directory: not worth interrupting the game over
 
-    file << "nerith 1\n";
+    file << "nerith 2\n";
     file << "best_level " << bestLevel << '\n';
     file << "best_depth " << bestDepth << '\n';
-    file << "level " << level << '\n';
+    file << "unlocked_level " << unlockedLevel << '\n';
+    file << "level " << selectedLevel << '\n';
     file << "salvage " << salvage << '\n';
 
     for (const std::string& id : unlocked)
         file << "upgrade " << id << '\n';
 }
 
-void SaveGame::clearRun()
+void SaveGame::wipe()
 {
-    SaveGame data = load();
-
-    data.level = 1;
-    data.salvage = 0;
-    data.unlocked.clear();
-
-    data.save();
+    std::remove(path());
 }

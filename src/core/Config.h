@@ -201,6 +201,7 @@ namespace config
     // --- Level flow ---
     inline constexpr float LevelIntroDuration = 2.8f;
     inline constexpr float LevelClearDuration = 2.2f;
+    inline constexpr float DeathBannerDuration = 2.6f;
     inline constexpr int   SalvagePerLevel = 3; // clearing a level is worth something on its own
 
     // --- Particles ---
@@ -319,6 +320,13 @@ namespace config
     inline constexpr sf::Vector2f TreeOrigin{ 640.0f, 372.0f };
     inline constexpr float TreePanSpeed = 620.0f;
     inline constexpr float TreePanLimit = 1150.0f;
+
+    // The hub's level picker.
+    inline constexpr float LevelStripY = 556.0f;
+    inline constexpr float LevelChipWidth = 38.0f;
+    inline constexpr float LevelChipHeight = 30.0f;
+    inline constexpr float LevelChipGap = 6.0f;
+    inline constexpr int   LevelStripMax = 24;
     inline constexpr float NodeWidth = 132.0f;
     inline constexpr float NodeHeight = 40.0f;
 

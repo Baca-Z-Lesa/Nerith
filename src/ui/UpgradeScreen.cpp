@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "ui/PixelFont.h"
+#include "world/LevelDef.h"
 
 #include <SFML/Window/Keyboard.hpp>
 
@@ -76,9 +77,44 @@ void UpgradeScreen::update(float deltaTime)
     m_pan.y = std::clamp(m_pan.y, -config::TreePanLimit, config::TreePanLimit);
 }
 
+void UpgradeScreen::setLevels(int selected, int unlocked)
+{
+    m_unlockedLevel = std::max(1, unlocked);
+    m_selectedLevel = std::clamp(selected, 1, m_unlockedLevel);
+}
+
+sf::FloatRect UpgradeScreen::levelBounds(int level) const
+{
+    // Only the tail of the campaign is shown once it gets long: the early
+    // levels stop being somewhere anybody chooses to go back to.
+    const int first = std::max(1, m_unlockedLevel - config::LevelStripMax + 1);
+    const int slot = level - first;
+
+    const int shown = m_unlockedLevel - first + 1;
+    const float total = static_cast<float>(shown) * config::LevelChipWidth
+                        + static_cast<float>(shown - 1) * config::LevelChipGap;
+    const float left = (static_cast<float>(config::WindowWidth) - total) / 2.0f;
+
+    return sf::FloatRect({ left + static_cast<float>(slot)
+                                      * (config::LevelChipWidth + config::LevelChipGap),
+                           config::LevelStripY },
+                         { config::LevelChipWidth, config::LevelChipHeight });
+}
+
 void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tree)
 {
     m_hovered.reset();
+    m_hoveredLevel.reset();
+
+    const int first = std::max(1, m_unlockedLevel - config::LevelStripMax + 1);
+    for (int level = first; level <= m_unlockedLevel; ++level)
+    {
+        if (levelBounds(level).contains(worldPosition))
+        {
+            m_hoveredLevel = level;
+            return; // the strip sits over the tree, so it wins the cursor
+        }
+    }
 
     const std::vector<UpgradeNode>& nodes = tree.getNodes();
     for (std::size_t i = 0; i < nodes.size(); ++i)
@@ -89,6 +125,59 @@ void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tre
             return;
         }
     }
+}
+
+void UpgradeScreen::drawLevelStrip(sf::RenderTarget& target)
+{
+    m_text.clear();
+
+    const int first = std::max(1, m_unlockedLevel - config::LevelStripMax + 1);
+
+    // Its own solid band, because the roots pan straight through this row.
+    m_box.setOutlineColor(sf::Color::Transparent);
+    m_box.setFillColor(sf::Color(2, 8, 14, 246));
+    m_box.setSize({ static_cast<float>(config::WindowWidth), config::LevelChipHeight + 34.0f });
+    m_box.setPosition({ 0.0f, config::LevelStripY - 26.0f });
+    target.draw(m_box);
+
+    m_box.setOutlineThickness(2.0f);
+
+    const std::string caption = "DIVE INTO";
+    pixelfont::append(m_text, caption,
+                      { (static_cast<float>(config::WindowWidth)
+                         - pixelfont::measure(caption, 1.5f)) / 2.0f,
+                        config::LevelStripY - 20.0f },
+                      1.5f, config::HudDimTextColor);
+
+    for (int level = first; level <= m_unlockedLevel; ++level)
+    {
+        const sf::FloatRect bounds = levelBounds(level);
+        const bool picked = level == m_selectedLevel;
+        const bool boss = isBossLevel(level);
+
+        m_box.setSize(bounds.size);
+        m_box.setPosition(bounds.position);
+        m_box.setFillColor(picked ? config::NodeUnlockedFill : config::NodeLockedFill);
+
+        sf::Color edge = boss ? config::HudBossColor : config::NodeLockedEdge;
+        if (picked)
+            edge = sf::Color::White;
+        else if (m_hoveredLevel && *m_hoveredLevel == level)
+            edge = config::NodeReadyEdge;
+
+        m_box.setOutlineColor(edge);
+        target.draw(m_box);
+
+        const std::string number = std::to_string(level);
+        pixelfont::append(m_text, number,
+                          { bounds.position.x + (bounds.size.x - pixelfont::measure(number, 1.6f)) / 2.0f,
+                            bounds.position.y + 9.0f },
+                          1.6f, picked ? config::HudTextColor
+                                       : (boss ? config::HudBossColor : config::HudDimTextColor));
+    }
+
+    m_box.setSize({ config::NodeWidth, config::NodeHeight });
+    target.draw(m_text);
 }
 
 void UpgradeScreen::drawLinks(sf::RenderTarget& target, const UpgradeTree& tree)
@@ -331,5 +420,6 @@ void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, int 
 
     drawLinks(target, tree);
     drawNodes(target, tree, salvage, depth);
+    drawLevelStrip(target);
     drawChrome(target, tree, salvage, depth, prompt);
 }

@@ -98,7 +98,7 @@ Game::Game()
     applyUpgrades();
     m_player.reset();
 
-    beginLevel(m_save.level);
+    beginLevel(m_save.selectedLevel);
 
     // Seed the water so the arena is not empty on the first frame.
     for (int i = 0; i < 260; ++i)
@@ -274,6 +274,11 @@ void Game::onLevelComplete()
     m_salvage += config::SalvagePerLevel;
     m_audio.play(Sfx::LevelClear);
 
+    // Clearing a level is the only thing that opens the next one. Beating it
+    // again later is always allowed, which is what makes grinding possible.
+    m_save.unlockedLevel = std::max(m_save.unlockedLevel, m_level.getNumber() + 1);
+    m_save.selectedLevel = m_save.unlockedLevel;
+
     m_state = State::LevelClear;
     m_stateTimer = config::LevelClearDuration;
 
@@ -288,9 +293,8 @@ void Game::advanceLevel()
 
 void Game::persist()
 {
-    m_save.level = m_state == State::LevelClear || m_state == State::Upgrading
-                       ? m_level.getNumber() + 1
-                       : m_level.getNumber();
+    // selectedLevel and unlockedLevel are owned by whoever changed them; this
+    // only writes out the things that are always true.
     m_save.salvage = m_salvage;
     m_save.unlocked = m_tree.getUnlockedIds();
     m_save.bestLevel = std::max(m_save.bestLevel, m_level.getNumber());
@@ -303,26 +307,38 @@ void Game::onPlayerDied()
     m_state = State::GameOver;
     m_showUpgrades = false;
 
+    m_stateTimer = config::DeathBannerDuration;
+
     effects::playerDeath(m_effects, m_player.getPosition());
     m_audio.play(Sfx::PlayerHurt, 1.4f);
 
-    // The records survive, the run does not.
-    m_save.bestLevel = std::max(m_save.bestLevel, m_level.getNumber());
-    m_save.bestDepth = std::max(m_save.bestDepth, m_level.getDepth());
-    m_save.level = 1;
-    m_save.salvage = 0;
-    m_save.unlocked.clear();
-    m_save.save();
+    // Nothing is taken away. The salvage stays, the tree stays, and the level
+    // is still there to be tried again from the hub. Losing an attempt is the
+    // whole cost of dying: the difficulty is in beating a level at all.
+    m_save.selectedLevel = m_level.getNumber();
+    persist();
 }
 
 void Game::startNewRun()
 {
+    // Only reachable from the menu's explicit reset. Everything else in the
+    // game is additive.
     m_tree.reset();
     m_salvage = 0;
+    m_save = SaveGame{};
     applyUpgrades();
     m_player.reset();
 
     beginLevel(1);
+    persist();
+}
+
+void Game::diveIntoSelected()
+{
+    const int level = std::clamp(m_save.selectedLevel, 1, m_save.unlockedLevel);
+
+    m_player.reset();
+    beginLevel(level);
     persist();
 }
 
@@ -337,22 +353,25 @@ void Game::openMenu()
 
     // Continue is only offered when the save actually holds a run worth
     // resuming, so a fresh install never shows a dead option.
-    m_menu.build(m_save.hasRun(), m_save.level, m_save.bestLevel, m_save.bestDepth);
+    m_menu.build(m_save.hasRun(), m_save.selectedLevel, m_save.bestLevel, m_save.bestDepth);
 }
 
 void Game::activateMenuChoice()
 {
     switch (m_menu.getSelected())
     {
-        case MainMenu::Choice::Continue:
-            // Everything is already standing: the constructor built the level
-            // the save pointed at, so this only lifts the title away.
-            m_state = State::LevelIntro;
-            m_stateTimer = config::LevelIntroDuration;
+        case MainMenu::Choice::Dive:
+            // Straight into the hub: the level and what to spend salvage on are
+            // the same decision, so they share a screen.
+            m_state = State::Upgrading;
+            m_showUpgrades = false;
+            m_upgradeScreen.clearCursor();
+            m_upgradeScreen.recentre();
             break;
 
-        case MainMenu::Choice::NewDive:
+        case MainMenu::Choice::Reset:
             startNewRun();
+            openMenu();
             break;
 
         case MainMenu::Choice::Quit:
@@ -370,6 +389,15 @@ void Game::applyUpgrades()
 
 void Game::handleUpgradeClick()
 {
+    // The hub's level strip shares the click with the tree.
+    if (const std::optional<int> level = m_upgradeScreen.getHoveredLevel())
+    {
+        m_save.selectedLevel = std::clamp(*level, 1, m_save.unlockedLevel);
+        m_upgradeScreen.setLevels(m_save.selectedLevel, m_save.unlockedLevel);
+        persist();
+        return;
+    }
+
     // The tree is inert once the run is over. Buying here would both heal a dead
     // sub and write the already wiped run back to disk.
     if (m_state == State::GameOver)
@@ -473,12 +501,7 @@ void Game::processEvents()
                 case sf::Keyboard::Scancode::Enter:
                 case sf::Keyboard::Scancode::Space:
                     if (m_state == State::Upgrading)
-                        advanceLevel();
-                    break;
-
-                case sf::Keyboard::Scancode::R:
-                    if (m_state == State::GameOver)
-                        startNewRun();
+                        diveIntoSelected();
                     break;
 
                 case sf::Keyboard::Scancode::M:
@@ -1174,6 +1197,7 @@ void Game::update(float deltaTime)
         // The tree lives in screen space, so the cursor has to be mapped through
         // the fixed view rather than the camera that follows the sub.
         m_upgradeScreen.update(deltaTime);
+        m_upgradeScreen.setLevels(m_save.selectedLevel, m_save.unlockedLevel);
         m_upgradeScreen.setCursor(m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_ui),
                                   m_tree);
     }
@@ -1232,8 +1256,20 @@ void Game::update(float deltaTime)
             }
             break;
 
-        case State::Upgrading:
         case State::GameOver:
+            // Drowning costs the attempt and nothing else, so it drops the player
+            // back in the hub rather than to the start of the campaign.
+            m_stateTimer -= deltaTime;
+            if (m_stateTimer <= 0.0f)
+            {
+                m_state = State::Upgrading;
+                m_showUpgrades = false;
+                m_upgradeScreen.clearCursor();
+                m_upgradeScreen.recentre();
+            }
+            break;
+
+        case State::Upgrading:
             break;
     }
 
@@ -1328,8 +1364,8 @@ void Game::render()
     if (upgradesVisible())
     {
         const std::string prompt = m_state == State::Upgrading
-                                       ? "ENTER TO DIVE TO LEVEL "
-                                             + std::to_string(m_level.getNumber() + 1)
+                                       ? "ENTER TO DIVE INTO LEVEL "
+                                             + std::to_string(m_save.selectedLevel)
                                        : "TAB TO CLOSE";
         m_upgradeScreen.draw(m_window, m_tree, m_salvage, getDepth(), prompt);
     }
@@ -1378,11 +1414,11 @@ void Game::render()
         }
         else if (m_state == State::GameOver)
         {
-            m_hud.drawBanner(m_window, "LOST AT LEVEL " + std::to_string(m_level.getNumber()),
+            m_hud.drawBanner(m_window, "LEVEL " + std::to_string(m_level.getNumber()),
                              "THE DARK TOOK YOU",
-                             "R TO DIVE AGAIN   -   BEST LEVEL "
-                                 + std::to_string(m_save.bestLevel),
-                             config::HudBossColor, 1.0f);
+                             "NOTHING LOST. TRY IT AGAIN.",
+                             config::HudBossColor,
+                             bannerAlpha(m_stateTimer, config::DeathBannerDuration));
         }
     }
 

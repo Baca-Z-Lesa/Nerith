@@ -17,8 +17,8 @@ class MainMenu
 public:
     enum class Choice
     {
-        Continue,
-        NewDive,
+        Dive,   // into the hub, where the level and the upgrades are picked
+        Reset,  // throw everything away, deliberately
         Quit,
     };
 

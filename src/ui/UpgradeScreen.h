@@ -23,6 +23,10 @@ public:
     void update(float deltaTime);
     void recentre() { m_pan = { 0.0f, 0.0f }; }
 
+    // The hub also picks which level to dive into, so the strip lives here.
+    void setLevels(int selected, int unlocked);
+    std::optional<int> getHoveredLevel() const { return m_hoveredLevel; }
+
     void setCursor(sf::Vector2f worldPosition, const UpgradeTree& tree);
 
     // Forgets what was under the cursor, so a hover from the last time the
@@ -40,10 +44,15 @@ private:
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
     void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth);
+    void drawLevelStrip(sf::RenderTarget& target);
+    sf::FloatRect levelBounds(int level) const;
     void drawChrome(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth,
                     const std::string& prompt);
 
     std::optional<std::size_t> m_hovered;
+    std::optional<int>         m_hoveredLevel;
+    int                        m_selectedLevel = 1;
+    int                        m_unlockedLevel = 1;
     sf::Vector2f               m_pan;
 
     sf::RectangleShape m_backdrop;
