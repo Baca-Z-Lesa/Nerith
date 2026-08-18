@@ -65,8 +65,9 @@ Game::Game()
     , m_player(m_assets, m_playerStats)
     , m_ambience(m_assets.particle)
     , m_effects(m_assets.particle)
-    , m_state(State::LevelIntro)
+    , m_state(State::Menu)
     , m_stateTimer(config::LevelIntroDuration)
+    , m_menuTime(0.0f)
     , m_salvage(0)
     , m_showUpgrades(false)
     , m_lastSpawnAngle(0.0f)
@@ -102,6 +103,10 @@ Game::Game()
     // Seed the water so the arena is not empty on the first frame.
     for (int i = 0; i < 260; ++i)
         effects::marineSnow(m_ambience, randomVisiblePoint());
+
+    // The world is built and waiting behind the title, so Continue drops the
+    // player straight back into the level the save left off at.
+    openMenu();
 
     m_audio.startAmbient();
 }
@@ -325,6 +330,37 @@ void Game::startNewRun()
 //  Upgrades
 // ---------------------------------------------------------------------------
 
+void Game::openMenu()
+{
+    m_state = State::Menu;
+    m_showUpgrades = false;
+
+    // Continue is only offered when the save actually holds a run worth
+    // resuming, so a fresh install never shows a dead option.
+    m_menu.build(m_save.hasRun(), m_save.level, m_save.bestLevel, m_save.bestDepth);
+}
+
+void Game::activateMenuChoice()
+{
+    switch (m_menu.getSelected())
+    {
+        case MainMenu::Choice::Continue:
+            // Everything is already standing: the constructor built the level
+            // the save pointed at, so this only lifts the title away.
+            m_state = State::LevelIntro;
+            m_stateTimer = config::LevelIntroDuration;
+            break;
+
+        case MainMenu::Choice::NewDive:
+            startNewRun();
+            break;
+
+        case MainMenu::Choice::Quit:
+            m_window.close();
+            break;
+    }
+}
+
 void Game::applyUpgrades()
 {
     // Rebuilt from the tree every time, so nothing can be counted twice.
@@ -374,7 +410,12 @@ void Game::processEvents()
         }
         else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>())
         {
-            if (upgradesVisible() && mousePressed->button == sf::Mouse::Button::Left)
+            if (m_state == State::Menu)
+            {
+                if (mousePressed->button == sf::Mouse::Button::Left)
+                    activateMenuChoice();
+            }
+            else if (upgradesVisible() && mousePressed->button == sf::Mouse::Button::Left)
                 handleUpgradeClick();
             else if (!upgradesVisible() && m_state == State::Fighting
                      && mousePressed->button == sf::Mouse::Button::Right)
@@ -382,13 +423,34 @@ void Game::processEvents()
         }
         else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
         {
+            // The title screen owns the keyboard while it is up.
+            if (m_state == State::Menu)
+            {
+                switch (keyPressed->scancode)
+                {
+                    case sf::Keyboard::Scancode::Up:
+                    case sf::Keyboard::Scancode::W:     m_menu.moveSelection(-1); break;
+                    case sf::Keyboard::Scancode::Down:
+                    case sf::Keyboard::Scancode::S:     m_menu.moveSelection(1); break;
+                    case sf::Keyboard::Scancode::Enter:
+                    case sf::Keyboard::Scancode::Space: activateMenuChoice(); break;
+                    case sf::Keyboard::Scancode::Escape: m_window.close(); break;
+                    case sf::Keyboard::Scancode::M: m_audio.setMuted(!m_audio.isMuted()); break;
+                    case sf::Keyboard::Scancode::F11: toggleFullscreen(); break;
+                    default: break;
+                }
+                continue;
+            }
+
             switch (keyPressed->scancode)
             {
                 case sf::Keyboard::Scancode::Escape:
+                    // Backs out one layer at a time rather than quitting from
+                    // the middle of a run.
                     if (m_showUpgrades)
                         m_showUpgrades = false;
                     else
-                        m_window.close();
+                        openMenu();
                     break;
 
                 case sf::Keyboard::Scancode::Tab:
@@ -1118,6 +1180,11 @@ void Game::update(float deltaTime)
 
     switch (m_state)
     {
+        case State::Menu:
+            m_menuTime += deltaTime;
+            m_menu.setCursor(m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_ui));
+            break;
+
         case State::LevelIntro:
             m_stateTimer -= deltaTime;
             if (m_stateTimer <= 0.0f)
@@ -1245,6 +1312,15 @@ void Game::render()
     // a vignette around the viewer, not a ring painted on the seabed.
     m_window.setView(m_ui);
     m_arena.drawGloom(m_window);
+
+    if (m_state == State::Menu)
+    {
+        // The seabed keeps moving behind the title, so the game is already
+        // breathing before the player has touched anything.
+        m_menu.draw(m_window, m_menuTime);
+        m_window.display();
+        return;
+    }
 
     if (m_state == State::GameOver)
         m_window.draw(m_deathOverlay);

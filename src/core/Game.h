@@ -9,6 +9,7 @@
 #include "entities/Player.h"
 #include "entities/Projectile.h"
 #include "ui/Hud.h"
+#include "ui/MainMenu.h"
 #include "ui/UpgradeScreen.h"
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
@@ -38,6 +39,7 @@ public:
 private:
     enum class State
     {
+        Menu,       // the screen the game opens on
         LevelIntro, // title card, nothing spawns yet
         Fighting,
         LevelClear, // objective met, the water settles
@@ -106,6 +108,9 @@ private:
     void spawnSplit(sf::Vector2f at, sf::Vector2f incoming);
     int  getJetDamage() const;
 
+    void openMenu();
+    void activateMenuChoice();
+
     void applyUpgrades();
     void handleUpgradeClick();
     bool upgradesVisible() const;
@@ -133,6 +138,7 @@ private:
     LevelManager  m_level;
     Player        m_player;
     Hud           m_hud;
+    MainMenu      m_menu;
     UpgradeScreen m_upgradeScreen;
 
     std::vector<Projectile> m_playerShots;
@@ -150,6 +156,7 @@ private:
     SaveGame m_save;
     State    m_state;
     float    m_stateTimer;
+    float    m_menuTime;
 
     int   m_salvage;
     bool  m_showUpgrades;
