@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <string>
 
 namespace
@@ -229,6 +230,7 @@ void Game::beginLevel(int number)
     m_enemyShots.clear();
     m_enemies.clear();
     m_mines.clear();
+    m_hitRings.clear();
     m_boss.reset();
     m_lastSpawnAngle = rng::range(0.0f, 360.0f);
     m_mineTimer = config::MineInterval;
@@ -459,6 +461,11 @@ void Game::processEvents()
         {
             applyLetterboxView();
         }
+        else if (const auto* wheel = event->getIf<sf::Event::MouseWheelScrolled>())
+        {
+            if (upgradesVisible())
+                m_upgradeScreen.zoomBy(wheel->delta);
+        }
         else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>())
         {
             if (m_state == State::Story)
@@ -518,6 +525,18 @@ void Game::processEvents()
                         m_showUpgrades = false;
                     else
                         openMenu();
+                    break;
+
+                case sf::Keyboard::Scancode::Equal:
+                case sf::Keyboard::Scancode::NumpadPlus:
+                    if (upgradesVisible())
+                        m_upgradeScreen.zoomBy(1.0f);
+                    break;
+
+                case sf::Keyboard::Scancode::Hyphen:
+                case sf::Keyboard::Scancode::NumpadMinus:
+                    if (upgradesVisible())
+                        m_upgradeScreen.zoomBy(-1.0f);
                     break;
 
                 case sf::Keyboard::Scancode::Tab:
@@ -658,6 +677,19 @@ void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming)
                                                    + step * static_cast<float>(i));
         m_pendingPlayerShots.emplace_back(m_assets.waterJet, at, unit(angle), fragment, damage, 0);
     }
+}
+
+void Game::addHitRing(sf::Vector2f at, float radius, sf::Color colour)
+{
+    m_hitRings.push_back({ at, 0.0f, config::HitRingDuration, radius, colour });
+}
+
+void Game::updateHitRings(float deltaTime)
+{
+    for (HitRing& ring : m_hitRings)
+        ring.age += deltaTime;
+
+    std::erase_if(m_hitRings, [](const HitRing& ring) { return ring.age >= ring.life; });
 }
 
 void Game::areaDamage(sf::Vector2f centre, float radius, int damage)
@@ -961,6 +993,11 @@ void Game::updateEnemies(float deltaTime)
     struct Hatch { EnemyType type; sf::Vector2f at; };
     std::vector<Hatch> hatched;
 
+    const std::size_t spawnlings = static_cast<std::size_t>(std::count_if(
+        m_enemies.begin(), m_enemies.end(), [](const Enemy& e) {
+            return e.isAlive() && e.getType() == EnemyType::Spawnling;
+        }));
+
     for (Enemy& enemy : m_enemies)
     {
         const bool wasAlive = enemy.isAlive();
@@ -983,8 +1020,13 @@ void Game::updateEnemies(float deltaTime)
             effects::hostileMuzzle(m_effects, muzzle, direction);
         }
 
-        for (const EnemyType type : enemy.takeBrood())
-            hatched.push_back({ type, enemy.getPosition() });
+        // A brooder holds its fire once the water is already full of its young,
+        // so two of them cannot bury the arena between them.
+        if (spawnlings + hatched.size() < config::MaxSpawnlings)
+        {
+            for (const EnemyType type : enemy.takeBrood())
+                hatched.push_back({ type, enemy.getPosition() });
+        }
     }
 
     for (const Hatch& hatch : hatched)
@@ -1115,12 +1157,22 @@ void Game::handleCollisions()
 
                 effects::impact(m_effects, shot.getPosition(), shot.getDirection());
                 m_audio.play(Sfx::Impact);
+                addHitRing(shot.getPosition(),
+                           torpedo ? config::TorpedoBlastRadius : config::JetRingRadius,
+                           torpedo ? config::HudBossColor : config::HudPipFullEdge);
 
                 if (!enemy.isAlive())
                     killEnemy(enemy);
 
                 if (torpedo)
                 {
+                    // Every torpedo detonates. This is what makes a swarm of
+                    // hatchlings answerable without a specific weapon build.
+                    areaDamage(shot.getPosition(), config::TorpedoBlastRadius,
+                               std::max(1, static_cast<int>(std::lround(
+                                                static_cast<float>(shot.getDamage())
+                                                * config::TorpedoSplashFactor))));
+
                     if (m_playerStats.has(Trait::ClusterTorpedoes))
                     {
                         for (int i = 0; i < config::TorpedoClusterShots; ++i)
@@ -1333,6 +1385,7 @@ void Game::update(float deltaTime)
 
                 handleCollisions();
                 flushPendingShots();
+                updateHitRings(deltaTime);
                 removeDeadEntities();
 
                 if (!m_player.isAlive())
@@ -1415,6 +1468,23 @@ void Game::render()
 
     if (m_player.isAlive())
         m_player.draw(m_window);
+
+    // Hit rings sit over the effects: they are the readable part of a hit.
+    for (const HitRing& ring : m_hitRings)
+    {
+        const float t = ring.age / ring.life;
+        const float radius = ring.radius * (0.25f + 0.75f * t);
+
+        sf::Color edge = ring.colour;
+        edge.a = static_cast<std::uint8_t>(235.0f * (1.0f - t) * (1.0f - t));
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(ring.position);
+        m_sonarRing.setOutlineThickness(2.0f + 3.0f * (1.0f - t));
+        m_sonarRing.setOutlineColor(edge);
+        m_window.draw(m_sonarRing);
+    }
 
     m_effects.draw(m_window);
 

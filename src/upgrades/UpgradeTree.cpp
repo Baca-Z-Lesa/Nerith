@@ -16,10 +16,11 @@ namespace
         const float base = -90.0f + 360.0f * static_cast<float>(branch)
                                         / static_cast<float>(UpgradeBranchCount);
 
-        // Alternating curl, growing with distance, so the roots bend away from
-        // each other instead of radiating like spokes on a wheel.
-        const float curl = (branch % 2 == 0 ? 1.0f : -1.0f) * 1.9f;
-        const float angle = base + curl * static_cast<float>(index * index);
+        // Alternating curl so the roots bend rather than radiating like spokes,
+        // but linear and small: squaring it swung the far end of a branch a
+        // full segment across and straight through its neighbours.
+        const float curl = (branch % 2 == 0 ? 1.0f : -1.0f) * 3.6f;
+        const float angle = base + curl * static_cast<float>(index);
         const float distance = FirstRing + RingStep * static_cast<float>(index);
 
         return sf::Vector2f(distance, sf::degrees(angle));
@@ -143,7 +144,7 @@ void UpgradeTree::build()
         { "son5", "DEEP PING", "+70% sonar range.",
           26, 4, 4, { "son4" }, { { Stat::SonarRange, 0.0f, 0.70f } }, {}, {}, cell(4, 4) },
         { "son6", "BLOOD SCENT", "+35% damage to anything already bleeding.",
-          32, 4, 4, { "son5", "mut2" }, { { Stat::BleedTargetDamage, 0.0f, 0.35f } },
+          32, 4, 4, { "son5" }, { { Stat::BleedTargetDamage, 0.0f, 0.35f } },
           {}, {}, cell(4, 5) },
         { "son7", "RESONANCE", "+40% damage to boss parts and organs.",
           40, 5, 4, { "son6" }, { { Stat::WeakPointDamage, 0.0f, 0.40f } }, {}, {}, cell(4, 6) },
@@ -163,7 +164,7 @@ void UpgradeTree::build()
         { "def4", "FAST CYCLE", "-40% shield regrow time.",
           24, 3, 5, { "def3" }, { { Stat::ShieldRecharge, 0.0f, -0.40f } }, {}, {}, cell(5, 3) },
         { "def5", "REACTIVE PLATE", "A breaking shield blasts whatever is close.",
-          30, 4, 5, { "def4", "hul3" }, {}, { Trait::ReactiveArmour }, {}, cell(5, 4) },
+          30, 4, 5, { "def4" }, {}, { Trait::ReactiveArmour }, {}, cell(5, 4) },
         { "def6", "MINE LAYER", "Drops proximity mines in your wake.",
           36, 4, 5, { "def5" }, {}, { Trait::Mines }, {}, cell(5, 5) },
         { "def7", "DENSE CHARGES", "+60% mine damage.",
@@ -179,7 +180,7 @@ void UpgradeTree::build()
           16, 3, 6, { "mut1" }, { { Stat::BleedDamage, 1.0f, 0.0f } },
           { Trait::Bleed }, {}, cell(6, 1) },
         { "mut3", "CHAIN REACTION", "Breaking a boss part wounds the parts beside it.",
-          22, 3, 6, { "mut2", "wpn5" }, {}, { Trait::ChainReaction }, {}, cell(6, 2) },
+          22, 3, 6, { "mut2" }, {}, { Trait::ChainReaction }, {}, cell(6, 2) },
         { "mut4", "RUPTURE", "+150% bleed damage.",
           28, 4, 6, { "mut3" }, { { Stat::BleedDamage, 0.0f, 1.50f } }, {}, {}, cell(6, 3) },
         { "mut5", "ESCORT", "A drone circles you and fires on its own.",

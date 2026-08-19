@@ -322,6 +322,19 @@ namespace config
     inline constexpr float MineInterval = 2.6f;
     inline constexpr float MineLifetime = 14.0f;
     inline constexpr float MineTriggerRadius = 34.0f;
+    // Every torpedo detonates, not just the cluster upgrade. Without this the
+    // only answer to a brooder swarm was a weapon branch you might not own.
+    inline constexpr float TorpedoBlastRadius = 118.0f;
+    inline constexpr float TorpedoSplashFactor = 0.6f; // of the direct hit
+
+    // How long a hit ring lives and how far it opens.
+    inline constexpr float HitRingDuration = 0.26f;
+    inline constexpr float JetRingRadius = 34.0f;
+
+    // Brooders stop hatching once this many of their young are already out, so
+    // two of them cannot bury the arena on their own.
+    inline constexpr std::size_t MaxSpawnlings = 14;
+
     inline constexpr float MineBlastRadius = 96.0f;
     inline constexpr int   MineBaseDamage = 6;
 
@@ -373,6 +386,9 @@ namespace config
     inline constexpr sf::Vector2f TreeOrigin{ 640.0f, 372.0f };
     inline constexpr float TreePanSpeed = 620.0f;
     inline constexpr float TreePanLimit = 1150.0f;
+    inline constexpr float TreeZoomStep = 1.12f;
+    inline constexpr float TreeZoomMin = 0.45f;
+    inline constexpr float TreeZoomMax = 1.60f;
 
     // The hub's level picker.
     inline constexpr float LevelStripY = 556.0f;

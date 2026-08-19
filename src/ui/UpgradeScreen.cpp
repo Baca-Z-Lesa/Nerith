@@ -7,6 +7,7 @@
 #include <SFML/Window/Keyboard.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace
@@ -71,7 +72,20 @@ UpgradeScreen::UpgradeScreen()
 
 sf::Vector2f UpgradeScreen::centreOf(const UpgradeNode& node) const
 {
-    return config::TreeOrigin + node.position + m_pan;
+    // Panning happens in tree space and is then scaled with everything else,
+    // so zooming keeps whatever the player had centred, centred.
+    return config::TreeOrigin + (node.position + m_pan) * m_zoom;
+}
+
+void UpgradeScreen::zoomBy(float steps)
+{
+    m_zoom = std::clamp(m_zoom * std::pow(config::TreeZoomStep, steps),
+                        config::TreeZoomMin, config::TreeZoomMax);
+}
+
+float UpgradeScreen::nodeRadius() const
+{
+    return config::NodeRadius * m_zoom;
 }
 
 sf::FloatRect UpgradeScreen::boundsOf(const UpgradeNode& node) const
@@ -147,7 +161,7 @@ void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tre
     for (std::size_t i = 0; i < nodes.size(); ++i)
     {
         const sf::Vector2f delta = worldPosition - centreOf(nodes[i]);
-        if (delta.lengthSquared() <= config::NodeRadius * config::NodeRadius)
+        if (delta.lengthSquared() <= nodeRadius() * nodeRadius())
         {
             m_hovered = i;
             return;
@@ -229,7 +243,8 @@ void UpgradeScreen::drawLinks(sf::RenderTarget& target, const UpgradeTree& tree)
                 const bool open = tree.isUnlocked(j);
                 const sf::Color color = open ? config::LinkOpenColor : config::LinkShutColor;
 
-                appendLine(m_lines, centreOf(nodes[j]), centreOf(nodes[i]), open ? 3.0f : 2.0f, color);
+                appendLine(m_lines, centreOf(nodes[j]), centreOf(nodes[i]),
+                           (open ? 3.0f : 2.0f) * m_zoom, color);
             }
         }
     }
@@ -282,14 +297,18 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
         m_node.setPosition(centre);
         m_node.setFillColor(fill);
         m_node.setOutlineColor(edge);
-        m_node.setRadius(config::NodeRadius);
-        m_node.setOrigin({ config::NodeRadius, config::NodeRadius });
+        const float radius = nodeRadius();
+        m_node.setRadius(radius);
+        m_node.setOrigin({ radius, radius });
+        m_node.setOutlineThickness(2.5f * m_zoom);
         target.draw(m_node);
 
+        const float iconScale = 1.8f * m_zoom;
         const std::string icon = initialsOf(node.name);
         pixelfont::append(m_text, icon,
-                          { centre.x - pixelfont::measure(icon, 1.8f) / 2.0f, centre.y - 6.0f },
-                          1.8f, label);
+                          { centre.x - pixelfont::measure(icon, iconScale) / 2.0f,
+                            centre.y - 3.5f * iconScale },
+                          iconScale, label);
 
         // A small ring under the disc carries the one thing worth knowing at a
         // glance: whether it is owned, out of depth, or just costs something.
@@ -301,10 +320,11 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
                                         : affordable ? config::HudSalvageColor
                                                      : config::HudDimTextColor;
 
+            const float tagScale = 1.3f * m_zoom;
             pixelfont::append(m_text, tag,
-                              { centre.x - pixelfont::measure(tag, 1.3f) / 2.0f,
-                                centre.y + config::NodeRadius + 5.0f },
-                              1.3f, tagColour);
+                              { centre.x - pixelfont::measure(tag, tagScale) / 2.0f,
+                                centre.y + radius + 5.0f },
+                              tagScale, tagColour);
         }
     }
 
@@ -323,9 +343,9 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
     const float width = config::NodeCardWidth;
     const float height = config::NodeCardHeight;
 
-    sf::Vector2f corner{ centre.x + config::NodeRadius + 12.0f, centre.y - height / 2.0f };
+    sf::Vector2f corner{ centre.x + nodeRadius() + 12.0f, centre.y - height / 2.0f };
     if (corner.x + width > static_cast<float>(config::WindowWidth) - 10.0f)
-        corner.x = centre.x - config::NodeRadius - 12.0f - width;
+        corner.x = centre.x - nodeRadius() - 12.0f - width;
 
     corner.y = std::clamp(corner.y, 96.0f, static_cast<float>(config::WindowHeight) - height - 120.0f);
 
@@ -429,8 +449,10 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
         const char* name = UpgradeTree::getBranchName(node.column);
         const float width = pixelfont::measure(name, 1.4f);
 
-        // Pushed a little further out along the root than the node itself.
-        const sf::Vector2f label = centreOf(node) + node.position.normalized() * 46.0f;
+        // Clear of the circle plus a constant gap: the label text does not
+        // shrink with the zoom, so the gap must not shrink with it either.
+        const sf::Vector2f label =
+            centreOf(node) + node.position.normalized() * (nodeRadius() + 22.0f);
 
         m_box.setSize({ width + 14.0f, 18.0f });
         m_box.setPosition({ label.x - width / 2.0f - 7.0f, label.y - 4.0f });

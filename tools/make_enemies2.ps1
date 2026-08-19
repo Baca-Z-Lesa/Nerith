@@ -192,17 +192,31 @@ foreach ($side in @(-1, 1)) {
 Blob $g @( (P 226 $cy), (P 196 ($cy - 64)), (P 108 ($cy - 70)), (P 26 ($cy - 22)),
            (P 12 $cy), (P 26 ($cy + 22)), (P 108 ($cy + 70)), (P 196 ($cy + 64)) ) (C 32 38 50) $ink 7
 
-# the maw, teeth on both sides of a front opening
-Blob $g @( (P 244 $cy), (P 196 ($cy - 44)), (P 150 ($cy - 34)), (P 142 $cy),
-           (P 150 ($cy + 34)), (P 196 ($cy + 44)) ) (C 6 8 12)
-for ($i = 0; $i -lt 5; $i++) {
-    $t = $i / 4.0
-    $x = 158 + $t * 74
-    $sp = 38 - $t * 22
-    foreach ($side in @(-1, 1)) {
-        $y = $cy + $side * $sp
-        Poly $g @( (P ($x - 10) $y), (P $x ($y - $side * 22)), (P ($x + 10) $y) ) (C 208 216 220)
-    }
+# The body is a profile, with the lure arcing over the top, so the mouth has to
+# be a profile too: an upper and a lower jaw hinged at the back, not a ring of
+# teeth around a hole seen from above.
+$hinge = 138.0
+$jut = 262.0   # the lower jaw juts further forward, the way an angler's does
+
+# gullet first, so both jaws close over it
+Poly $g @( (P $hinge ($cy - 8)), (P 236 ($cy - 62)), (P $jut ($cy + 44)), (P $hinge ($cy + 20)) ) (C 4 6 9)
+
+# upper jaw: a wedge above the gullet, teeth hanging down from its edge
+Poly $g @( (P $hinge ($cy - 14)), (P 232 ($cy - 76)), (P 248 ($cy - 52)), (P $hinge ($cy + 2)) ) (C 30 36 48) $ink 6
+for ($i = 0; $i -lt 6; $i++) {
+    $t = $i / 5.0
+    $x = $hinge + $t * 100
+    $y = ($cy - 12) - $t * 50
+    Poly $g @( (P ($x - 9) $y), (P ($x + 3) ($y + 26 - $t * 6)), (P ($x + 9) $y) ) (C 214 222 226)
+}
+
+# lower jaw: hinged at the same point but thrown further forward and open
+Poly $g @( (P $hinge ($cy + 4)), (P $jut ($cy + 36)), (P ($jut - 14) ($cy + 58)), (P $hinge ($cy + 26)) ) (C 26 32 42) $ink 6
+for ($i = 0; $i -lt 6; $i++) {
+    $t = $i / 5.0
+    $x = $hinge + $t * 116
+    $y = ($cy + 8) + $t * 34
+    Poly $g @( (P ($x - 9) $y), (P ($x + 3) ($y - 24 + $t * 5)), (P ($x + 9) $y) ) (C 200 210 214)
 }
 
 # the lure: a stalk arcing forward with a light on the end

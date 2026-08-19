@@ -57,6 +57,17 @@ private:
         float fireTimer;
     };
 
+    // An expanding ring left where something was hit. Purely feedback: it is
+    // the difference between "did that land" and seeing it land.
+    struct HitRing
+    {
+        sf::Vector2f position;
+        float        age;
+        float        life;
+        float        radius;
+        sf::Color    colour;
+    };
+
     // A dropped mine: arms after a moment so it cannot detonate in your face.
     struct Mine
     {
@@ -109,6 +120,8 @@ private:
 
     // Shared by the pressure burst, reactive plating, mines and clusters.
     void areaDamage(sf::Vector2f centre, float radius, int damage);
+    void addHitRing(sf::Vector2f at, float radius, sf::Color colour);
+    void updateHitRings(float deltaTime);
     void spawnSplit(sf::Vector2f at, sf::Vector2f incoming);
     int  getJetDamage() const;
 
@@ -161,6 +174,7 @@ private:
     std::vector<Enemy>      m_enemies;
     std::vector<Drone>      m_drones;
     std::vector<Mine>       m_mines;
+    std::vector<HitRing>    m_hitRings;
     std::optional<Boss>     m_boss;
 
     // Two layers: ambience sits under the entities, impacts sit over them.

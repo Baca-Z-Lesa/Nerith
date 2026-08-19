@@ -22,7 +22,10 @@ public:
 
     // Arrow keys or WASD drag the view across the roots; nothing else fits.
     void update(float deltaTime);
-    void recentre() { m_pan = { 0.0f, 0.0f }; }
+    void recentre() { m_pan = { 0.0f, 0.0f }; m_zoom = 1.0f; }
+
+    // Mouse wheel, or the plus and minus keys.
+    void zoomBy(float steps);
 
     // The hub also picks which level to dive into, so the strip lives here.
     void setLevels(int selected, int unlocked);
@@ -42,6 +45,7 @@ public:
 private:
     sf::Vector2f centreOf(const UpgradeNode& node) const;
     sf::FloatRect boundsOf(const UpgradeNode& node) const;
+    float nodeRadius() const;
     void drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
                       const UpgradeNode& node, int salvage, int depth);
 
@@ -57,6 +61,7 @@ private:
     int                        m_selectedLevel = 1;
     int                        m_unlockedLevel = 1;
     sf::Vector2f               m_pan;
+    float                      m_zoom = 1.0f;
 
     sf::RectangleShape m_backdrop;
     sf::RectangleShape m_box;
