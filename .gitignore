@@ -18,8 +18,10 @@ Release/
 *.vcxproj.user
 .vs/
 
-# Generated art previews
+# Generated art previews, and the unlit art the relief pass reads back. Both
+# are rebuilt by tools/make_3d.ps1 from the scripts that are in the repo.
 tools/preview/
+tools/flat/
 
 # Local run state
 nerith_save.txt
