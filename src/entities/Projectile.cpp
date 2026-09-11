@@ -12,6 +12,7 @@ Projectile::Projectile(const sf::Texture& texture, sf::Vector2f position, sf::Ve
     , m_damage(std::max(1, damage))
     , m_pierce(std::max(0, pierce))
     , m_bounces(0)
+    , m_ignore(0)
     , m_scale(stats.scale)
     , m_alive(true)
 {

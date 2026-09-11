@@ -41,6 +41,13 @@ public:
     // wait bought them.
     void setScale(float scale);
 
+    // The one creature this shot may not hit. Fragments are born inside
+    // whatever was just hit, so without this every one of them lands on that
+    // same creature on the next frame and deletes it - which made splitshot
+    // and the cluster torpedo into instant kills rather than into spray.
+    void setIgnore(int enemyId) { m_ignore = enemyId; }
+    int getIgnore() const { return m_ignore; }
+
     bool isAlive() const { return m_alive; }
     void kill() { m_alive = false; }
 
@@ -53,6 +60,7 @@ private:
     int          m_damage;
     int          m_pierce;
     int          m_bounces;
+    int          m_ignore;
     float        m_scale;
     bool         m_alive;
 };

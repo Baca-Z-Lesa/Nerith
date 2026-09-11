@@ -61,6 +61,12 @@ public:
     // and sniping out of the dark.
     void confine(sf::Vector2f center, float maxDistance);
 
+    // A number that is only ever this creature's, for as long as it exists.
+    // Splitshot and cluster fragments are born inside whatever was just hit,
+    // so a shot needs a way to say "anything but that one" - and a pointer or
+    // an index into the enemy vector would not survive the vector growing.
+    int getId() const { return m_id; }
+
     EnemyType getType() const { return m_type; }
     sf::Vector2f getPosition() const { return m_position; }
     sf::Vector2f getMuzzlePosition() const;
@@ -73,6 +79,7 @@ private:
     void move(float deltaTime, sf::Vector2f toPlayer, float distance);
     void applyHitFlash();
 
+    int                       m_id;
     EnemyType                 m_type;
     const config::EnemyStats* m_stats;
     EnemyScaling              m_scaling;

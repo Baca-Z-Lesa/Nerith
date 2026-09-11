@@ -228,7 +228,7 @@ private:
     void areaDamage(sf::Vector2f centre, float radius, int damage);
     void addHitRing(sf::Vector2f at, float radius, sf::Color colour);
     void updateHitRings(float deltaTime);
-    void spawnSplit(sf::Vector2f at, sf::Vector2f incoming);
+    void spawnSplit(sf::Vector2f at, sf::Vector2f incoming, int fromEnemyId);
     int  getJetDamage() const;
 
     // Shows a chapter if it has never been seen, otherwise goes straight on.

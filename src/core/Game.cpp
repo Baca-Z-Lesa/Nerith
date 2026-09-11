@@ -1072,7 +1072,7 @@ void Game::performDash()
     }
 }
 
-void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming)
+void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming, int fromEnemyId)
 {
     const int count = std::max(0, m_playerStats.getInt(Stat::SplitCount, 0));
     if (count <= 0)
@@ -1092,6 +1092,11 @@ void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming)
         const sf::Angle angle = base + sf::degrees(-config::SplitSpread / 2.0f
                                                    + step * static_cast<float>(i));
         m_pendingPlayerShots.emplace_back(m_assets.waterJet, at, unit(angle), fragment, damage, 0);
+
+        // The fragments are standing inside the creature they came out of.
+        // Without this every one of them lands on it again on the next frame,
+        // which turned splitshot into an execute rather than into spray.
+        m_pendingPlayerShots.back().setIgnore(fromEnemyId);
     }
 }
 
@@ -2037,7 +2042,7 @@ void Game::handleCollisions()
 
             for (Enemy& enemy : m_enemies)
             {
-                if (!enemy.isAlive())
+                if (!enemy.isAlive() || shot.getIgnore() == enemy.getId())
                     continue;
 
                 const float reach = shot.getRadius() + enemy.getRadius();
@@ -2112,6 +2117,11 @@ void Game::handleCollisions()
                             m_pendingPlayerShots.emplace_back(m_assets.waterJet, shot.getPosition(),
                                                              unit(angle), config::WaterJet,
                                                              std::max(1, shot.getDamage() / 2), 0);
+
+                            // Same reason as the splitshot fragments: these are
+                            // born inside whatever the torpedo just hit, and
+                            // the blast has already accounted for that creature.
+                            m_pendingPlayerShots.back().setIgnore(enemy.getId());
                         }
                     }
                     shot.kill();
@@ -2120,7 +2130,7 @@ void Game::handleCollisions()
                 }
 
                 if (splits)
-                    spawnSplit(shot.getPosition(), shot.getDirection());
+                    spawnSplit(shot.getPosition(), shot.getDirection(), enemy.getId());
 
                 if (shot.spendPierce())
                 {

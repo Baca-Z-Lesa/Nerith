@@ -8,9 +8,17 @@
 #include <algorithm>
 #include <cmath>
 
+namespace
+{
+    // Never reused, so an id cannot be mistaken for a creature that has since
+    // died and been replaced in the same slot.
+    int nextEnemyId = 1;
+}
+
 Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
              const EnemyScaling& scaling)
-    : m_type(type)
+    : m_id(nextEnemyId++)
+    , m_type(type)
     , m_stats(&config::enemyStats(type))
     , m_scaling(scaling)
     , m_sprite(texture)
