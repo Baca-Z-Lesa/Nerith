@@ -9,7 +9,7 @@ namespace
     using Glyph = std::array<std::uint8_t, 7>;
 
     // Order: space, 0-9, A-Z, then the handful of symbols the UI needs.
-    constexpr std::array<Glyph, 47> Glyphs{ {
+    constexpr std::array<Glyph, 48> Glyphs{ {
         { 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000 }, // space
 
         { 0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110 }, // 0
@@ -60,6 +60,7 @@ namespace
         { 0b01000, 0b00100, 0b00010, 0b00001, 0b00010, 0b00100, 0b01000 }, // >
         { 0b00010, 0b00100, 0b01000, 0b10000, 0b01000, 0b00100, 0b00010 }, // <
         { 0b01110, 0b01110, 0b01110, 0b01110, 0b01110, 0b01110, 0b01110 }, // = a half block
+        { 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100, 0b00100 }, // ,
     } };
 
     std::size_t glyphIndex(char character)
@@ -84,6 +85,7 @@ namespace
             case '>': return 44;
             case '<': return 45;
             case '=': return 46;
+            case ',': return 47;
             default:  return 0; // anything unknown renders as a blank
         }
     }

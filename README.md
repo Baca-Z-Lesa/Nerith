@@ -24,6 +24,9 @@ Grab `dist/Nerith.zip` (or build it, below), unzip it anywhere, run
 | `Shift` | dash, once the engine takes it |
 | `F` | kill the lamp and run dark |
 | `Tab` | the upgrade tree, mid dive |
+| arrows | walk the roots, in the tree |
+| `Space` | install what the roots landed on |
+| `,` `.` | pick the dive, in the hub |
 | wheel, `+` `-` | zoom the tree |
 | `R` | strip the hull back, in the hub |
 | `Esc` or `P` | hold at depth |
@@ -42,6 +45,14 @@ campaign pays for roughly half the tree. Clearing water nobody has cleared pays
 a bonus that grows with the level; going back over old ground pays a third of
 the kills and no bonus, so the way to afford anything is downward.
 
+No two dives are in the same water. The basin is generated per level from a
+seed: nine chambers walked outward from the mouth with corridors cut between
+them and side branches off roughly half, all resolved into one signed distance
+field, so rock is solid, corners are real cover and a creature on the other side
+of a wall has to come around it. Boss levels open into one hall instead. A
+minimap in the corner is the only reason any of it is navigable, and arrows at
+the screen edge point at what is hunting you off it.
+
 There are three ways to play a level. Most are fought: hold what ground you can
 and kill what arrives. A hunt is not — the nests are cemented to rock out at
 the reef, never all in sight at once, hatching until they are burned out, so you
@@ -50,6 +61,18 @@ have to cross the basin and crossing it costs. And any of them can be run dark:
 you blind too. A creature that has lost the sub wanders and holds its fire
 entirely. Firing gives you away for a couple of seconds either way, so going
 quiet is a way to move rather than a way to shoot for free.
+
+A hit that never lands is worth as much noise as one that does. A shield
+popping, a dash timed into a shot, armour soaking a blow, the vent pulling you
+out of a death: each has its own colour and ring, its own weight of hit stop,
+and a dodge drops the world into slow motion for a moment. Taking real damage
+resets the streak, so the counter on the HUD is a live claim rather than a
+score, and the kill sound climbs in pitch while it holds.
+
+The music is three loops of the same length over the same root, played together
+and faded independently. The bed is always on; the pulse follows how many
+creatures have noticed you, the dread follows whether a boss is alive. Nothing
+in it is a tune, so it can sit under a fight for as long as the fight lasts.
 
 Bosses are animals rather than health bars. Each is a body towing segments with
 eyes, fins, tentacles, plating and organs bolted to it, and breaking a part takes
