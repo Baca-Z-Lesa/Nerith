@@ -19,9 +19,10 @@ Grab `dist/Nerith.zip` (or build it, below), unzip it anywhere, run
 |---|---|
 | `W A S D` | drive |
 | mouse | aim — the hull turns to follow it |
-| left mouse | water jet, held down |
+| left mouse | water jet, held down (held *and released*, with a charge coil) |
 | right mouse | torpedo, once the tube is fitted |
 | `Shift` | dash, once the engine takes it |
+| `F` | kill the lamp and run dark |
 | `Tab` | the upgrade tree, mid dive |
 | wheel, `+` `-` | zoom the tree |
 | `R` | strip the hull back, in the hub |
@@ -34,17 +35,29 @@ The title screen has the same list, plus options for difficulty and volume.
 ## How it is put together
 
 Salvage is the only thing between you and any upgrade — there are no timed or
-depth-gated nodes. Prices climb steeply along each of the seven branches, and a
-clean first run through the campaign pays for roughly half the tree, so which
-branches you commit to is the build. Clearing water nobody has cleared pays a
-bonus that grows with the level; going back over old ground pays a third of the
-kills and no bonus, so the way to afford anything is downward.
+depth-gated nodes. Nine roots leave the hull, each running out three nodes
+before forking into two limbs of three, so committing to a root still leaves a
+choice inside it. Prices climb steeply and a clean first run through the
+campaign pays for roughly half the tree. Clearing water nobody has cleared pays
+a bonus that grows with the level; going back over old ground pays a third of
+the kills and no bonus, so the way to afford anything is downward.
+
+There are three ways to play a level. Most are fought: hold what ground you can
+and kill what arrives. A hunt is not — the nests are cemented to rock out at
+the reef, never all in sight at once, hatching until they are burned out, so you
+have to cross the basin and crossing it costs. And any of them can be run dark:
+`F` kills the lamp, which leaves you nearly blind but leaves everything hunting
+you blind too. A creature that has lost the sub wanders and holds its fire
+entirely. Firing gives you away for a couple of seconds either way, so going
+quiet is a way to move rather than a way to shoot for free.
 
 Bosses are animals rather than health bars. Each is a body towing segments with
 eyes, fins, tentacles, plating and organs bolted to it, and breaking a part takes
 something away: its aim, its speed, one of the arms feeding its attack, or the
-shell over the thing keeping it alive. Below a third health every one of them
-changes its mind — more in every volley, sooner, and wider.
+shell over the thing keeping it alive. Every one has three acts, and crossing
+into one is permanent: nothing is replaced, it is added. The last creature in
+the campaign spends its second act pulling its own dead off its column and its
+third closing the basin with shots that come inward off the rim.
 
 ## Building it
 
@@ -98,6 +111,14 @@ relief pass, which reads a sprite's own alpha as a height map and shades it from
 an upper-left key light. Run it rather than the individual drawing scripts: the
 relief pass is not idempotent, and going through there draws flat and lights
 once. `tools/relief.ps1` holds the pass and the material table.
+
+Everything alive is drawn through `tools/organic.ps1`, which builds a body from
+a centre line and a width profile so it tapers instead of ending, grows fins out
+of flanks with rays through them, bends limbs at joints, and countershades — the
+one rule every animal down here follows. Two PowerShell 5.1 traps are documented
+in that file's header and are worth reading before editing any of the drawing
+scripts: variable names are case insensitive (`$w` destroys `$W`), and there is
+no ternary operator.
 
 `make_audio.ps1` synthesises every WAV from oscillators and filtered noise.
 
