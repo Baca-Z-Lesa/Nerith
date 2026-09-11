@@ -43,6 +43,19 @@ public:
                     const std::string& title, const std::string& brief,
                     sf::Color accent, float alpha);
 
+    // What one attempt at a level actually came to. Sits under the clear
+    // banner, and fades with it.
+    struct Summary
+    {
+        int   kills = 0;
+        int   salvage = 0;
+        int   damageTaken = 0;
+        float seconds = 0.0f;
+        float accuracy = 0.0f; // 0..1
+    };
+
+    void drawSummary(sf::RenderTarget& target, const Summary& summary, float alpha);
+
 private:
     void drawHealth(sf::RenderTarget& target, int health, int maxHealth);
     void drawSystems(sf::RenderTarget& target, const LevelInfo& level);

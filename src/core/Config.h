@@ -337,6 +337,32 @@ namespace config
     inline constexpr float TorpedoSplashFactor = 0.6f; // of the direct hit
 
     // How long a hit ring lives and how far it opens.
+    // --- Feel ---
+    // Shake is in pixels of camera jitter and dies off exponentially; hit stop
+    // is measured in seconds of frozen simulation and has to stay short enough
+    // that it reads as weight rather than as a dropped frame.
+    inline constexpr float ShakeDecay = 9.0f;
+    inline constexpr float ShakeMax = 22.0f;
+    inline constexpr float ShakeJet = 0.0f;  // a jet is too small to move the camera
+    inline constexpr float ShakeTorpedo = 7.0f;
+    inline constexpr float ShakePlayerHurt = 13.0f;
+    inline constexpr float ShakeBossPart = 10.0f;
+    inline constexpr float ShakeDeath = 26.0f;
+    inline constexpr float HitStopTorpedo = 0.045f;
+    inline constexpr float HitStopPlayerHurt = 0.075f;
+    inline constexpr float HitStopBossPart = 0.08f;
+    inline constexpr float HurtFlashFade = 2.6f;
+    inline constexpr sf::Color HurtFlashColor{ 168, 26, 34 };
+    inline constexpr sf::Color PauseVeil{ 2, 7, 12, 208 };
+
+    // Threat arrows: how far outside the frame still counts as a threat worth
+    // pointing at, and how many can be on screen before it becomes noise. The
+    // top inset is deeper because the HUD's own row lives up there.
+    inline constexpr float ThreatArrowMargin = 34.0f;
+    inline constexpr float ThreatArrowTopInset = 104.0f;
+    inline constexpr float ThreatArrowRange = 1500.0f;
+    inline constexpr std::size_t MaxThreatArrows = 10;
+
     inline constexpr float HitRingDuration = 0.26f;
     inline constexpr float JetRingRadius = 34.0f;
 

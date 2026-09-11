@@ -49,6 +49,19 @@ private:
         GameOver,
     };
 
+    // What a level cost and what it paid, totalled while it is being fought
+    // and shown once it is over. Reset by beginLevel, so a repeat of a level
+    // reads as its own attempt rather than the sum of every attempt.
+    struct RunTally
+    {
+        int   kills = 0;
+        int   salvage = 0;
+        int   shotsFired = 0;
+        int   shotsHit = 0;
+        int   damageTaken = 0;
+        float seconds = 0.0f;
+    };
+
     // An escort drone: orbits, picks its own targets, fires on its own clock.
     struct Drone
     {
@@ -122,6 +135,19 @@ private:
     // One door for every payout, so the salvage bonus and the repeat-water
     // penalty cannot be forgotten at one of the call sites.
     void awardSalvage(int base);
+
+    // Feel, rather than rules. A jolt of the camera and a few frames of frozen
+    // time are what make a torpedo land like a torpedo; the red wash is how the
+    // player finds out they have been bitten without reading the health pips.
+    void addShake(float strength);
+    void addHitStop(float seconds);
+    void updateFeel(float deltaTime);
+
+    // Small triangles at the edge of the screen for whatever is hunting from
+    // outside it. The basin is far larger than the view, so without these a
+    // creature can cross the whole arena and bite before it is ever seen.
+    void drawThreatArrows();
+    void drawPauseOverlay();
 
     void areaDamage(sf::Vector2f centre, float radius, int damage);
     void addHitRing(sf::Vector2f at, float radius, sf::Color colour);
@@ -202,6 +228,15 @@ private:
     // A stripped hull cannot be un-stripped, so the key has to be pressed
     // twice: the first press only puts the warning on the screen.
     bool  m_respecArmed;
+
+    // The fight stops; the water does not.
+    bool  m_paused;
+
+    RunTally m_tally;
+
+    float m_shake;    // pixels of camera jitter left, decaying
+    float m_hitStop;  // seconds the simulation is held still
+    float m_hurtFlash; // 1 at the moment of a bite, fading to 0
 
     float m_lastSpawnAngle;
     float m_snowTimer;

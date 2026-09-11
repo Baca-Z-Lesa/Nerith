@@ -285,3 +285,40 @@ void Hud::drawBanner(sf::RenderTarget& target, const std::string& label,
 
     target.draw(m_text);
 }
+
+void Hud::drawSummary(sf::RenderTarget& target, const Summary& summary, float alpha)
+{
+    m_text.clear();
+
+    // Two columns of label and value, so the numbers line up under each other
+    // instead of wandering with the width of the words.
+    const std::string rows[5][2] = {
+        { "KILLS",   std::to_string(summary.kills) },
+        { "SALVAGE", "+" + std::to_string(summary.salvage) },
+        { "TIME",    std::to_string(static_cast<int>(summary.seconds)) + "S" },
+        { "ACCURACY", std::to_string(static_cast<int>(summary.accuracy * 100.0f + 0.5f)) + "%" },
+        { "DAMAGE TAKEN", std::to_string(summary.damageTaken) },
+    };
+
+    const float scale = 1.7f;
+    const float labelX = static_cast<float>(config::WindowWidth) / 2.0f - 150.0f;
+    const float valueX = static_cast<float>(config::WindowWidth) / 2.0f + 120.0f;
+
+    float y = 432.0f;
+    for (const auto& row : rows)
+    {
+        pixelfont::append(m_text, row[0], { labelX, y }, scale,
+                          withAlpha(config::HudDimTextColor, alpha));
+
+        // Right aligned against a fixed column.
+        pixelfont::append(m_text, row[1],
+                          { valueX - pixelfont::measure(row[1], scale), y }, scale,
+                          withAlpha(row[0] == "DAMAGE TAKEN" && summary.damageTaken == 0
+                                        ? config::HudPipFullEdge
+                                        : config::HudTextColor,
+                                    alpha));
+        y += 26.0f;
+    }
+
+    target.draw(m_text);
+}

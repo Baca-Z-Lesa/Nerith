@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "core/Random.h"
+#include "ui/PixelFont.h"
 
 #include <SFML/Graphics/View.hpp>
 #include <SFML/System/Angle.hpp>
@@ -73,6 +74,10 @@ Game::Game()
     , m_showUpgrades(false)
     , m_rerun(false)
     , m_respecArmed(false)
+    , m_paused(false)
+    , m_shake(0.0f)
+    , m_hitStop(0.0f)
+    , m_hurtFlash(0.0f)
     , m_lastSpawnAngle(0.0f)
     , m_snowTimer(0.0f)
     , m_bubbleTimer(0.0f)
@@ -194,7 +199,35 @@ void Game::updateCamera(float deltaTime)
 
     const float blend = std::min(1.0f, config::CameraLerp * deltaTime);
     m_cameraCentre += (target - m_cameraCentre) * blend;
-    m_camera.setCenter(m_cameraCentre);
+
+    // The jolt is applied to the view rather than to m_cameraCentre, so it
+    // never drags the follow target along with it and never fights the clamp.
+    sf::Vector2f jolt{ 0.0f, 0.0f };
+    if (m_shake > 0.05f)
+        jolt = { rng::range(-m_shake, m_shake), rng::range(-m_shake, m_shake) };
+
+    m_camera.setCenter(m_cameraCentre + jolt);
+}
+
+void Game::addShake(float strength)
+{
+    // Takes the larger of the two rather than adding: a torpedo landing in a
+    // swarm would otherwise stack into a screen nobody can read.
+    m_shake = std::min(config::ShakeMax, std::max(m_shake, strength));
+}
+
+void Game::addHitStop(float seconds)
+{
+    m_hitStop = std::max(m_hitStop, seconds);
+}
+
+void Game::updateFeel(float deltaTime)
+{
+    m_shake *= std::exp(-config::ShakeDecay * deltaTime);
+    if (m_shake < 0.05f)
+        m_shake = 0.0f;
+
+    m_hurtFlash = std::max(0.0f, m_hurtFlash - config::HurtFlashFade * deltaTime);
 }
 
 sf::Vector2f Game::randomVisiblePoint() const
@@ -221,6 +254,12 @@ void Game::beginLevel(int number)
     // Anything shallower than the deepest water opened so far has been beaten
     // before, and beating it again is worth a fraction of the first time.
     m_rerun = number < m_save.unlockedLevel;
+
+    m_tally = RunTally{};
+    m_paused = false;
+    m_shake = 0.0f;
+    m_hitStop = 0.0f;
+    m_hurtFlash = 0.0f;
 
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced.
@@ -328,6 +367,8 @@ void Game::onPlayerDied()
 
     effects::playerDeath(m_effects, m_player.getPosition());
     m_audio.play(Sfx::PlayerHurt, 1.4f);
+    addShake(config::ShakeDeath);
+    m_hurtFlash = 1.0f;
 
     // Nothing is taken away. The salvage stays, the tree stays, and the level
     // is still there to be tried again from the hub. Losing an attempt is the
@@ -564,12 +605,31 @@ void Game::processEvents()
             switch (keyPressed->scancode)
             {
                 case sf::Keyboard::Scancode::Escape:
-                    // Backs out one layer at a time rather than quitting from
-                    // the middle of a run.
+                case sf::Keyboard::Scancode::P:
+                    // Backs out one layer at a time. A fight in progress pauses
+                    // rather than being abandoned: walking out of a dive has to
+                    // be a deliberate second keypress, not a mistyped escape.
                     if (m_showUpgrades)
                         m_showUpgrades = false;
+                    else if (m_state == State::Fighting || m_state == State::LevelIntro)
+                        m_paused = !m_paused;
                     else
                         openMenu();
+                    break;
+
+                case sf::Keyboard::Scancode::Q:
+                    // Only offered by the pause overlay, and it keeps the
+                    // salvage the dive has already earned.
+                    if (m_paused)
+                    {
+                        m_paused = false;
+                        m_state = State::Upgrading;
+                        m_showUpgrades = false;
+                        m_upgradeScreen.clearCursor();
+                        m_upgradeScreen.recentre();
+                        m_save.selectedLevel = m_level.getNumber();
+                        persist();
+                    }
                     break;
 
                 case sf::Keyboard::Scancode::Equal:
@@ -674,6 +734,8 @@ void Game::handleShooting()
                                m_playerStats.getInt(Stat::Pierce, 0));
     effects::muzzleBurst(m_effects, muzzle, direction);
     m_audio.play(Sfx::JetFire);
+
+    ++m_tally.shotsFired;
 }
 
 void Game::fireTorpedo()
@@ -737,8 +799,11 @@ void Game::awardSalvage(int base)
     const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
     const float factor = m_rerun ? config::RerunSalvageFactor : 1.0f;
 
-    m_salvage += std::max(1, static_cast<int>(
-                                 std::lround(static_cast<float>(base) * bonus * factor)));
+    const int paid = std::max(1, static_cast<int>(
+                                     std::lround(static_cast<float>(base) * bonus * factor)));
+
+    m_salvage += paid;
+    m_tally.salvage += paid;
 }
 
 void Game::addHitRing(sf::Vector2f at, float radius, sf::Color colour)
@@ -1149,6 +1214,7 @@ void Game::killEnemy(Enemy& enemy)
     }
 
     awardSalvage(enemy.getSalvage());
+    ++m_tally.kills;
 
     // Only what the level script sent counts: otherwise a brooder would clear
     // its own level by hatching into the quota.
@@ -1175,6 +1241,11 @@ void Game::hurtPlayer(int amount)
 
     effects::playerHurt(m_effects, m_player.getPosition());
     m_audio.play(Sfx::PlayerHurt, result.ventSaved ? 1.3f : 1.0f);
+
+    m_tally.damageTaken += amount;
+    m_hurtFlash = 1.0f;
+    addShake(config::ShakePlayerHurt);
+    addHitStop(config::HitStopPlayerHurt);
 }
 
 void Game::handleCollisions()
@@ -1220,6 +1291,14 @@ void Game::handleCollisions()
                 addHitRing(shot.getPosition(),
                            torpedo ? config::TorpedoBlastRadius : config::JetRingRadius,
                            torpedo ? config::HudBossColor : config::HudPipFullEdge);
+
+                if (!torpedo)
+                    ++m_tally.shotsHit;
+                else
+                {
+                    addShake(config::ShakeTorpedo);
+                    addHitStop(config::HitStopTorpedo);
+                }
 
                 if (!enemy.isAlive())
                     killEnemy(enemy);
@@ -1281,6 +1360,8 @@ void Game::handleCollisions()
             {
                 effects::enemyDeath(m_effects, hit.at);
                 m_audio.play(Sfx::PartBreak);
+                addShake(config::ShakeBossPart);
+                addHitStop(config::HitStopBossPart);
 
                 if (chains)
                     m_boss->splashNeighbours(hit.partIndex, config::BossChainDamage);
@@ -1290,10 +1371,14 @@ void Game::handleCollisions()
                 m_audio.play(Sfx::Impact);
             }
 
+            if (!torpedo)
+                ++m_tally.shotsHit;
+
             if (hit.killedBoss || !m_boss->isAlive())
             {
                 effects::playerDeath(m_effects, hit.at); // the biggest burst we have
                 m_audio.play(Sfx::BossRoar, 1.2f);
+                addShake(config::ShakeDeath);
 
                 awardSalvage(m_boss->getSalvage());
 
@@ -1384,13 +1469,143 @@ void Game::run()
     }
 }
 
+void Game::drawThreatArrows()
+{
+    // Screen space, so the arrows ride the edge of the frame no matter where
+    // the camera is. A creature outside the frame gets a triangle on the border
+    // pointing at it, sized by how close it is.
+    const sf::Vector2f half{ config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };
+
+    // Whether a creature is on screen is a question about the frame; where its
+    // arrow sits is a question about the frame minus the HUD, which is why the
+    // two rectangles are not the same one.
+    const sf::Vector2f inner{ half.x, half.y };
+    const float left = config::ThreatArrowMargin;
+    const float right = static_cast<float>(config::WindowWidth) - config::ThreatArrowMargin;
+    const float top = config::ThreatArrowTopInset;
+    const float bottom = static_cast<float>(config::WindowHeight) - config::ThreatArrowMargin;
+
+    struct Threat { float distance; sf::Vector2f offset; bool boss; };
+    std::vector<Threat> threats;
+
+    const auto consider = [&](sf::Vector2f position, bool boss) {
+        const sf::Vector2f offset = position - m_cameraCentre;
+
+        // Already on screen, or so far out that pointing at it is just clutter.
+        if (std::abs(offset.x) < inner.x && std::abs(offset.y) < inner.y)
+            return;
+
+        const float distance = offset.length();
+        if (distance > config::ThreatArrowRange)
+            return;
+
+        threats.push_back({ distance, offset, boss });
+    };
+
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (enemy.isAlive())
+            consider(enemy.getPosition(), false);
+    }
+
+    if (m_boss && m_boss->isAlive())
+        consider(m_boss->getPosition(), true);
+
+    // Nearest first, then capped: ten arrows is a warning, thirty is wallpaper.
+    std::sort(threats.begin(), threats.end(),
+              [](const Threat& a, const Threat& b) { return a.distance < b.distance; });
+    if (threats.size() > config::MaxThreatArrows)
+        threats.resize(config::MaxThreatArrows);
+
+    sf::VertexArray arrows(sf::PrimitiveType::Triangles);
+
+    for (const Threat& threat : threats)
+    {
+        // Where the line out to the creature leaves the placement rectangle.
+        const sf::Vector2f direction = threat.offset.normalized();
+        const float limitX = direction.x > 0.0f ? right - half.x : half.x - left;
+        const float limitY = direction.y > 0.0f ? bottom - half.y : half.y - top;
+        const float toSide = limitX / std::max(std::abs(direction.x), 0.0001f);
+        const float toTop = limitY / std::max(std::abs(direction.y), 0.0001f);
+        const sf::Vector2f tip = half + direction * std::min(toSide, toTop);
+
+        const sf::Vector2f side{ -direction.y, direction.x };
+        const float size = threat.boss ? 15.0f : 10.0f;
+
+        // Close threats are solid, distant ones barely there, so the edge of the
+        // screen reads as a proximity meter rather than a list.
+        const float nearness = 1.0f - threat.distance / config::ThreatArrowRange;
+        sf::Color colour = threat.boss ? config::HudBossColor : config::HudPipFullEdge;
+        colour.a = static_cast<std::uint8_t>(60.0f + 175.0f * nearness * nearness);
+
+        arrows.append(sf::Vertex{ tip + direction * size * 0.9f, colour });
+        arrows.append(sf::Vertex{ tip - direction * size * 0.7f + side * size * 0.7f, colour });
+        arrows.append(sf::Vertex{ tip - direction * size * 0.7f - side * size * 0.7f, colour });
+    }
+
+    if (arrows.getVertexCount() > 0)
+        m_window.draw(arrows);
+}
+
+void Game::drawPauseOverlay()
+{
+    // Its own veil rather than the death overlay: pausing is not dying, and a
+    // red screen would say it was.
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+
+    const std::string title = "HOLDING AT DEPTH";
+    pixelfont::append(text, title,
+                      { (config::WindowWidth - pixelfont::measure(title, 4.0f)) / 2.0f, 250.0f },
+                      4.0f, config::HudTextColor);
+
+    // One block, two columns: the keys line up under each other and the block
+    // as a whole is centred, rather than every row being centred on its own.
+    struct Row { const char* key; const char* what; bool warn; };
+    const Row rows[] = {
+        { "ESC / P", "BACK INTO IT", false },
+        { "M",       "MUTE", false },
+        { "F11",     "FULLSCREEN", false },
+        { "Q",       "SURFACE, KEEPING THE SALVAGE", true },
+    };
+
+    const float scale = 1.8f;
+    const float keyX = static_cast<float>(config::WindowWidth) / 2.0f - 210.0f;
+    const float whatX = keyX + 130.0f;
+
+    float y = 356.0f;
+    for (const Row& row : rows)
+    {
+        pixelfont::append(text, row.key, { keyX, y }, scale, config::HudDimTextColor);
+        pixelfont::append(text, row.what, { whatX, y }, scale,
+                          row.warn ? config::HudSalvageColor : config::HudTextColor);
+        y += 30.0f;
+    }
+
+    m_window.draw(text);
+}
+
 void Game::update(float deltaTime)
 {
     // The world keeps breathing in every state. Only the fight pauses.
     m_arena.update(deltaTime);
     m_seabed.update(deltaTime);
     updateCamera(deltaTime);
+    updateFeel(deltaTime);
     spawnAmbience(deltaTime);
+
+    // A few frames of held time after something heavy lands. The camera and the
+    // ambience above carry on through it, so the pause reads as impact rather
+    // than as the game locking up.
+    if (m_hitStop > 0.0f)
+    {
+        m_hitStop -= deltaTime;
+        if (m_state == State::Fighting)
+            return;
+    }
 
     if (upgradesVisible())
     {
@@ -1422,8 +1637,9 @@ void Game::update(float deltaTime)
             break;
 
         case State::Fighting:
-            if (!m_showUpgrades)
+            if (!m_showUpgrades && !m_paused)
             {
+                m_tally.seconds += deltaTime;
                 m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
                 handleShooting();
                 emitThrusterTrail(deltaTime);
@@ -1580,6 +1796,20 @@ void Game::render()
     m_window.setView(m_ui);
     m_arena.drawGloom(m_window);
 
+    // A red wash over the whole frame, so a bite is felt at the edge of vision
+    // rather than having to be read off the health pips.
+    if (m_hurtFlash > 0.0f)
+    {
+        sf::Color wash = config::HurtFlashColor;
+        wash.a = static_cast<std::uint8_t>(120.0f * m_hurtFlash * m_hurtFlash);
+        m_deathOverlay.setFillColor(wash);
+        m_window.draw(m_deathOverlay);
+        m_deathOverlay.setFillColor(config::DeathOverlayColor);
+    }
+
+    if (m_state == State::Fighting && !upgradesVisible() && !m_paused)
+        drawThreatArrows();
+
     if (m_state == State::Story)
     {
         m_story.draw(m_window);
@@ -1653,11 +1883,24 @@ void Game::render()
         }
         else if (m_state == State::LevelClear)
         {
+            const float alpha = bannerAlpha(m_stateTimer, config::LevelClearDuration);
+
             m_hud.drawBanner(m_window, "LEVEL " + std::to_string(m_level.getNumber()),
                              m_level.isBoss() ? "DEPTH CLEARED" : "CLEAR",
-                             "SALVAGE " + std::to_string(m_salvage),
-                             config::HudSalvageColor,
-                             bannerAlpha(m_stateTimer, config::LevelClearDuration));
+                             m_rerun ? "WATER ALREADY OPENED - REDUCED PAY" : "",
+                             config::HudSalvageColor, alpha);
+
+            Hud::Summary summary;
+            summary.kills = m_tally.kills;
+            summary.salvage = m_tally.salvage;
+            summary.seconds = m_tally.seconds;
+            summary.damageTaken = m_tally.damageTaken;
+            summary.accuracy = m_tally.shotsFired > 0
+                                   ? static_cast<float>(m_tally.shotsHit)
+                                         / static_cast<float>(m_tally.shotsFired)
+                                   : 0.0f;
+
+            m_hud.drawSummary(m_window, summary, alpha);
         }
         else if (m_state == State::GameOver)
         {
@@ -1668,6 +1911,9 @@ void Game::render()
                              bannerAlpha(m_stateTimer, config::DeathBannerDuration));
         }
     }
+
+    if (m_paused)
+        drawPauseOverlay();
 
     m_window.display();
 }
