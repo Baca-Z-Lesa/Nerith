@@ -305,6 +305,12 @@ Player::DamageResult Player::takeDamage(int amount)
     return result;
 }
 
+void Player::setPosition(sf::Vector2f position)
+{
+    m_position = position;
+    m_sprite.setPosition(m_position);
+}
+
 void Player::reset()
 {
     m_position = { config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };

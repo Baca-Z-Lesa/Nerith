@@ -1,6 +1,7 @@
 #include "world/Seabed.h"
 
 #include "core/Assets.h"
+#include "world/Arena.h"
 #include "core/Config.h"
 #include "core/Random.h"
 
@@ -40,8 +41,8 @@ Seabed::Seabed(const Assets& assets, sf::Vector2f center, float arenaRadius)
     , m_critterTimer(rng::range(1.0f, 3.0f))
 {
     buildSand();
-    scatterProps();
-    buildReef();
+    scatterProps(nullptr);
+    buildReef(nullptr);
     buildParallax();
 
     // Painter's order: whatever sits lower on the screen is nearer, so it goes
@@ -70,9 +71,16 @@ void Seabed::buildSand()
         m_sand.append(sf::Vertex{ d, bottomColor });
     };
 
+    // This is rock, not floor. The basin cuts the floor out of it, so what is
+    // painted here is what the player is looking at wherever they cannot go -
+    // and it has to be clearly darker than the sand, or the edge of the map
+    // does not read at all.
+    const sf::Color rockFar = tintBy(m_theme->sandFar, config::RockTint);
+    const sf::Color rockNear = tintBy(m_theme->sandNear, config::RockTint);
+
     quad({ WorldLeft, WorldTop },
          { WorldRight - WorldLeft, WorldBottom - WorldTop },
-         m_theme->sandFar, m_theme->sandNear);
+         rockFar, rockNear);
 
     // Grain, so the floor is not a flat wash of one colour.
     for (std::size_t i = 0; i < config::SandGrainCount; ++i)
@@ -112,7 +120,20 @@ void Seabed::addProp(const sf::Texture& texture, sf::Vector2f position, float sc
     m_props.push_back(std::move(prop));
 }
 
-void Seabed::scatterProps()
+void Seabed::reshape(const Arena& arena)
+{
+    // The basin changed shape, so everything that was dressing the old one is
+    // in the wrong place. Cheaper and far clearer than trying to move it.
+    m_props.clear();
+    scatterProps(&arena);
+    buildReef(&arena);
+
+    std::sort(m_props.begin(), m_props.end(), [](const Prop& a, const Prop& b) {
+        return a.sprite.getPosition().y < b.sprite.getPosition().y;
+    });
+}
+
+void Seabed::scatterProps(const Arena* arena)
 {
     m_props.reserve(config::ScatterPropCount + config::ReefPropCount);
 
@@ -124,7 +145,11 @@ void Seabed::scatterProps()
         const sf::Vector2f position =
             m_center + sf::Vector2f(distance, sf::degrees(rng::range(0.0f, 360.0f)));
 
-        const bool insideArena = distance < m_arenaRadius;
+        // With a cut basin, "inside" is a question about the map rather than
+        // about a radius: only flat dressing goes in the water, everything
+        // taller belongs in the rock where it cannot hide an incoming shot.
+        const bool insideArena = arena != nullptr ? arena->isOpen(position, 10.0f)
+                                                  : distance < m_arenaRadius;
         const float roll = rng::range(0.0f, 1.0f);
 
         if (insideArena)
@@ -159,16 +184,33 @@ void Seabed::scatterProps()
     }
 }
 
-void Seabed::buildReef()
+void Seabed::buildReef(const Arena* arena)
 {
-    // A dense ring of rock and coral exactly where the wall is. The player never
-    // sees an abstract boundary, they see something they cannot swim through.
+    // Rock and coral packed along the wall, wherever the wall now is. The
+    // player never sees an abstract boundary, they see something they cannot
+    // swim through.
     for (std::size_t i = 0; i < config::ReefPropCount; ++i)
     {
-        const float angle = 360.0f * static_cast<float>(i) / static_cast<float>(config::ReefPropCount)
-                            + rng::range(-3.0f, 3.0f);
-        const float distance = m_arenaRadius + config::ReefOffset + rng::range(-8.0f, 26.0f);
-        const sf::Vector2f position = m_center + sf::Vector2f(distance, sf::degrees(angle));
+        sf::Vector2f position;
+
+        if (arena != nullptr)
+        {
+            // Just outside the water: picked at the lip of a chamber and then
+            // pushed out until it is actually in rock, so the reef traces
+            // whatever shape the basin came out as.
+            position = arena->randomEdgePoint(-config::ReefOffset);
+
+            if (arena->isOpen(position, 0.0f))
+                continue; // it landed in water after all; the next one will not
+        }
+        else
+        {
+            const float angle = 360.0f * static_cast<float>(i)
+                                    / static_cast<float>(config::ReefPropCount)
+                                + rng::range(-3.0f, 3.0f);
+            const float distance = m_arenaRadius + config::ReefOffset + rng::range(-8.0f, 26.0f);
+            position = m_center + sf::Vector2f(distance, sf::degrees(angle));
+        }
 
         const float roll = rng::range(0.0f, 1.0f);
 

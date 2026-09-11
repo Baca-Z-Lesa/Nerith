@@ -30,28 +30,71 @@ namespace config
     // The basin is far wider than the window, so the camera follows the sub and
     // a boss no longer fills the whole playable space.
     inline constexpr float ArenaRadius = 520.0f;
-    inline constexpr float WorldExtent = 1500.0f;   // half-size the seabed covers
-    inline constexpr float CameraClamp = 300.0f;    // how far the camera may leave the middle
+
+    // =====================================================================
+    //  THE MAP
+    //  The basin is cut, not drawn: a walk of chambers joined by corridors,
+    //  generated from the level number so every level is its own place and
+    //  the same place twice. The rock between them is solid, which is what
+    //  makes the map terrain rather than a boundary.
+    // =====================================================================
+    // The step has to be comfortably more than two radii or consecutive
+    // chambers merge into one blob and the corridors vanish - which is exactly
+    // what happened the first time these were tuned.
+    inline constexpr float MapExtent = 3000.0f;       // how far a walk may wander
+    inline constexpr int   ChamberCount = 9;
+    inline constexpr float ChamberStartRadius = 380.0f; // where a dive begins
+    inline constexpr float ChamberRadiusMin = 190.0f;
+    inline constexpr float ChamberRadiusMax = 330.0f;
+    inline constexpr float ChamberStepMin = 780.0f;
+    inline constexpr float ChamberStepMax = 1150.0f;
+    inline constexpr float ChamberTurn = 78.0f;       // degrees the walk may swing
+    inline constexpr float CorridorRadius = 105.0f;
+    inline constexpr float BranchChance = 0.45f;
+
+    // A boss gets one room it can turn in, off to one side of where you start.
+    inline constexpr float HallRadius = 700.0f;
+    inline constexpr float HallDistance = 900.0f;
+
+    // The cut edge of the rock, drawn under the floor and showing only where no
+    // floor covers it.
+    inline constexpr float WallLip = 34.0f;
+    inline constexpr sf::Color WallLipColor{ 96, 106, 120 };
+
+    // Everything outside the basin is rock, painted as the depth's own floor
+    // multiplied down. Darker than the sand by enough that the edge of the map
+    // is obvious, and still the depth's colour rather than a flat grey.
+    inline constexpr sf::Color RockTint{ 74, 76, 86 };
+    inline constexpr float WorldExtent = 3800.0f;   // half-size the seabed covers
+    // How far past the edge of the basin the camera is allowed to see. A little
+    // overshoot is wanted: rock in frame is what tells the player where the
+    // wall is before they hit it.
+    inline constexpr float CameraOvershoot = 0.55f;
     inline constexpr float CameraLerp = 5.0f;       // how quickly it catches up
     inline constexpr float ArenaLightRadius = 340.0f;
     inline constexpr sf::Color ArenaLightColor{ 32, 78, 90 };
     inline constexpr std::size_t ArenaCausticBands = 7;
     inline constexpr float ArenaCausticAngle = 24.0f;
 
-    inline constexpr float GloomInnerX = 470.0f;
-    inline constexpr float GloomInnerY = 264.0f;
-    inline constexpr float GloomOuterX = 700.0f;
-    inline constexpr float GloomOuterY = 394.0f;
+    // Widened when the map became terrain: a wall the player can never see is
+    // not cover, it is a surprise. The dark still closes in, it just closes in
+    // far enough out that the shape of the basin is readable first.
+    inline constexpr float GloomInnerX = 540.0f;
+    inline constexpr float GloomInnerY = 310.0f;
+    inline constexpr float GloomOuterX = 900.0f;
+    inline constexpr float GloomOuterY = 520.0f;
     inline constexpr std::uint8_t GloomMaxAlpha = 242;
 
     // --- Seabed ---
     inline constexpr sf::Color SandNearColor{ 15, 30, 38 };
     inline constexpr sf::Color SandFarColor{ 9, 19, 26 };
-    inline constexpr std::size_t SandGrainCount = 2600;
-    inline constexpr std::size_t ScatterPropCount = 520;
-    inline constexpr std::size_t ReefPropCount = 180;
+    // Scaled to the basin: the map is several times the old circle, so the same
+    // counts would leave it bare.
+    inline constexpr std::size_t SandGrainCount = 9000;
+    inline constexpr std::size_t ScatterPropCount = 1500;
+    inline constexpr std::size_t ReefPropCount = 520;
     inline constexpr float ReefOffset = 22.0f;
-    inline constexpr float PropFieldRadius = 1400.0f;
+    inline constexpr float PropFieldRadius = 3600.0f;
 
     inline constexpr std::size_t MaxCritters = 4;
     inline constexpr float CritterSpawnIntervalMin = 3.5f;

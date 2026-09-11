@@ -22,8 +22,12 @@ public:
     void update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena);
     void draw(sf::RenderTarget& target) const;
 
-    // Puts the sub back at the centre at full health, for a restart.
+    // Puts the sub back at full health, for a restart.
     void reset();
+
+    // Every basin is a different shape, so where a dive starts is the map's
+    // business rather than a constant.
+    void setPosition(sf::Vector2f position);
 
     // Call after the stat block changes: a bigger tank arrives full.
     void onStatsChanged();

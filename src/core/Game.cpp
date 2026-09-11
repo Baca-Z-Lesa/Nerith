@@ -207,13 +207,17 @@ void Game::applyLetterboxView()
 
 void Game::updateCamera(float deltaTime)
 {
-    // Follow the sub, but never let the camera wander so far that the reef
-    // leaves the frame entirely.
+    // Follow the sub anywhere in the basin, but never past its edges: the map
+    // is far larger than the old circle, so a fixed leash on the middle would
+    // leave the player swimming off the side of the screen.
     sf::Vector2f target = m_player.getPosition();
-    const sf::Vector2f offset = target - WorldCentre;
 
-    if (offset.length() > config::CameraClamp)
-        target = WorldCentre + offset.normalized() * config::CameraClamp;
+    const sf::Vector2f half{ config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };
+    const sf::Vector2f low = m_arena.getBoundsMin() - half * config::CameraOvershoot;
+    const sf::Vector2f high = m_arena.getBoundsMax() + half * config::CameraOvershoot;
+
+    target.x = std::clamp(target.x, low.x + half.x, std::max(low.x + half.x, high.x - half.x));
+    target.y = std::clamp(target.y, low.y + half.y, std::max(low.y + half.y, high.y - half.y));
 
     const float blend = std::min(1.0f, config::CameraLerp * deltaTime);
     m_cameraCentre += (target - m_cameraCentre) * blend;
@@ -340,6 +344,11 @@ void Game::beginLevel(int number)
 {
     m_level.start(number);
 
+    // A new basin, cut from the level number, so every level is its own place
+    // and the same place every time it is dived. A boss gets a hall.
+    m_arena.generate(static_cast<unsigned int>(number), m_level.isBoss());
+    m_seabed.reshape(m_arena);
+
     // Anything shallower than the deepest water opened so far has been beaten
     // before, and beating it again is worth a fraction of the first time.
     m_rerun = number < m_save.unlockedLevel;
@@ -378,6 +387,10 @@ void Game::beginLevel(int number)
     m_mineTimer = config::MineInterval;
     m_sonarTimer = 0.5f;
     m_sonarSweep = 0.0f;
+
+    // A dive starts in the first chamber, wherever the walk put it.
+    m_player.setPosition(m_arena.getStart());
+    m_cameraCentre = m_arena.getStart();
 
     m_player.onLevelStart();
 
@@ -1238,18 +1251,34 @@ void Game::placeNests()
     if (wanted <= 0)
         return;
 
+    // Ordered by how far each chamber is from where the dive starts, so the
+    // nests go in the far rooms rather than the first one. A hunt should begin
+    // by leaving, not by turning round.
+    std::vector<sf::Vector2f> spots;
+    for (const Arena::Chamber& chamber : m_arena.getChambers())
+        spots.push_back(chamber.centre);
+
+    const sf::Vector2f start = m_arena.getStart();
+    std::sort(spots.begin(), spots.end(), [start](sf::Vector2f a, sf::Vector2f b) {
+        return (a - start).lengthSquared() > (b - start).lengthSquared();
+    });
+
     for (int i = 0; i < wanted; ++i)
     {
-        // Spread right round the basin and well out from the middle, so no two
-        // are on screen together and none of them can be shot from the spot
-        // the sub starts on.
-        const float angle = 360.0f * static_cast<float>(i) / static_cast<float>(wanted)
-                            + rng::range(-18.0f, 18.0f);
-        const float reach = config::ArenaRadius
-                            * rng::range(config::NestRingMin, config::NestRingMax);
+        // One per chamber, furthest first, wrapping if the map is small. Each
+        // one sits out against that chamber's wall where it is cemented to
+        // rock rather than floating in the middle of the water.
+        const sf::Vector2f room = spots.empty()
+                                      ? WorldCentre
+                                      : spots[static_cast<std::size_t>(i) % spots.size()];
+
+        const sf::Vector2f at = m_arena.clampInside(
+            room + sf::Vector2f(rng::range(40.0f, 150.0f),
+                                sf::degrees(rng::range(0.0f, 360.0f))),
+            config::NestRadius);
 
         Nest nest{ sf::Sprite(m_assets.boss(config::NestTexturePath)),
-                   WorldCentre + sf::Vector2f(reach, sf::degrees(angle)),
+                   at,
                    config::NestHealth, config::NestHealth,
                    rng::range(1.0f, config::NestHatchInterval), 0.0f, true };
 
@@ -1356,16 +1385,12 @@ void Game::placeVents()
 
     for (int i = 0; i < wanted; ++i)
     {
-        // Spread round the basin rather than scattered at random, so a level
-        // never opens with three of them stacked on the spot the sub starts on.
-        const float angle = 360.0f * static_cast<float>(i) / static_cast<float>(wanted)
-                            + rng::range(-22.0f, 22.0f);
-        const float reach = rng::range(config::ArenaRadius * 0.30f, config::ArenaRadius * 0.82f);
-
+        // Scattered through the water wherever it happens to be. A vent in a
+        // corridor is worth far more than one in a hall, because there is
+        // nowhere to stand while it blows.
         Vent vent;
-        vent.position = WorldCentre
-                        + sf::Vector2f(reach, sf::degrees(angle));
         vent.radius = rng::range(config::VentRadiusMin, config::VentRadiusMax);
+        vent.position = m_arena.clampInside(m_arena.randomPointInside(), vent.radius * 0.4f);
         vent.interval = rng::range(config::VentIntervalMin, config::VentIntervalMax);
         // Staggered, so they do not all breathe together.
         vent.timer = rng::range(1.5f, vent.interval);
@@ -1643,7 +1668,11 @@ sf::Vector2f Game::pickSpawnPosition()
     }
 
     m_lastSpawnAngle = bestAngle;
-    return best;
+
+    // Off screen is not enough any more: off screen can be inside a wall. The
+    // candidate is pulled into the nearest water, and creatures swim in from
+    // there the way they always did.
+    return m_arena.clampInside(best, 24.0f);
 }
 
 void Game::spawnEnemy(EnemyType type)
@@ -1654,47 +1683,46 @@ void Game::spawnEnemy(EnemyType type)
 
 void Game::updateProjectiles(float deltaTime)
 {
-    const float bound = config::ArenaRadius + 420.0f;
+    const bool bounces = m_playerStats.has(Trait::Ricochet);
 
-    const auto step = [deltaTime, bound](std::vector<Projectile>& shots) {
-        for (Projectile& shot : shots)
-        {
-            shot.update(deltaTime);
-
-            if ((shot.getPosition() - WorldCentre).lengthSquared() > bound * bound)
-                shot.kill();
-        }
-    };
-
-    step(m_playerShots);
-    step(m_enemyShots);
-
-    // Ricochet: the reef wall stops being the end of a shot and becomes part of
-    // the shot. Bounced off the arena's own edge rather than the far-off kill
-    // boundary, so a carom actually comes back into the fight.
-    if (!m_playerStats.has(Trait::Ricochet))
-        return;
-
-    const float wall = config::ArenaRadius;
-
+    // Shots stop at rock now. That is the whole difference between a boundary
+    // and terrain: a corner is cover, a corridor is a shooting gallery, and
+    // firing across a hall no longer reaches whatever is behind the wall.
     for (Projectile& shot : m_playerShots)
     {
-        if (!shot.isAlive())
+        shot.update(deltaTime);
+
+        if (!shot.isAlive() || m_arena.isOpen(shot.getPosition(), 0.0f))
             continue;
 
-        const sf::Vector2f offset = shot.getPosition() - WorldCentre;
-        if (offset.lengthSquared() < wall * wall)
-            continue;
+        const sf::Vector2f normal = m_arena.wallNormal(shot.getPosition(), 0.0f);
 
-        // The wall's normal points back at the middle of the basin.
-        if (shot.spendBounce(-offset.normalized()))
+        if (bounces && normal.lengthSquared() > 0.0f && shot.spendBounce(normal))
+        {
             addHitRing(shot.getPosition(), 22.0f, config::HudDimTextColor);
+            continue;
+        }
+
+        effects::impact(m_effects, shot.getPosition(), shot.getDirection());
+        shot.kill();
+    }
+
+    for (Projectile& shot : m_enemyShots)
+    {
+        shot.update(deltaTime);
+
+        // Hostile shots stop at rock too, which is what makes a corner worth
+        // standing behind rather than only worth looking at.
+        if (shot.isAlive() && !m_arena.isOpen(shot.getPosition(), 0.0f))
+        {
+            effects::impact(m_effects, shot.getPosition(), shot.getDirection());
+            shot.kill();
+        }
     }
 }
 
 void Game::updateTorpedoes(float deltaTime)
 {
-    const float bound = config::ArenaRadius + 420.0f;
     const bool homing = m_playerStats.has(Trait::HomingTorpedoes);
 
     for (Projectile& torpedo : m_torpedoes)
@@ -1737,8 +1765,24 @@ void Game::updateTorpedoes(float deltaTime)
 
         torpedo.update(deltaTime);
 
-        if ((torpedo.getPosition() - WorldCentre).lengthSquared() > bound * bound)
+        // A torpedo that hits rock detonates there rather than vanishing. It
+        // is the one thing the player has that clears a corridor.
+        if (torpedo.isAlive() && !m_arena.isOpen(torpedo.getPosition(), 0.0f))
+        {
+            const float radius = config::TorpedoBlastRadius
+                                 + m_playerStats.get(Stat::TorpedoBlast, 0.0f);
+
+            areaDamage(torpedo.getPosition(), radius,
+                       std::max(1, static_cast<int>(std::lround(
+                                        static_cast<float>(torpedo.getDamage())
+                                        * config::TorpedoSplashFactor))));
+
+            addHitRing(torpedo.getPosition(), radius, config::HudBossColor);
+            effects::ventBurst(m_effects, torpedo.getPosition(), radius * 0.5f);
+            m_audio.play(Sfx::Impact, 1.3f);
+            addShake(config::ShakeTorpedo * 0.7f);
             torpedo.kill();
+        }
     }
 }
 
@@ -1757,7 +1801,6 @@ void Game::updateEnemies(float deltaTime)
         enemy.setAware(close);
     }
 
-    const float roam = m_arena.getRadius() + config::EnemyRoamMargin;
 
     // Hatchlings are collected first and pushed after the loop: spawning into
     // the vector we are walking would invalidate the reference under us.
@@ -1774,7 +1817,7 @@ void Game::updateEnemies(float deltaTime)
         const bool wasAlive = enemy.isAlive();
 
         enemy.update(deltaTime, m_player.getPosition());
-        enemy.confine(m_arena.getCenter(), roam);
+        enemy.confine(m_arena);
 
         // Bleeding can finish something between shots, and that still counts.
         if (wasAlive && !enemy.isAlive())
@@ -1826,7 +1869,10 @@ void Game::updateBoss(float deltaTime)
         return;
 
     m_boss->update(deltaTime, m_player.getPosition());
-    m_boss->confine(m_arena.getCenter(), config::BossRoamRadius);
+    // A boss is held in the hall rather than in the whole basin: it is far too
+    // big to be allowed down a corridor, and the hall is cut for it.
+    m_boss->confine(m_arena.getHallCentre(),
+                    std::max(240.0f, m_arena.getHallRadius() - m_boss->getRadius() * 0.5f));
     m_level.notifyBossCore(m_boss->getCoreFraction());
 
     const int orbDamage = config::EnemyOrbDamage + m_level.getScaling().bonusDamage;
@@ -2775,6 +2821,7 @@ void Game::render()
 
     // Far band first: rock past the reef, sliding slower than the floor.
     m_seabed.drawFar(m_window, m_cameraCentre);
+    m_arena.drawGround(m_window);
     m_seabed.draw(m_window);
     m_arena.drawLight(m_window, m_player.getPosition());
 

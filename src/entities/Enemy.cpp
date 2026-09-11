@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "core/Random.h"
+#include "world/Arena.h"
 
 #include <SFML/System/Angle.hpp>
 
@@ -315,20 +316,22 @@ std::vector<sf::Vector2f> Enemy::takeShots()
     return shots;
 }
 
-void Enemy::confine(sf::Vector2f center, float maxDistance)
+void Enemy::confine(const Arena& arena)
 {
-    const sf::Vector2f delta = m_position - center;
-
-    if (delta.lengthSquared() <= maxDistance * maxDistance)
+    // The basin is cut out of rock now, so "inside" is a question about the
+    // map. A creature still swimming in is left alone; once it is in the water
+    // it stays in the water, which is what stops anything gliding through a
+    // wall to reach the sub.
+    if (arena.isOpen(m_position, getRadius()))
     {
-        m_hasEntered = true; // it is inside now, so from here on it stays inside
+        m_hasEntered = true;
         return;
     }
 
     if (!m_hasEntered)
-        return; // still swimming in from off screen
+        return; // still crossing the rock from wherever it was spawned
 
-    m_position = center + delta.normalized() * maxDistance;
+    m_position = arena.clampInside(m_position, getRadius());
     m_sprite.setPosition(m_position);
 }
 

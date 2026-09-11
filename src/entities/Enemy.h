@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace config { struct EnemyStats; }
+class Arena;
 
 // One hostile creature. Every kind shares this class because they differ only
 // in the numbers from the config table plus which movement branch they take.
@@ -57,9 +58,9 @@ public:
     bool isAware() const { return m_aware; }
     bool isScripted() const { return m_scripted; }
 
-    // Stops a creature that has already swum in from wandering back off screen
-    // and sniping out of the dark.
-    void confine(sf::Vector2f center, float maxDistance);
+    // Keeps a creature that has already swum in inside the water. Anything
+    // still crossing the rock to get in is left alone.
+    void confine(const Arena& arena);
 
     // A number that is only ever this creature's, for as long as it exists.
     // Splitshot and cluster fragments are born inside whatever was just hit,

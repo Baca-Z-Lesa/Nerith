@@ -11,6 +11,7 @@
 #include <vector>
 
 struct Assets;
+class Arena;
 
 // The ocean floor the fight happens on: sand, scattered rock and coral, a reef
 // ring where the arena wall is, swaying kelp and the odd fish drifting past.
@@ -22,6 +23,11 @@ public:
     Seabed(const Assets& assets, sf::Vector2f center, float arenaRadius);
 
     void applyTheme(const DepthTheme& theme);
+
+    // Re-dresses the floor for a newly cut basin. The props are scattered
+    // against the map rather than against a radius, so a corridor has a wall
+    // along it and a hall has a reef round it.
+    void reshape(const Arena& arena);
 
     void update(float deltaTime);
 
@@ -73,8 +79,8 @@ private:
     };
 
     void buildSand();
-    void scatterProps();
-    void buildReef();
+    void scatterProps(const Arena* arena);
+    void buildReef(const Arena* arena);
     void buildParallax();
     void addProp(const sf::Texture& texture, sf::Vector2f position, float scale,
                  sf::Color tint, float swayAmount);
