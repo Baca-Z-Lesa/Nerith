@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/UpgradeIcons.h"
 #include "upgrades/Stats.h"
 
 #include <SFML/System/Vector2.hpp>
@@ -21,7 +22,8 @@ struct UpgradeNode
     std::string name;
     std::string description;
     int cost = 0;
-    int column = -1; // branch column the screen lays it out in
+    int column = -1;          // branch the screen lays it out in
+    Icon icon = Icon::None;   // the mark on the disc, instead of initials
     std::vector<std::string>  prerequisites;
     std::vector<StatModifier> effects;
     std::vector<Trait>        traits;
@@ -29,7 +31,11 @@ struct UpgradeNode
     sf::Vector2f position;
 };
 
-inline constexpr int UpgradeBranchCount = 7;
+// Nine roots, and each one splits in two partway out, so a branch is a choice
+// rather than a queue: committing to a root still leaves a fork in it.
+inline constexpr int UpgradeBranchCount = 9;
+inline constexpr int UpgradeTrunkLength = 3;
+inline constexpr int UpgradeLimbLength = 3;
 
 // A directed graph of upgrades plus which of them the player has bought.
 class UpgradeTree
@@ -39,6 +45,11 @@ public:
 
     const std::vector<UpgradeNode>& getNodes() const { return m_nodes; }
     static const char* getBranchName(int column);
+
+    // The closest any two nodes come to each other. The screen draws discs of a
+    // fixed radius, so this is what proves they cannot overlap; the test suite
+    // asserts on it rather than trusting the layout by eye.
+    float getClosestPair() const;
 
     bool isUnlocked(std::size_t index) const;
     bool arePrerequisitesMet(std::size_t index) const;

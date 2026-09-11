@@ -58,6 +58,10 @@ private:
 
     std::optional<std::size_t> m_hovered;
     std::optional<int>         m_hoveredLevel;
+
+    // 0 when the card is shut, 1 when it is fully unrolled. Reset the moment
+    // the cursor moves to a different node, so each one opens for itself.
+    float                      m_openness = 0.0f;
     int                        m_selectedLevel = 1;
     int                        m_unlockedLevel = 1;
     sf::Vector2f               m_pan;
@@ -68,4 +72,5 @@ private:
     sf::CircleShape    m_node;
     sf::VertexArray    m_lines;
     sf::VertexArray    m_text;
+    sf::VertexArray    m_icons;
 };

@@ -474,6 +474,12 @@ namespace config
     inline constexpr sf::Vector2f TreeOrigin{ 640.0f, 372.0f };
     inline constexpr float TreePanSpeed = 620.0f;
     inline constexpr float TreePanLimit = 1150.0f;
+    // How fast a node's card unrolls, and how fast it rolls back up. Shutting
+    // is faster on purpose: a cursor crossing the tree must not leave a trail
+    // of half open cards behind it.
+    inline constexpr float CardOpenRate = 5.2f;
+    inline constexpr float CardShutRate = 9.0f;
+
     inline constexpr float TreeZoomStep = 1.12f;
     inline constexpr float TreeZoomMin = 0.45f;
     inline constexpr float TreeZoomMax = 1.60f;
@@ -487,8 +493,10 @@ namespace config
     inline constexpr float NodeWidth = 132.0f;
     inline constexpr float NodeHeight = 40.0f;
     inline constexpr float NodeRadius = 27.0f;
-    inline constexpr float NodeCardWidth = 340.0f;
-    inline constexpr float NodeCardHeight = 92.0f;
+    // Wide enough for a one line description and tall enough for the mark, the
+    // name, that line and the status without any of them touching.
+    inline constexpr float NodeCardWidth = 392.0f;
+    inline constexpr float NodeCardHeight = 104.0f;
 
     inline constexpr sf::Color ScreenBackdrop{ 2, 8, 14, 238 };
     inline constexpr sf::Color NodeUnlockedFill{ 20, 62, 60 };

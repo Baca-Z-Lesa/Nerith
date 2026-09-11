@@ -44,6 +44,7 @@ $sources = @(
     "src\upgrades\Stats.cpp",
     "src\upgrades\UpgradeTree.cpp",
     "src\world\LevelDef.cpp",
+    "src\ui\UpgradeIcons.cpp",
     "src\core\Random.cpp"
 ) | ForEach-Object { "`"$root\$_`"" }
 
@@ -54,7 +55,7 @@ $compile = "cl /nologo /std:c++20 /EHsc /permissive- /W4 /MD /O2 " +
            "/I`"$sfml\include`" /I`"$root\src`" " +
            ($sources -join ' ') +
            " /Fo:`"$outDir\\`" /Fe:`"$exe`" " +
-           "/link /LIBPATH:`"$sfml\lib`" sfml-system.lib"
+           "/link /LIBPATH:`"$sfml\lib`" sfml-graphics.lib sfml-window.lib sfml-system.lib"
 
 Write-Host "building tests"
 $build = & cmd /c "`"$vcvars`" >nul 2>&1 && $compile" 2>&1
@@ -66,8 +67,12 @@ if ($buildCode -ne 0) {
     exit 1
 }
 
-# The DLL has to sit next to the exe, the same way the game's does.
-Copy-Item "$sfml\bin\sfml-system-3.dll" $outDir -Force -ErrorAction SilentlyContinue
+# The DLLs have to sit next to the exe, the same way the game's do. The icons
+# are built out of sf::VertexArray, which is a graphics type, so the tests need
+# more than sfml-system even though they never open a window.
+foreach ($dll in @('sfml-graphics-3.dll', 'sfml-window-3.dll', 'sfml-system-3.dll')) {
+    Copy-Item "$sfml\bin\$dll" $outDir -Force -ErrorAction SilentlyContinue
+}
 
 Write-Host ""
 & $exe

@@ -58,6 +58,7 @@ UpgradeScreen::UpgradeScreen()
     : m_pan(0.0f, 0.0f)
     , m_lines(sf::PrimitiveType::Triangles)
     , m_text(sf::PrimitiveType::Triangles)
+    , m_icons(sf::PrimitiveType::Triangles)
 {
     m_backdrop.setSize({ static_cast<float>(config::WindowWidth),
                          static_cast<float>(config::WindowHeight) });
@@ -116,6 +117,16 @@ void UpgradeScreen::update(float deltaTime)
 
     m_pan.x = std::clamp(m_pan.x, -config::TreePanLimit, config::TreePanLimit);
     m_pan.y = std::clamp(m_pan.y, -config::TreePanLimit, config::TreePanLimit);
+
+    // The card unrolls quickly and shuts faster. Shutting faster matters: a
+    // cursor crossing the tree should not drag a trail of half open cards.
+    const float target = m_hovered ? 1.0f : 0.0f;
+    const float rate = m_hovered ? config::CardOpenRate : config::CardShutRate;
+
+    if (m_openness < target)
+        m_openness = std::min(target, m_openness + rate * deltaTime);
+    else
+        m_openness = std::max(target, m_openness - rate * deltaTime);
 }
 
 void UpgradeScreen::setLevels(int selected, int unlocked)
@@ -144,6 +155,8 @@ sf::FloatRect UpgradeScreen::levelBounds(int level) const
 
 void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tree)
 {
+    const std::optional<std::size_t> previous = m_hovered;
+
     m_hovered.reset();
     m_hoveredLevel.reset();
 
@@ -164,6 +177,11 @@ void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tre
         if (delta.lengthSquared() <= nodeRadius() * nodeRadius())
         {
             m_hovered = i;
+
+            // Moving to a different node starts its card from shut, so one
+            // never finishes another's animation.
+            if (previous != m_hovered)
+                m_openness = 0.0f;
             return;
         }
     }
@@ -255,6 +273,7 @@ void UpgradeScreen::drawLinks(sf::RenderTarget& target, const UpgradeTree& tree)
 void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage)
 {
     m_text.clear();
+    m_icons.clear();
 
     const std::vector<UpgradeNode>& nodes = tree.getNodes();
 
@@ -290,24 +309,39 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
         if (hovered)
             edge = sf::Color::White;
 
-        // Fifty six boxes of text is a wall. Closed, a node is a disc with its
-        // initials on it; what it actually does is only spelled out for the one
-        // the cursor is on.
+        // Eighty boxes of text is a wall. Closed, a node is a disc with a mark
+        // on it; what it actually does is only spelled out for the one the
+        // cursor is on, and that one swells to say so.
+        float radius = nodeRadius();
+        if (hovered)
+            radius *= 1.0f + 0.16f * m_openness;
+
         m_node.setPosition(centre);
         m_node.setFillColor(fill);
         m_node.setOutlineColor(edge);
-        const float radius = nodeRadius();
         m_node.setRadius(radius);
         m_node.setOrigin({ radius, radius });
-        m_node.setOutlineThickness(2.5f * m_zoom);
+        m_node.setOutlineThickness((hovered ? 3.2f : 2.5f) * m_zoom);
         target.draw(m_node);
 
-        const float iconScale = 1.8f * m_zoom;
-        const std::string icon = initialsOf(node.name);
-        pixelfont::append(m_text, icon,
-                          { centre.x - pixelfont::measure(icon, iconScale) / 2.0f,
-                            centre.y - 3.5f * iconScale },
-                          iconScale, label);
+        // A ring opening outward from whatever the cursor is on, so the eye is
+        // never hunting for which disc the card belongs to.
+        if (hovered && m_openness > 0.01f)
+        {
+            const float halo = radius + 10.0f * m_zoom * m_openness;
+            sf::Color ringColour = edge;
+            ringColour.a = static_cast<std::uint8_t>(150.0f * (1.0f - m_openness * 0.5f));
+
+            m_node.setRadius(halo);
+            m_node.setOrigin({ halo, halo });
+            m_node.setFillColor(sf::Color::Transparent);
+            m_node.setOutlineColor(ringColour);
+            m_node.setOutlineThickness(1.8f * m_zoom);
+            target.draw(m_node);
+        }
+
+        // A drawn mark rather than initials: "PV" told nobody anything.
+        icons::append(m_icons, node.icon, centre, radius * 1.15f, label);
 
         // Under the disc sits the only thing worth knowing at a glance now that
         // nothing is time locked: the price, and whether it is within reach.
@@ -328,6 +362,7 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
         }
     }
 
+    target.draw(m_icons);
     target.draw(m_text);
 
     if (m_hovered)
@@ -339,29 +374,54 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
 {
     const sf::Vector2f centre = centreOf(node);
 
-    // Opens beside the disc, flipped whenever it would run off the screen.
-    const float width = config::NodeCardWidth;
+    // It unrolls out of the disc rather than appearing: width first, then the
+    // text written into it. Under about a fifth open there is nothing to read
+    // yet, so nothing is drawn and a cursor sweeping across the tree does not
+    // strobe.
+    if (m_openness < 0.02f)
+        return;
+
+    const float width = config::NodeCardWidth * (0.34f + 0.66f * m_openness);
     const float height = config::NodeCardHeight;
 
-    sf::Vector2f corner{ centre.x + nodeRadius() + 12.0f, centre.y - height / 2.0f };
-    if (corner.x + width > static_cast<float>(config::WindowWidth) - 10.0f)
-        corner.x = centre.x - nodeRadius() - 12.0f - width;
+    sf::Vector2f corner{ centre.x + nodeRadius() + 14.0f, centre.y - height / 2.0f };
+    if (corner.x + config::NodeCardWidth > static_cast<float>(config::WindowWidth) - 10.0f)
+        corner.x = centre.x - nodeRadius() - 14.0f - width;
 
     corner.y = std::clamp(corner.y, 96.0f, static_cast<float>(config::WindowHeight) - height - 120.0f);
 
+    const auto fade = [this](sf::Color colour) {
+        colour.a = static_cast<std::uint8_t>(static_cast<float>(colour.a) * m_openness);
+        return colour;
+    };
+
     m_box.setSize({ width, height });
     m_box.setPosition(corner);
-    m_box.setFillColor(sf::Color(6, 16, 22, 250));
-    m_box.setOutlineColor(sf::Color::White);
+    m_box.setFillColor(fade(sf::Color(6, 16, 22, 250)));
+    m_box.setOutlineColor(fade(sf::Color::White));
     target.draw(m_box);
     m_box.setSize({ config::NodeWidth, config::NodeHeight });
 
+    // The mark again, large, at the head of the card: the disc and the card
+    // are visibly the same thing.
+    m_icons.clear();
+    icons::append(m_icons, node.icon, corner + sf::Vector2f{ 30.0f, 30.0f },
+                  38.0f * m_openness, fade(config::HudTextColor));
+    target.draw(m_icons);
+
     m_text.clear();
 
-    pixelfont::append(m_text, node.name, corner + sf::Vector2f{ 12.0f, 12.0f }, 1.9f,
-                      config::HudTextColor);
-    pixelfont::append(m_text, node.description, corner + sf::Vector2f{ 12.0f, 36.0f }, 1.3f,
-                      config::HudDimTextColor);
+    pixelfont::append(m_text, node.name, corner + sf::Vector2f{ 58.0f, 14.0f }, 1.9f,
+                      fade(config::HudTextColor));
+
+    // The description is written out a character at a time as the card opens,
+    // which is what makes it read as unrolling rather than as a popup.
+    const std::size_t shown = static_cast<std::size_t>(
+        static_cast<float>(node.description.size()) * std::min(1.0f, m_openness * 1.45f));
+
+    pixelfont::append(m_text, node.description.substr(0, shown),
+                      corner + sf::Vector2f{ 12.0f, 46.0f }, 1.3f,
+                      fade(config::HudDimTextColor));
 
     const std::size_t index = tree.indexOfNode(node.id);
     std::string status;
@@ -388,7 +448,7 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
     }
 
     pixelfont::append(m_text, status, corner + sf::Vector2f{ 12.0f, height - 24.0f }, 1.4f,
-                      statusColour);
+                      fade(statusColour));
 
     target.draw(m_text);
 }
@@ -446,8 +506,13 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
 
         // Clear of the circle plus a constant gap: the label text does not
         // shrink with the zoom, so the gap must not shrink with it either.
-        const sf::Vector2f label =
-            centreOf(node) + node.position.normalized() * (nodeRadius() + 22.0f);
+        // Pushed sideways rather than straight out, because straight out is
+        // where the rest of the root is.
+        const sf::Vector2f along = node.position.normalized();
+        const sf::Vector2f across{ -along.y, along.x };
+        const sf::Vector2f label = centreOf(node)
+                                   + along * (nodeRadius() + 10.0f)
+                                   + across * (nodeRadius() + 20.0f);
 
         m_box.setSize({ width + 14.0f, 18.0f });
         m_box.setPosition({ label.x - width / 2.0f - 7.0f, label.y - 4.0f });

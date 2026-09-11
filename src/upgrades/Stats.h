@@ -29,6 +29,19 @@ enum class Stat
     BleedTargetDamage,   // bonus multiplier against something already bleeding
     WeakPointDamage,     // bonus against boss parts and organs
     SalvageBonus,
+    CritChance,          // 0..1 chance a jet lands double
+    CritDamage,          // multiplier on a crit, on top of the base doubling
+    RicochetCount,       // times a jet bounces off the basin wall
+    ChargeMultiplier,    // damage a fully wound charged shot does
+    SlowStrength,        // 0..1 taken off a chilled creature's speed
+    ExecuteThreshold,    // health fraction below which a creature simply dies
+    LifestealChance,
+    RepairPerLevel,      // hull the refit crew puts back between dives
+    DroneDamage,
+    MineCount,
+    TorpedoBlast,        // extra blast radius
+    OrbitCount,          // motes circling the sub, eating incoming orbs
+    LampRadius,
     Count
 };
 
@@ -52,6 +65,17 @@ enum class Trait
     PredatorInstinct,
     Drones,
     Mines,
+    Crit,            // jets can land double
+    Ricochet,        // jets bounce off the basin wall instead of dying on it
+    ChargedShot,     // holding fire winds a heavy shot
+    Frost,           // hits chill, and a chilled creature is slower
+    Execute,         // a creature under the threshold dies outright
+    Lifesteal,
+    CorpseBloom,     // a dead creature bursts and takes its neighbours with it
+    Retaliate,       // being bitten fires a ring back
+    OrbitShield,     // motes circle the sub and eat incoming orbs
+    SecondWind,      // hurt badly, the sub fires and moves faster
+    Refit,           // the hull comes back between dives
     Count
 };
 

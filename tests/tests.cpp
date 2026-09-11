@@ -158,6 +158,27 @@ namespace
 
         check(!nodes.empty(), "the tree has nodes");
 
+        // Overlap is ruled out by the layout's construction rather than by
+        // eye. This is the assertion that keeps it that way: two discs of
+        // NodeRadius cannot touch, with room left over for the outlines.
+        const float needed = config::NodeRadius * 2.0f + 12.0f;
+        const float closest = tree.getClosestPair();
+        check(closest >= needed, "no two nodes come within a node's width of each other");
+        if (closest < needed)
+            std::printf("        closest pair is %.1f apart, needs %.1f\n", closest, needed);
+
+        // Every node carries a drawn mark. A node with no icon would be a
+        // blank disc, which is what the initials were replaced for.
+        for (const UpgradeNode& node : nodes)
+        {
+            check(node.icon != Icon::None && node.icon != Icon::Count,
+                  ("node " + node.id + " has an icon").c_str());
+        }
+
+        check(static_cast<int>(nodes.size())
+                  == 1 + UpgradeBranchCount * (UpgradeTrunkLength + 2 * UpgradeLimbLength),
+              "the table fills every slot the layout provides");
+
         std::set<std::string> ids;
         for (const UpgradeNode& node : nodes)
         {
