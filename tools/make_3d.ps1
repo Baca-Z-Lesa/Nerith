@@ -83,9 +83,10 @@ $Materials = @{
 }
 
 Write-Host "Drawing the flat art"
-foreach ($script in @('make_sub.ps1', 'make_art.ps1', 'make_particle.ps1', 'make_world.ps1',
+foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
+                      'make_particle.ps1', 'make_world.ps1',
                       'make_enemies.ps1', 'make_enemies2.ps1', 'make_bestiary.ps1',
-                      'make_creatures.ps1',
+                      'make_creatures.ps1', 'make_bosses.ps1',
                       'make_boss4.ps1', 'make_shots.ps1', 'make_ship.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
