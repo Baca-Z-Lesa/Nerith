@@ -74,6 +74,7 @@ struct BossDef
     BossMind mind;
 
     const char* headTexture;
+    const char* shotTexture; // what this animal throws
     const char* segmentTexture;
     float headScale;
     float segmentScale;

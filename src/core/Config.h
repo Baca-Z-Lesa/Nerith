@@ -98,6 +98,12 @@ namespace config
     {
         EnemyBehaviour behaviour;
         const char* texturePath;
+
+        // What it throws. Every kind that fires has its own, so the water tells
+        // you what is shooting before you have found the thing that fired it.
+        // Creatures that never fire leave it null and fall back to the orb.
+        const char* shotPath;
+
         float scale;
         float radius;
         float speed;
@@ -120,58 +126,58 @@ namespace config
     // Order must match EnemyType.
     inline constexpr std::array<EnemyStats, EnemyTypeCount> EnemyTable{ {
         // Lurker: the yardstick. Everything else is defined against it.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_lurker.png",
+        { EnemyBehaviour::Chase, "assets/textures/enemy_lurker.png", nullptr,
           0.85f, 16.0f, 124.0f, 4, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // Darter: dies to a single jet, but closes faster than you can back
         // away. Punishes standing still, harmless if you keep track of it.
-        { EnemyBehaviour::Dash, "assets/textures/enemy_darter.png",
+        { EnemyBehaviour::Dash, "assets/textures/enemy_darter.png", nullptr,
           0.8f, 12.0f, 405.0f, 1, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.55f, 0.55f },
 
         // Hulk: cannot be outfought quickly, but can be walked away from all
         // day. It is there to take up space and soak your damage.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_hulk.png",
+        { EnemyBehaviour::Chase, "assets/textures/enemy_hulk.png", nullptr,
           0.75f, 34.0f, 58.0f, 20, 2, 3, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // Spitter: safe to ignore up close, lethal if left alone at range.
-        { EnemyBehaviour::Standoff, "assets/textures/enemy_spitter.png",
+        { EnemyBehaviour::Standoff, "assets/textures/enemy_spitter.png", "assets/textures/shot_spitter.png",
           0.8f, 20.0f, 88.0f, 6, 1, 2, 225.0f, 1.10f, 2, 16.0f, 0.0f, 0.0f },
 
         // Bloom: never chases and cannot be dodged by distance. It denies area
         // with rings of orbs, so it has to be killed rather than avoided.
-        { EnemyBehaviour::Drift, "assets/textures/enemy_bloom.png",
+        { EnemyBehaviour::Drift, "assets/textures/enemy_bloom.png", "assets/textures/shot_bloom.png",
           0.7f, 26.0f, 38.0f, 8, 1, 3, 0.0f, 1.95f, 14, 360.0f, 0.0f, 0.0f },
 
         // Spawnling: one jet kills it and it drops nothing. It exists to fill
         // the water and take up the shots you wanted to spend elsewhere.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_spawnling.png",
+        { EnemyBehaviour::Chase, "assets/textures/enemy_spawnling.png", nullptr,
           0.55f, 9.0f, 240.0f, 1, 1, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // Brooder: the tap the spawnlings come out of. Ignore it and the arena
         // fills up; the answer is always to kill the source, not the swarm.
-        { EnemyBehaviour::Brood, "assets/textures/enemy_brooder.png",
+        { EnemyBehaviour::Brood, "assets/textures/enemy_brooder.png", nullptr,
           0.9f, 30.0f, 42.0f, 26, 1, 5, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Spawnling, 4, 2.5f, 0, false },
 
         // Lancer: telegraphs for most of a second, then commits to a straight
         // line it cannot correct. Readable, and lethal if you read it late.
-        { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png",
+        { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png", nullptr,
           0.75f, 15.0f, 495.0f, 4, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.45f, 0.80f },
 
         // Weaver: never closes. It circles at range raking fans across the
         // water, so standing still anywhere is the mistake.
-        { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png",
+        { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png", "assets/textures/shot_weaver.png",
           0.75f, 18.0f, 158.0f, 7, 1, 3, 265.0f, 1.35f, 4, 40.0f, 0.0f, 0.0f },
 
         // Husk: slow, soft, and it fires a full ring the moment it dies. The
         // punishment is for killing it while you are standing next to it.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_husk.png",
+        { EnemyBehaviour::Chase, "assets/textures/enemy_husk.png", "assets/textures/shot_husk.png",
           0.8f, 22.0f, 70.0f, 7, 1, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 16, false },
 
         // Angler: invisible until it is inside your lamp. Fast and it hits
         // hard, so the sonar upgrades stop being a luxury.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_angler.png",
+        { EnemyBehaviour::Chase, "assets/textures/enemy_angler.png", nullptr,
           0.8f, 17.0f, 205.0f, 6, 2, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, true },
     } };

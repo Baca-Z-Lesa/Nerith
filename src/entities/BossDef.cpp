@@ -17,7 +17,8 @@ namespace
         {
             "THE LEVIATHAN", "IT HAS BEEN CIRCLING SINCE YOU ARRIVED.",
             BossBody::Serpent, BossMind::Prowler,
-            "assets/textures/lev_head.png", "assets/textures/lev_body.png",
+            "assets/textures/lev_head.png", "assets/textures/shot_leviathan.png",
+            "assets/textures/lev_body.png",
             1.0f, 0.92f, 0.88f, 4, 46.0f, 46.0f,
             2, 40,
             78.0f, 240.0f,
@@ -43,7 +44,8 @@ namespace
         {
             "THE BLOOM SOVEREIGN", "IT DOES NOT HUNT. IT SIMPLY FILLS THE WATER.",
             BossBody::Bell, BossMind::Drifter,
-            "assets/textures/med_bell.png", "assets/textures/med_bell.png",
+            "assets/textures/med_bell.png", "assets/textures/shot_sovereign.png",
+            "assets/textures/med_bell.png",
             1.0f, 1.0f, 1.0f, 0, 0.0f, 84.0f,
             2, 46,
             34.0f, 0.0f,
@@ -70,7 +72,8 @@ namespace
         {
             "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
             BossBody::Serpent, BossMind::Burrower,
-            "assets/textures/worm_head.png", "assets/textures/worm_seg.png",
+            "assets/textures/worm_head.png", "assets/textures/shot_worm.png",
+            "assets/textures/worm_seg.png",
             0.95f, 0.9f, 0.94f, 6, 44.0f, 44.0f,
             2, 52,
             132.0f, 0.0f,
@@ -98,7 +101,8 @@ namespace
         {
             "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
             BossBody::Serpent, BossMind::Spiral,
-            "assets/textures/hol_crown.png", "assets/textures/hol_vertebra.png",
+            "assets/textures/hol_crown.png", "assets/textures/shot_hollow.png",
+            "assets/textures/hol_vertebra.png",
             1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
             3, 64,
             96.0f, 330.0f,

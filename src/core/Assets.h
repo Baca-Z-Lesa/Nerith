@@ -49,9 +49,14 @@ struct Assets
         return attachments[static_cast<std::size_t>(part)];
     }
 
-    // Boss bodies and body parts, keyed by the path written in the boss table.
-    // A new creature is a new row there and needs no line in here.
+    // Anything named by a path in one of the data tables: boss bodies, boss
+    // parts, and the shot every creature fires. A new creature is a new row
+    // there and needs no line in here.
     const sf::Texture& boss(const char* path) const;
+
+    // The shot this creature throws. Every kind that fires has its own, so the
+    // water tells you what is shooting at you before you find what fired it.
+    const sf::Texture& shotFor(EnemyType type) const;
 
     // nullptr for hardware that is drawn with shapes instead of a sprite.
     static const char* texturePathFor(ShipPart part);

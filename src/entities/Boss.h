@@ -65,6 +65,7 @@ public:
     float getCoreFraction() const;
 
     const char* getName() const;
+    const char* getShotTexture() const;
     const char* getBrief() const;
     std::string getStateLabel() const;
 

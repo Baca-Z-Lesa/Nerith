@@ -893,6 +893,7 @@ float Boss::getCoreFraction() const
 
 const char* Boss::getName() const { return m_def->name; }
 const char* Boss::getBrief() const { return m_def->brief; }
+const char* Boss::getShotTexture() const { return m_def->shotTexture; }
 
 std::string Boss::getStateLabel() const
 {

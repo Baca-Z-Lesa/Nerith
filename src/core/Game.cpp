@@ -1552,7 +1552,8 @@ void Game::updateEnemies(float deltaTime)
         for (const sf::Vector2f& direction : enemy.takeShots())
         {
             const sf::Vector2f muzzle = enemy.getPosition() + direction * (enemy.getRadius() + 8.0f);
-            m_enemyShots.emplace_back(m_assets.enemyOrb, muzzle, direction, config::EnemyOrb,
+            m_enemyShots.emplace_back(m_assets.shotFor(enemy.getType()), muzzle, direction,
+                                      config::EnemyOrb,
                                       config::EnemyOrbDamage + m_level.getScaling().bonusDamage);
             effects::hostileMuzzle(m_effects, muzzle, direction);
         }
@@ -1598,8 +1599,8 @@ void Game::updateBoss(float deltaTime)
 
     for (const BossShot& shot : m_boss->takeShots())
     {
-        m_enemyShots.emplace_back(m_assets.enemyOrb, shot.position, shot.direction,
-                                  config::EnemyOrb, orbDamage);
+        m_enemyShots.emplace_back(m_assets.boss(m_boss->getShotTexture()), shot.position,
+                                  shot.direction, config::EnemyOrb, orbDamage);
         effects::hostileMuzzle(m_effects, shot.position, shot.direction);
     }
 }
@@ -1622,7 +1623,7 @@ void Game::killEnemy(Enemy& enemy)
                                             / static_cast<float>(burst));
         const sf::Vector2f direction = unit(angle);
 
-        m_pendingEnemyShots.emplace_back(m_assets.enemyOrb,
+        m_pendingEnemyShots.emplace_back(m_assets.shotFor(enemy.getType()),
                                         enemy.getPosition() + direction * (enemy.getRadius() + 6.0f),
                                         direction, config::EnemyOrb,
                                         config::EnemyOrbDamage + m_level.getScaling().bonusDamage);

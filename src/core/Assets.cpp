@@ -73,10 +73,22 @@ Assets::Assets()
     {
         const BossDef& def = bossDefFor(static_cast<BossId>(i));
         want(def.headTexture);
+        want(def.shotTexture);
         want(def.segmentTexture);
         for (std::size_t p = 0; p < def.partCount; ++p)
             want(def.parts[p].texture);
     }
+
+    // And whatever each creature throws, through the same cache, so a new
+    // creature with a new shot needs no line in here either.
+    for (std::size_t i = 0; i < EnemyTypeCount; ++i)
+        want(config::EnemyTable[i].shotPath);
+}
+
+const sf::Texture& Assets::shotFor(EnemyType type) const
+{
+    const char* path = config::enemyStats(type).shotPath;
+    return path != nullptr ? boss(path) : enemyOrb;
 }
 
 const sf::Texture& Assets::boss(const char* path) const
