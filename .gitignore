@@ -25,3 +25,9 @@ tools/flat/
 
 # Local run state
 nerith_save.txt
+
+# Release staging
+dist/
+
+# Test build output
+x64/Tests/

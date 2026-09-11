@@ -10,10 +10,12 @@
 
 namespace
 {
-    constexpr float FirstEntryY = 372.0f;
-    constexpr float EntryStep = 62.0f;
+    // Six entries have to fit between the strap line and the footer hint, so
+    // the rows are tighter than they were when there were three.
+    constexpr float FirstEntryY = 340.0f;
+    constexpr float EntryStep = 52.0f;
     constexpr float EntryWidth = 420.0f;
-    constexpr float EntryHeight = 46.0f;
+    constexpr float EntryHeight = 44.0f;
 
     float centredX(const std::string& text, float scale)
     {
@@ -134,10 +136,10 @@ void MainMenu::draw(sf::RenderTarget& target, float time)
 
         const Entry& entry = m_entries[i];
         pixelfont::append(m_text, entry.label,
-                          { centredX(entry.label, 2.2f), bounds.position.y + 8.0f }, 2.2f,
+                          { centredX(entry.label, 2.1f), bounds.position.y + 7.0f }, 2.1f,
                           picked ? config::HudTextColor : config::HudDimTextColor);
         pixelfont::append(m_text, entry.note,
-                          { centredX(entry.note, 1.3f), bounds.position.y + 30.0f }, 1.3f,
+                          { centredX(entry.note, 1.2f), bounds.position.y + 28.0f }, 1.2f,
                           config::HudDimTextColor);
     }
 
