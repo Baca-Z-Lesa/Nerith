@@ -71,6 +71,8 @@ Game::Game()
     , m_menuTime(0.0f)
     , m_salvage(0)
     , m_showUpgrades(false)
+    , m_rerun(false)
+    , m_respecArmed(false)
     , m_lastSpawnAngle(0.0f)
     , m_snowTimer(0.0f)
     , m_bubbleTimer(0.0f)
@@ -216,6 +218,10 @@ void Game::beginLevel(int number)
 {
     m_level.start(number);
 
+    // Anything shallower than the deepest water opened so far has been beaten
+    // before, and beating it again is worth a fraction of the first time.
+    m_rerun = number < m_save.unlockedLevel;
+
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced.
     const DepthTheme& theme = themeFor(m_level.getDepth());
@@ -275,7 +281,14 @@ void Game::onLevelComplete()
     m_enemies.clear();
     m_enemyShots.clear();
 
-    m_salvage += config::SalvagePerLevel;
+    // The bonus is for opening water, so a repeat pays nothing for the clear
+    // itself and only a fraction for what was in it.
+    if (!m_rerun)
+    {
+        m_salvage += config::FirstClearBase
+                     + config::FirstClearPerLevel * m_level.getNumber();
+    }
+
     m_audio.play(Sfx::LevelClear);
 
     // Clearing a level is the only thing that opens the next one. Beating it
@@ -414,6 +427,8 @@ void Game::applyUpgrades()
 
 void Game::handleUpgradeClick()
 {
+    m_respecArmed = false;
+
     // The hub's level strip shares the click with the tree.
     if (const std::optional<int> level = m_upgradeScreen.getHoveredLevel())
     {
@@ -432,12 +447,37 @@ void Game::handleUpgradeClick()
     if (!hovered)
         return;
 
-    if (m_tree.tryUnlock(*hovered, m_salvage, getDepth()))
+    if (m_tree.tryUnlock(*hovered, m_salvage))
     {
         applyUpgrades();
         m_audio.play(Sfx::LevelClear, 0.5f);
         persist();
     }
+}
+
+void Game::stripHull()
+{
+    // Only from the hub, and never over a corpse: the game-over tree is a
+    // read-only look at what might have been.
+    if (m_state == State::GameOver || m_tree.getSpent() <= 0)
+    {
+        m_respecArmed = false;
+        return;
+    }
+
+    if (!m_respecArmed)
+    {
+        m_respecArmed = true;
+        return;
+    }
+
+    m_respecArmed = false;
+    m_salvage += m_tree.stripForRefund();
+
+    applyUpgrades();
+    m_player.reset();
+    m_audio.play(Sfx::PlayerHurt, 0.7f);
+    persist();
 }
 
 bool Game::upgradesVisible() const
@@ -516,6 +556,11 @@ void Game::processEvents()
                 continue;
             }
 
+            // Any other key cancels a pending strip, so the warning cannot sit
+            // on the screen waiting to catch a press meant for something else.
+            if (keyPressed->scancode != sf::Keyboard::Scancode::R)
+                m_respecArmed = false;
+
             switch (keyPressed->scancode)
             {
                 case sf::Keyboard::Scancode::Escape:
@@ -537,6 +582,11 @@ void Game::processEvents()
                 case sf::Keyboard::Scancode::NumpadMinus:
                     if (upgradesVisible())
                         m_upgradeScreen.zoomBy(-1.0f);
+                    break;
+
+                case sf::Keyboard::Scancode::R:
+                    if (m_state == State::Upgrading)
+                        stripHull();
                     break;
 
                 case sf::Keyboard::Scancode::Tab:
@@ -677,6 +727,18 @@ void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming)
                                                    + step * static_cast<float>(i));
         m_pendingPlayerShots.emplace_back(m_assets.waterJet, at, unit(angle), fragment, damage, 0);
     }
+}
+
+void Game::awardSalvage(int base)
+{
+    if (base <= 0)
+        return;
+
+    const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
+    const float factor = m_rerun ? config::RerunSalvageFactor : 1.0f;
+
+    m_salvage += std::max(1, static_cast<int>(
+                                 std::lround(static_cast<float>(base) * bonus * factor)));
 }
 
 void Game::addHitRing(sf::Vector2f at, float radius, sf::Color colour)
@@ -1086,9 +1148,7 @@ void Game::killEnemy(Enemy& enemy)
                                         config::EnemyOrbDamage + m_level.getScaling().bonusDamage);
     }
 
-    const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
-    m_salvage += std::max(1, static_cast<int>(std::lround(
-                                 static_cast<float>(enemy.getSalvage()) * bonus)));
+    awardSalvage(enemy.getSalvage());
 
     // Only what the level script sent counts: otherwise a brooder would clear
     // its own level by hatching into the quota.
@@ -1235,9 +1295,7 @@ void Game::handleCollisions()
                 effects::playerDeath(m_effects, hit.at); // the biggest burst we have
                 m_audio.play(Sfx::BossRoar, 1.2f);
 
-                const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
-                m_salvage += std::max(1, static_cast<int>(std::lround(
-                                             static_cast<float>(m_boss->getSalvage()) * bonus)));
+                awardSalvage(m_boss->getSalvage());
 
                 m_level.notifyBossDefeated();
                 m_boss.reset();
@@ -1543,10 +1601,19 @@ void Game::render()
 
     if (upgradesVisible())
     {
-        const std::string prompt = m_state == State::Upgrading
-                                       ? "ENTER TO DIVE INTO LEVEL "
-                                             + std::to_string(m_save.selectedLevel)
-                                       : "TAB TO CLOSE";
+        std::string prompt = m_state == State::Upgrading
+                                 ? "ENTER TO DIVE INTO LEVEL "
+                                       + std::to_string(m_save.selectedLevel)
+                                 : "TAB TO CLOSE";
+
+        if (m_respecArmed)
+        {
+            prompt = "R AGAIN TO STRIP THE HULL FOR "
+                     + std::to_string(static_cast<int>(std::lround(
+                           static_cast<float>(m_tree.getSpent()) * config::RespecRefund)))
+                     + " SALVAGE";
+        }
+
         m_upgradeScreen.draw(m_window, m_tree, m_salvage, getDepth(), prompt);
     }
     else

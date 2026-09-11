@@ -47,10 +47,10 @@ private:
     sf::FloatRect boundsOf(const UpgradeNode& node) const;
     float nodeRadius() const;
     void drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
-                      const UpgradeNode& node, int salvage, int depth);
+                      const UpgradeNode& node, int salvage);
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
-    void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth);
+    void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage);
     void drawLevelStrip(sf::RenderTarget& target);
     sf::FloatRect levelBounds(int level) const;
     void drawChrome(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth,

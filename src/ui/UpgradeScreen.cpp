@@ -252,7 +252,7 @@ void UpgradeScreen::drawLinks(sf::RenderTarget& target, const UpgradeTree& tree)
     target.draw(m_lines);
 }
 
-void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth)
+void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage)
 {
     m_text.clear();
 
@@ -265,7 +265,6 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
 
         const bool unlocked = tree.isUnlocked(i);
         const bool ready = tree.arePrerequisitesMet(i);
-        const bool deepEnough = tree.isDepthMet(i, depth);
         const bool affordable = tree.canAfford(i, salvage);
 
         sf::Color fill = config::NodeLockedFill;
@@ -278,7 +277,7 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
             edge = config::NodeUnlockedEdge;
             label = config::HudTextColor;
         }
-        else if (ready && deepEnough)
+        else if (ready)
         {
             fill = config::NodeReadyFill;
             // Prerequisites met but too expensive gets its own colour, so the
@@ -310,15 +309,16 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
                             centre.y - 3.5f * iconScale },
                           iconScale, label);
 
-        // A small ring under the disc carries the one thing worth knowing at a
-        // glance: whether it is owned, out of depth, or just costs something.
+        // Under the disc sits the only thing worth knowing at a glance now that
+        // nothing is time locked: the price, and whether it is within reach.
         if (!unlocked)
         {
-            const std::string tag = deepEnough ? std::to_string(node.cost)
-                                               : "D" + std::to_string(node.requiredDepth);
-            const sf::Color tagColour = !deepEnough ? config::NodePricyEdge
-                                        : affordable ? config::HudSalvageColor
-                                                     : config::HudDimTextColor;
+            // Gold means the click would work right now. A price the player
+            // could pay on a node whose root is still missing is not that, so
+            // it stays dim.
+            const std::string tag = std::to_string(node.cost);
+            const sf::Color tagColour = (ready && affordable) ? config::HudSalvageColor
+                                                              : config::HudDimTextColor;
 
             const float tagScale = 1.3f * m_zoom;
             pixelfont::append(m_text, tag,
@@ -331,11 +331,11 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
     target.draw(m_text);
 
     if (m_hovered)
-        drawNodeCard(target, tree, nodes[*m_hovered], salvage, depth);
+        drawNodeCard(target, tree, nodes[*m_hovered], salvage);
 }
 
 void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
-                                 const UpgradeNode& node, int salvage, int depth)
+                                 const UpgradeNode& node, int salvage)
 {
     const sf::Vector2f centre = centreOf(node);
 
@@ -371,11 +371,6 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
     {
         status = "INSTALLED";
         statusColour = config::HudDimTextColor;
-    }
-    else if (!tree.isDepthMet(index, depth))
-    {
-        status = "NEEDS DEPTH " + std::to_string(node.requiredDepth);
-        statusColour = config::NodePricyEdge;
     }
     else if (!tree.arePrerequisitesMet(index))
     {
@@ -486,11 +481,6 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
             status = "ALREADY INSTALLED";
             statusColour = config::HudDimTextColor;
         }
-        else if (!tree.isDepthMet(*m_hovered, depth))
-        {
-            status = "SEALED UNTIL DEPTH " + std::to_string(node.requiredDepth);
-            statusColour = config::NodePricyEdge;
-        }
         else if (!tree.arePrerequisitesMet(*m_hovered))
         {
             status = "NEEDS: ";
@@ -518,7 +508,7 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
     }
     else
     {
-        pixelfont::append(m_text, "ARROWS OR WASD TO MOVE. HOVER A NODE FOR DETAILS.",
+        pixelfont::append(m_text, "WASD MOVES.  WHEEL OR +/- ZOOMS.  R STRIPS THE HULL.",
                           { config::HudMargin, y }, 1.6f, config::HudDimTextColor);
     }
 
@@ -537,7 +527,7 @@ void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, int 
     target.draw(m_backdrop);
 
     drawLinks(target, tree);
-    drawNodes(target, tree, salvage, depth);
+    drawNodes(target, tree, salvage);
     drawChrome(target, tree, salvage, depth, prompt);
     // Last, so the branch labels panning past cannot sit on top of it.
     drawLevelStrip(target);

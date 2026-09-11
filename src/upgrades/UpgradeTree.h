@@ -8,18 +8,20 @@
 #include <string>
 #include <vector>
 
-// Everything about an upgrade is data: what it costs, how deep you must have
-// been to buy it, what numbers it moves, what behaviour it switches on and what
-// it bolts onto the hull. Adding one is a row, never a change to the systems
-// that read it.
+// Everything about an upgrade is data: what it costs, what numbers it moves,
+// what behaviour it switches on and what it bolts onto the hull. Adding one is
+// a row, never a change to the systems that read it.
+//
+// The cost written in the table is a weight rather than a price; the tree
+// stretches it into the real price when it builds, so the whole economy is one
+// curve in one place.
 struct UpgradeNode
 {
     std::string id;
     std::string name;
     std::string description;
     int cost = 0;
-    int requiredDepth = 1; // cannot be bought until the run has reached it
-    int column = -1;       // branch column the screen lays it out in
+    int column = -1; // branch column the screen lays it out in
     std::vector<std::string>  prerequisites;
     std::vector<StatModifier> effects;
     std::vector<Trait>        traits;
@@ -40,14 +42,18 @@ public:
 
     bool isUnlocked(std::size_t index) const;
     bool arePrerequisitesMet(std::size_t index) const;
-    bool isDepthMet(std::size_t index, int depth) const;
     bool canAfford(std::size_t index, int salvage) const;
-    bool canUnlock(std::size_t index, int salvage, int depth) const;
+    bool canUnlock(std::size_t index, int salvage) const;
 
     // Spends the cost and unlocks, if it is allowed. False changes nothing.
-    bool tryUnlock(std::size_t index, int& salvage, int depth);
+    bool tryUnlock(std::size_t index, int& salvage);
 
     void reset();
+
+    // What everything currently bolted on cost, and stripping it all off for
+    // most of that back. A bad build is recoverable, at a price.
+    int getSpent() const;
+    int stripForRefund();
 
     std::size_t getUnlockedCount() const;
 

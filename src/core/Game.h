@@ -119,6 +119,10 @@ private:
     void removeDeadEntities();
 
     // Shared by the pressure burst, reactive plating, mines and clusters.
+    // One door for every payout, so the salvage bonus and the repeat-water
+    // penalty cannot be forgotten at one of the call sites.
+    void awardSalvage(int base);
+
     void areaDamage(sf::Vector2f centre, float radius, int damage);
     void addHitRing(sf::Vector2f at, float radius, sf::Color colour);
     void updateHitRings(float deltaTime);
@@ -133,6 +137,7 @@ private:
 
     void applyUpgrades();
     void handleUpgradeClick();
+    void stripHull();
     bool upgradesVisible() const;
 
     sf::Vector2f getMouseWorldPosition() const;
@@ -189,6 +194,15 @@ private:
 
     int   m_salvage;
     bool  m_showUpgrades;
+
+    // Water that has already been cleared pays a fraction, so the level being
+    // a repeat is something the whole run has to know about.
+    bool  m_rerun;
+
+    // A stripped hull cannot be un-stripped, so the key has to be pressed
+    // twice: the first press only puts the warning on the screen.
+    bool  m_respecArmed;
+
     float m_lastSpawnAngle;
     float m_snowTimer;
     float m_bubbleTimer;

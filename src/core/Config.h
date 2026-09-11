@@ -255,7 +255,16 @@ namespace config
     inline constexpr float LevelIntroDuration = 2.8f;
     inline constexpr float LevelClearDuration = 2.2f;
     inline constexpr float DeathBannerDuration = 2.6f;
-    inline constexpr int   SalvagePerLevel = 3; // clearing a level is worth something on its own
+    // --- Salvage economy ---
+    // Opening up water nobody has cleared is what pays for the tree. Going back
+    // over old ground pays a fraction of the kills and no bonus at all, so the
+    // way to afford anything is downward rather than round in circles. Without
+    // this a player sits in the shallows with more salvage than the tree has
+    // things to sell.
+    inline constexpr int   FirstClearBase = 12;
+    inline constexpr int   FirstClearPerLevel = 4;
+    inline constexpr float RerunSalvageFactor = 0.30f;
+    inline constexpr float RespecRefund = 0.70f;
 
     // --- Particles ---
     inline constexpr const char* ParticleTexturePath = "assets/textures/particle_dot.png";
