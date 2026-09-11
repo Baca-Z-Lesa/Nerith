@@ -30,7 +30,11 @@ public:
     std::optional<EnemyType> takeSpawn(std::size_t aliveEnemies);
 
     void notifyEnemyKilled(EnemyType type);
+    void notifyNestDestroyed();
     void notifyBossDefeated();
+
+    // How many nests this level hides, and whether it hides any at all.
+    int getNestCount() const;
     void notifyBossCore(float fraction);
 
     bool isComplete() const;

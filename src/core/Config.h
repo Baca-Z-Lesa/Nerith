@@ -285,6 +285,50 @@ namespace config
     inline constexpr float LevelIntroDuration = 2.8f;
     inline constexpr float LevelClearDuration = 2.2f;
     inline constexpr float DeathBannerDuration = 2.6f;
+    // --- Depth in a flat scene ---
+    // Two extra bands either side of the floor. The numbers are how much of the
+    // camera's movement each one gets: under 1 it lags behind and reads as far
+    // away, over 1 it leads and reads as being between the camera and the sub.
+    // Everything else here only keeps them from competing with the fight.
+    inline constexpr float FarParallax = 0.42f;
+    inline constexpr float NearParallax = 1.22f;
+    inline constexpr std::size_t FarLayerCount = 26;
+    inline constexpr std::size_t NearLayerCount = 34;
+    inline constexpr sf::Color FarLayerTint{ 92, 112, 124 };
+    inline constexpr std::uint8_t FarLayerAlpha = 120;
+    inline constexpr sf::Color NearLayerTint{ 150, 186, 196, 40 };
+
+    // A contact shadow under every prop, squashed and offset away from the key
+    // light. Without it nothing on the floor looks like it is on the floor.
+    inline constexpr sf::Vector2f PropShadowOffset{ 14.0f, 10.0f };
+    inline constexpr float PropShadowSquash = 0.42f;
+    inline constexpr sf::Color PropShadowColor{ 0, 0, 0, 92 };
+
+    // --- Nests, and going dark ---
+    // A nest is a tap that does not move. Killing one is worth crossing the
+    // basin for; leaving one is a level that never ends.
+    inline constexpr const char* NestTexturePath = "assets/textures/nest.png";
+    inline constexpr int   NestHealth = 34;
+    inline constexpr float NestRadius = 44.0f;
+    inline constexpr float NestHatchInterval = 4.6f;
+    inline constexpr int   NestSalvage = 14;
+    inline constexpr float NestRingMin = 0.52f; // as a fraction of the arena
+    inline constexpr float NestRingMax = 0.88f;
+
+    // The lamp is what lets something find you. Turning it off is the whole
+    // second way to play a level: you are nearly blind, but so is everything
+    // hunting you - right up until you fire, which gives you away for a while.
+    inline constexpr float LampDarkFactor = 0.26f;
+    inline constexpr float NoticeLit = 900.0f;
+    inline constexpr float NoticeDark = 300.0f;
+    inline constexpr float NoiseDuration = 2.4f;
+    inline constexpr float DarkSalvageBonus = 0.35f; // for doing it the hard way
+
+    // How a creature that has lost you behaves: slower than it hunts, on a
+    // heading that turns on its own, and not firing at all.
+    inline constexpr float WanderSpeedFactor = 0.45f;
+    inline constexpr float WanderTurnRate = 55.0f; // degrees per second, either way
+
     // --- Chilled water ---
     // Never all the way to a stop: a creature you can simply walk away from is
     // not a fight, so the chill line has a ceiling rather than stacking to one.

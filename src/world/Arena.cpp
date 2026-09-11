@@ -65,8 +65,8 @@ void Arena::buildLightPool()
         // Built around the origin so drawLight can carry it to the sub.
         appendRingQuad(m_lightPool,
                        { 0.0f, 0.0f }, { 0.0f, 0.0f },
-                       sf::Vector2f(m_theme->lightRadius + m_lampBonus, a0),
-                       sf::Vector2f(m_theme->lightRadius + m_lampBonus, a1),
+                       sf::Vector2f((m_theme->lightRadius + m_lampBonus) * m_lampFactor, a0),
+                       sf::Vector2f((m_theme->lightRadius + m_lampBonus) * m_lampFactor, a1),
                        core, edge);
     }
 }
@@ -142,12 +142,15 @@ void Arena::updateCaustics()
     }
 }
 
-void Arena::setLampBonus(float bonus)
+void Arena::setLamp(float bonus, float factor)
 {
-    if (std::abs(bonus - m_lampBonus) < 0.5f)
-        return; // rebuilding the pool every frame would be pointless work
+    // Rebuilding the pool every frame would be pointless work, so nothing
+    // happens unless the lamp has actually changed size.
+    if (std::abs(bonus - m_lampBonus) < 0.5f && std::abs(factor - m_lampFactor) < 0.01f)
+        return;
 
     m_lampBonus = std::max(0.0f, bonus);
+    m_lampFactor = std::clamp(factor, 0.05f, 4.0f);
     m_lightPool.clear();
     buildLightPool();
 }

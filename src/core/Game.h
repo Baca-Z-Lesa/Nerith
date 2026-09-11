@@ -109,6 +109,21 @@ private:
         float        erupting; // seconds of eruption left, zero while dormant
     };
 
+    // A clutch of egg cases cemented to rock out near the reef. It hatches
+    // until it is killed, it does not move, and it is not in sight from the
+    // middle of the basin - which is the point of it. A level built round
+    // these is a level you have to go through rather than stand in.
+    struct Nest
+    {
+        sf::Sprite   sprite;
+        sf::Vector2f position;
+        int          health;
+        int          maxHealth;
+        float        spawnTimer;
+        float        flash;
+        bool         alive;
+    };
+
     void processEvents();
     void update(float deltaTime);
     void render();
@@ -146,6 +161,16 @@ private:
     void placeVents();
     void updateVents(float deltaTime);
     void drawVents();
+
+    void placeNests();
+    void updateNests(float deltaTime);
+    void drawNests();
+
+    // Running dark. The lamp is what lets a creature find you from across the
+    // basin; with it off you are nearly blind but so is everything else, and
+    // firing gives you away anyway. It is the other way to play a level.
+    void toggleLamp();
+    float noticeRange() const;
     void updateSonar(float deltaTime);
     void updateEnemies(float deltaTime);
     void updateBoss(float deltaTime);
@@ -248,6 +273,7 @@ private:
     std::vector<Drone>      m_drones;
     std::vector<Mine>       m_mines;
     std::vector<Vent>       m_vents;
+    std::vector<Nest>       m_nests;
     std::vector<HitRing>    m_hitRings;
     std::optional<Boss>     m_boss;
 
@@ -282,6 +308,9 @@ private:
     float m_hurtFlash; // 1 at the moment of a bite, fading to 0
     float m_charge;    // seconds the fire button has been held down
     float m_orbitAngle; // where the defensive motes are in their circle
+
+    bool  m_lampOn;    // the sub's own light, and whether anything can see you
+    float m_noiseTimer; // seconds of having given yourself away by firing
 
     int   m_optionRow;    // which line of the options screen is selected
     float m_creditsScroll;

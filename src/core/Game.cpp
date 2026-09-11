@@ -80,6 +80,8 @@ Game::Game()
     , m_hurtFlash(0.0f)
     , m_charge(0.0f)
     , m_orbitAngle(0.0f)
+    , m_lampOn(true)
+    , m_noiseTimer(0.0f)
     , m_optionRow(0)
     , m_creditsScroll(0.0f)
     , m_justBeatCampaign(false)
@@ -233,6 +235,7 @@ void Game::addHitStop(float seconds)
 
 void Game::updateFeel(float deltaTime)
 {
+    m_noiseTimer = std::max(0.0f, m_noiseTimer - deltaTime);
     m_shake *= std::exp(-config::ShakeDecay * deltaTime);
     if (m_shake < 0.05f)
         m_shake = 0.0f;
@@ -287,6 +290,7 @@ void Game::beginLevel(int number)
     m_mines.clear();
     m_hitRings.clear();
     placeVents();
+    placeNests();
     m_callTimer = rng::range(6.0f, config::CreatureCallMax);
     m_boss.reset();
     m_lastSpawnAngle = rng::range(0.0f, 360.0f);
@@ -302,7 +306,9 @@ void Game::beginLevel(int number)
 
     // A bought lamp is worth the same at every depth, so it is applied on top
     // of the theme rather than replacing it.
-    m_arena.setLampBonus(m_playerStats.get(Stat::LampRadius, 0.0f));
+    m_lampOn = true;
+    m_noiseTimer = 0.0f;
+    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f), 1.0f);
 
     // Escorts are rebuilt each level so the count always matches the tree.
     m_drones.clear();
@@ -801,6 +807,12 @@ void Game::processEvents()
                         stripHull();
                     break;
 
+                case sf::Keyboard::Scancode::F:
+                    // Kill the lamp. Nearly blind, but so is everything else.
+                    if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
+                        toggleLamp();
+                    break;
+
                 case sf::Keyboard::Scancode::Tab:
                     // Between levels the tree is the screen, so there is nothing
                     // to toggle; after a death there is nothing left to spend.
@@ -889,6 +901,10 @@ void Game::fireJet(sf::Vector2f muzzle, sf::Vector2f direction, float chargeFact
 
     effects::muzzleBurst(m_effects, muzzle, direction);
     m_audio.play(Sfx::JetFire, chargeFactor > 1.0f ? 1.6f : 1.0f);
+
+    // Firing gives you away whether the lamp is lit or not. Without this,
+    // running dark would be a way to shoot everything for free.
+    m_noiseTimer = config::NoiseDuration;
 
     if (chargeFactor > 1.0f)
     {
@@ -1120,6 +1136,119 @@ void Game::updateDrones(float deltaTime)
         m_playerShots.emplace_back(m_assets.waterJet, position, facing,
                                    config::WaterJet, bite, 0);
     }
+}
+
+void Game::placeNests()
+{
+    m_nests.clear();
+
+    const int wanted = m_level.getNestCount();
+    if (wanted <= 0)
+        return;
+
+    for (int i = 0; i < wanted; ++i)
+    {
+        // Spread right round the basin and well out from the middle, so no two
+        // are on screen together and none of them can be shot from the spot
+        // the sub starts on.
+        const float angle = 360.0f * static_cast<float>(i) / static_cast<float>(wanted)
+                            + rng::range(-18.0f, 18.0f);
+        const float reach = config::ArenaRadius
+                            * rng::range(config::NestRingMin, config::NestRingMax);
+
+        Nest nest{ sf::Sprite(m_assets.boss(config::NestTexturePath)),
+                   WorldCentre + sf::Vector2f(reach, sf::degrees(angle)),
+                   config::NestHealth, config::NestHealth,
+                   rng::range(1.0f, config::NestHatchInterval), 0.0f, true };
+
+        nest.sprite.setOrigin(sf::Vector2f(nest.sprite.getTexture().getSize()) / 2.0f);
+        nest.sprite.setPosition(nest.position);
+        nest.sprite.setRotation(sf::degrees(rng::range(0.0f, 360.0f)));
+
+        m_nests.push_back(std::move(nest));
+    }
+}
+
+void Game::updateNests(float deltaTime)
+{
+    for (Nest& nest : m_nests)
+    {
+        if (!nest.alive)
+            continue;
+
+        if (nest.flash > 0.0f)
+            nest.flash = std::max(0.0f, nest.flash - deltaTime);
+
+        nest.sprite.setColor(nest.flash > 0.0f ? config::EnemyHitFlashTint : sf::Color::White);
+
+        nest.spawnTimer -= deltaTime;
+        if (nest.spawnTimer > 0.0f)
+            continue;
+
+        nest.spawnTimer = config::NestHatchInterval;
+
+        // It hatches where it stands rather than off screen, so a nest you have
+        // found is a nest you are now fighting.
+        if (m_enemies.size() >= config::MaxSpawnlings * 2)
+            continue;
+
+        const sf::Vector2f offset(rng::range(40.0f, 70.0f),
+                                  sf::degrees(rng::range(0.0f, 360.0f)));
+
+        m_enemies.emplace_back(EnemyType::Spawnling, m_assets.forEnemy(EnemyType::Spawnling),
+                               nest.position + offset, m_level.getScaling());
+        m_enemies.back().markHatched();
+
+        effects::enemyDeath(m_effects, nest.position + offset);
+        m_audio.play(Sfx::Hatch, 0.7f);
+    }
+}
+
+void Game::drawNests()
+{
+    for (const Nest& nest : m_nests)
+    {
+        if (!nest.alive)
+            continue;
+
+        m_window.draw(nest.sprite);
+
+        // A ring that tightens as it dies, so how far along a nest is can be
+        // read from across the basin without a health bar over it.
+        const float fraction = static_cast<float>(nest.health)
+                               / static_cast<float>(std::max(1, nest.maxHealth));
+        const float radius = config::NestRadius * (0.55f + 0.45f * fraction);
+
+        sf::Color ring = config::HudSalvageColor;
+        ring.a = 150;
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(nest.position);
+        m_sonarRing.setOutlineThickness(2.5f);
+        m_sonarRing.setOutlineColor(ring);
+        m_window.draw(m_sonarRing);
+    }
+}
+
+void Game::toggleLamp()
+{
+    m_lampOn = !m_lampOn;
+
+    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
+                    m_lampOn ? 1.0f : config::LampDarkFactor);
+
+    m_audio.play(Sfx::PartBreak, 0.35f);
+}
+
+float Game::noticeRange() const
+{
+    // Firing gives you away whether the lamp is on or not, which is what stops
+    // running dark from being a way to shoot everything for free.
+    if (m_lampOn || m_noiseTimer > 0.0f)
+        return config::NoticeLit;
+
+    return config::NoticeDark;
 }
 
 void Game::placeVents()
@@ -1523,6 +1652,19 @@ void Game::updateTorpedoes(float deltaTime)
 
 void Game::updateEnemies(float deltaTime)
 {
+    // Who can currently see the sub. One radius for the whole basin rather than
+    // per-creature senses: the player needs a rule they can hold in their head,
+    // not a simulation they have to reverse engineer.
+    const float notice = noticeRange();
+    const float noticeSquared = notice * notice;
+
+    for (Enemy& enemy : m_enemies)
+    {
+        const bool close = (enemy.getPosition() - m_player.getPosition()).lengthSquared()
+                           < noticeSquared;
+        enemy.setAware(close);
+    }
+
     const float roam = m_arena.getRadius() + config::EnemyRoamMargin;
 
     // Hatchlings are collected first and pushed after the loop: spawning into
@@ -1744,6 +1886,48 @@ void Game::handleCollisions()
                 continue;
 
             bool spent = false;
+
+            // Nests take hits like anything else. They are the objective on a
+            // hunt level, so the same jet that kills a creature burns one out.
+            for (Nest& nest : m_nests)
+            {
+                if (!nest.alive)
+                    continue;
+
+                const float reach = shot.getRadius() + config::NestRadius;
+                if ((nest.position - shot.getPosition()).lengthSquared() > reach * reach)
+                    continue;
+
+                nest.health -= shot.getDamage();
+                nest.flash = config::EnemyHitFlashDuration;
+
+                effects::impact(m_effects, shot.getPosition(), shot.getDirection());
+                m_audio.play(Sfx::Impact);
+                addHitRing(shot.getPosition(), config::JetRingRadius, config::HudSalvageColor);
+
+                if (nest.health <= 0)
+                {
+                    nest.alive = false;
+                    effects::playerDeath(m_effects, nest.position);
+                    effects::ventBurst(m_effects, nest.position, config::NestRadius);
+                    m_audio.play(Sfx::BossRoar, 0.8f);
+                    addShake(config::ShakeBossPart);
+                    addHitStop(config::HitStopBossPart);
+                    addHitRing(nest.position, config::NestRadius * 2.6f, config::HudSalvageColor);
+
+                    awardSalvage(config::NestSalvage);
+                    m_level.notifyNestDestroyed();
+                }
+
+                if (torpedo || shot.spendPierce())
+                {
+                    spent = true;
+                    break;
+                }
+            }
+
+            if (spent || !shot.isAlive())
+                continue;
 
             for (Enemy& enemy : m_enemies)
             {
@@ -2069,6 +2253,7 @@ void Game::drawPauseOverlay()
     const Row rows[] = {
         { "ESC / P", "BACK INTO IT", false },
         { "M",       "MUTE", false },
+        { "F",       "LAMP ON OR OFF", false },
         { "F11",     "FULLSCREEN", false },
         { "Q",       "SURFACE, KEEPING THE SALVAGE", true },
     };
@@ -2128,6 +2313,7 @@ void Game::drawControls()
         { "LEFT MOUSE",   "WATER JET, HELD DOWN" },
         { "RIGHT MOUSE",  "TORPEDO, ONCE THE TUBE IS FITTED" },
         { "SHIFT",        "DASH, ONCE THE ENGINE TAKES IT" },
+        { "F",            "KILL THE LAMP. RUN DARK." },
         { "TAB",          "THE UPGRADE TREE, MID DIVE" },
         { "WHEEL  + -",   "ZOOM THE TREE" },
         { "R",            "STRIP THE HULL BACK, IN THE HUB" },
@@ -2382,6 +2568,7 @@ void Game::update(float deltaTime)
                 updateMines(deltaTime);
                 updateOrbits(deltaTime);
                 updateVents(deltaTime);
+                updateNests(deltaTime);
                 updateSonar(deltaTime);
 
                 handleCollisions();
@@ -2449,6 +2636,8 @@ void Game::render()
     // Everything that lives in the basin is drawn through the camera.
     m_window.setView(m_camera);
 
+    // Far band first: rock past the reef, sliding slower than the floor.
+    m_seabed.drawFar(m_window, m_cameraCentre);
     m_seabed.draw(m_window);
     m_arena.drawLight(m_window, m_player.getPosition());
 
@@ -2456,6 +2645,7 @@ void Game::render()
 
     // Under everything alive: a vent is a hole in the floor, not an object.
     drawVents();
+    drawNests();
 
     for (const Mine& mine : m_mines)
         m_window.draw(mine.sprite);
@@ -2502,6 +2692,10 @@ void Game::render()
     }
 
     m_effects.draw(m_window);
+
+    // Near band last of everything in the world: silt passing between the
+    // camera and the fight, which is what gives the water a thickness.
+    m_seabed.drawNear(m_window, m_cameraCentre);
 
     // Sonar: an expanding ring plus a marker on everything it finds, including
     // creatures still out in the gloom where the light does not reach.

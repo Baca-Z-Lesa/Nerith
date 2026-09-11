@@ -58,6 +58,41 @@ std::string KillCountObjective::getLabel() const
     return "KILLS " + std::to_string(m_killed) + "/" + std::to_string(m_target);
 }
 
+// --- burn out the nests -------------------------------------------------
+
+DestroyNestsObjective::DestroyNestsObjective(int total)
+    : m_total(std::max(1, total))
+    , m_destroyed(0)
+{
+}
+
+void DestroyNestsObjective::onNestDestroyed()
+{
+    ++m_destroyed;
+}
+
+bool DestroyNestsObjective::isComplete() const
+{
+    return m_destroyed >= m_total;
+}
+
+float DestroyNestsObjective::getProgress() const
+{
+    return std::clamp(static_cast<float>(m_destroyed) / static_cast<float>(m_total), 0.0f, 1.0f);
+}
+
+std::string DestroyNestsObjective::getLabel() const
+{
+    return "NESTS " + std::to_string(m_destroyed) + "/" + std::to_string(m_total);
+}
+
+bool DestroyNestsObjective::wantsSpawning() const
+{
+    // The nests are the tap. The level's own roster is only there to make
+    // crossing the basin cost something.
+    return !isComplete();
+}
+
 // --- survive ------------------------------------------------------------
 
 SurviveTimeObjective::SurviveTimeObjective(float seconds)

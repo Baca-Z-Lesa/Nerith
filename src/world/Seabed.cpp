@@ -42,6 +42,7 @@ Seabed::Seabed(const Assets& assets, sf::Vector2f center, float arenaRadius)
     buildSand();
     scatterProps();
     buildReef();
+    buildParallax();
 
     // Painter's order: whatever sits lower on the screen is nearer, so it goes
     // on top. Sorting once here means draw() never has to think about it.
@@ -265,9 +266,112 @@ void Seabed::update(float deltaTime)
     updateCritters(deltaTime);
 }
 
+void Seabed::buildParallax()
+{
+    // The far band: boulders out past the reef, large and dim. They are never
+    // reachable and never collide; they exist so the basin has somewhere to be
+    // rather than ending at the wall.
+    for (std::size_t i = 0; i < config::FarLayerCount; ++i)
+    {
+        const float angle = 360.0f * static_cast<float>(i) / config::FarLayerCount
+                            + rng::range(-14.0f, 14.0f);
+        const float distance = rng::range(m_arenaRadius * 1.25f, m_arenaRadius * 2.30f);
+
+        Layer layer{ sf::Sprite(rng::range(0.0f, 1.0f) < 0.5f ? m_assets->rockA
+                                                              : m_assets->rockB),
+                     m_center + sf::Vector2f(distance, sf::degrees(angle)),
+                     0.0f, rng::range(0.0f, 6.28f) };
+
+        const sf::Vector2f size(layer.sprite.getTexture().getSize());
+        layer.sprite.setOrigin(size / 2.0f);
+
+        const float scale = rng::range(2.6f, 5.4f);
+        layer.sprite.setScale({ scale, scale });
+        layer.sprite.setRotation(sf::degrees(rng::range(0.0f, 360.0f)));
+
+        m_far.push_back(std::move(layer));
+    }
+
+    // The near band: silt and scraps drifting between the camera and the
+    // fight. Few, large and faint, because anything busy up here would fight
+    // the thing the player is actually looking at.
+    for (std::size_t i = 0; i < config::NearLayerCount; ++i)
+    {
+        Layer layer{ sf::Sprite(m_assets->particle),
+                     m_center + sf::Vector2f(rng::range(-config::WorldExtent, config::WorldExtent),
+                                             rng::range(-config::WorldExtent, config::WorldExtent)),
+                     rng::range(6.0f, 22.0f), rng::range(0.0f, 6.28f) };
+
+        const sf::Vector2f size(layer.sprite.getTexture().getSize());
+        layer.sprite.setOrigin(size / 2.0f);
+
+        const float scale = rng::range(0.5f, 1.9f);
+        layer.sprite.setScale({ scale, scale });
+
+        m_near.push_back(std::move(layer));
+    }
+
+    m_shadow.setPointCount(18);
+}
+
+void Seabed::drawFar(sf::RenderTarget& target, sf::Vector2f cameraCentre) const
+{
+    // Lagging the camera is the whole trick: the further behind a layer slides,
+    // the further away the eye puts it.
+    const sf::Vector2f lag = (cameraCentre - m_center) * (1.0f - config::FarParallax);
+
+    for (const Layer& layer : m_far)
+    {
+        sf::Sprite sprite = layer.sprite;
+        sprite.setPosition(layer.anchor + lag);
+
+        sf::Color tint = tintBy(config::FarLayerTint, m_theme->propTint);
+        tint.a = config::FarLayerAlpha;
+        sprite.setColor(tint);
+
+        target.draw(sprite);
+    }
+}
+
+void Seabed::drawNear(sf::RenderTarget& target, sf::Vector2f cameraCentre) const
+{
+    const sf::Vector2f lead = (cameraCentre - m_center) * (config::NearParallax - 1.0f);
+
+    for (const Layer& layer : m_near)
+    {
+        sf::Sprite sprite = layer.sprite;
+
+        // A slow wander on top of the parallax, so the near layer is water
+        // rather than a pane of glass with specks painted on it.
+        const sf::Vector2f wander{ std::cos(m_time * 0.23f + layer.phase) * layer.drift,
+                                   std::sin(m_time * 0.17f + layer.phase) * layer.drift };
+
+        sprite.setPosition(layer.anchor + lead + wander);
+        sprite.setColor(config::NearLayerTint);
+        target.draw(sprite);
+    }
+}
+
 void Seabed::draw(sf::RenderTarget& target) const
 {
     target.draw(m_sand);
+
+    // A contact shadow under every prop, offset the way the key light falls.
+    // Nothing else in the scene says "this is standing on the floor" as
+    // cheaply, and without it the props look pasted on.
+    for (const Prop& prop : m_props)
+    {
+        const sf::Vector2f at = prop.sprite.getPosition();
+        const float radius = prop.sprite.getScale().x
+                             * static_cast<float>(prop.sprite.getTexture().getSize().x) * 0.30f;
+
+        m_shadow.setRadius(radius);
+        m_shadow.setOrigin({ radius, radius });
+        m_shadow.setScale({ 1.0f, config::PropShadowSquash });
+        m_shadow.setPosition(at + config::PropShadowOffset);
+        m_shadow.setFillColor(config::PropShadowColor);
+        target.draw(m_shadow);
+    }
 
     for (const Prop& prop : m_props)
         target.draw(prop.sprite);

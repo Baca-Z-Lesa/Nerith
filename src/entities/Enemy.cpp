@@ -35,6 +35,8 @@ Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
     , m_playerDistance(0.0f)
     , m_inFiringRange(false)
     , m_hasEntered(false)
+    , m_aware(true)
+    , m_wanderAngle(rng::range(0.0f, 360.0f))
     , m_scripted(true)
 {
     m_sprite.setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
@@ -176,6 +178,33 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
     const sf::Vector2f toPlayer = playerPosition - m_position;
     const float distance = toPlayer.length();
 
+    // It has lost the sub. Anything still swimming in from the dark keeps
+    // coming, because it was already committed; anything inside the basin
+    // wanders on a slowly turning heading and holds its fire. This is the whole
+    // of what running dark buys the player.
+    if (!m_aware && m_hasEntered)
+    {
+        m_wanderAngle += rng::range(-config::WanderTurnRate, config::WanderTurnRate) * deltaTime;
+
+        const sf::Vector2f heading{ std::cos(m_wanderAngle * 3.14159265f / 180.0f),
+                                    std::sin(m_wanderAngle * 3.14159265f / 180.0f) };
+
+        m_position += heading * m_stats->speed * m_scaling.speed
+                      * config::WanderSpeedFactor * deltaTime;
+
+        m_aimDirection = heading;
+        m_sprite.setRotation(heading.angle());
+        m_sprite.setPosition(m_position);
+        m_playerDistance = distance;
+        m_inFiringRange = false;
+
+        if (m_hitFlashTimer > 0.0f)
+            m_hitFlashTimer = std::max(m_hitFlashTimer - deltaTime, 0.0f);
+
+        applyHitFlash();
+        return;
+    }
+
     if (distance > 0.0f)
     {
         m_aimDirection = toPlayer / distance;
@@ -241,7 +270,9 @@ int Enemy::getDeathShots() const
 
 std::vector<sf::Vector2f> Enemy::takeShots()
 {
-    if (m_stats->fireCooldown <= 0.0f || m_fireTimer > 0.0f || !m_hasEntered)
+    // A creature that has lost the sub does not shoot into the dark on the off
+    // chance, which is what makes going quiet worth doing.
+    if (m_stats->fireCooldown <= 0.0f || m_fireTimer > 0.0f || !m_hasEntered || !m_aware)
         return {};
 
     const bool ring = m_stats->shotSpread >= 360.0f;

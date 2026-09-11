@@ -127,6 +127,12 @@ namespace
                 case ObjectiveKind::SurviveTime:
                     check(def.objectiveAmount > 0, (where + " has a clock").c_str());
                     break;
+                case ObjectiveKind::DestroyNests:
+                    check(def.objectiveAmount > 0,
+                          (where + " hides at least one nest").c_str());
+                    check(def.objectiveAmount <= 9,
+                          (where + " does not hide more nests than fit round the basin").c_str());
+                    break;
                 case ObjectiveKind::DefeatBoss:
                     check(def.isBoss, (where + " is flagged as a boss level").c_str());
                     break;

@@ -11,6 +11,7 @@ enum class ObjectiveKind
     ClearRoster, // kill everything the level sends, then it is over
     KillCount,   // hit a quota while the level keeps sending more
     SurviveTime, // last out a clock
+    DestroyNests, // find every nest in the basin and burn it out
     DefeatBoss,  // one encounter, nothing else spawns
 };
 
@@ -71,10 +72,12 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
       { { { EnemyType::Lurker, 6 }, { EnemyType::Darter, 5 },
           { EnemyType::Lurker, 5 }, { EnemyType::Darter, 4 } } }, false },
 
-    { "THE NURSERY", "KILL THE SACS. THE REST NEVER STOPS.",
-      ObjectiveKind::ClearRoster, 0, 1.20f, 8, { 1.00f, 1.00f, 0 },
-      { { { EnemyType::Lurker, 5 }, { EnemyType::Brooder, 2 },
-          { EnemyType::Darter, 4 }, { EnemyType::Brooder, 1 } } }, false },
+    // The first hunt. Nothing here is solved by holding the middle: the
+    // nests are cemented out at the reef, one is never in sight from
+    // another, and they hatch until they are dead.
+    { "THE NURSERY", "THREE NESTS OUT ON THE REEF. BURN THEM OUT.",
+      ObjectiveKind::DestroyNests, 3, 1.40f, 7, { 1.00f, 1.00f, 0 },
+      { { { EnemyType::Lurker, 5 }, { EnemyType::Darter, 4 } } }, false },
 
     { "THE PACK", "ALL OF IT AT ONCE.",
       ObjectiveKind::ClearRoster, 0, 0.90f, 9, { 1.05f, 1.05f, 0 },
@@ -122,10 +125,10 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
       { { { EnemyType::Husk, 6 }, { EnemyType::Hulk, 3 },
           { EnemyType::Husk, 5 }, { EnemyType::Spitter, 4 } } }, false },
 
-    { "GARDEN", "THE FLOOR IS THEIRS NOW.",
-      ObjectiveKind::ClearRoster, 0, 0.90f, 11, { 1.40f, 1.15f, 1 },
+    { "GARDEN", "FIVE OF THEM. THE FLOOR IS THEIRS NOW.",
+      ObjectiveKind::DestroyNests, 5, 1.05f, 10, { 1.40f, 1.15f, 1 },
       { { { EnemyType::Bloom, 4 }, { EnemyType::Weaver, 4 },
-          { EnemyType::Brooder, 3 }, { EnemyType::Bloom, 3 } } }, false },
+          { EnemyType::Bloom, 3 } } }, false },
 
     { "NO QUARTER", "FORTY OF THEM. GO.",
       ObjectiveKind::KillCount, 40, 0.75f, 12, { 1.45f, 1.18f, 1 },
@@ -149,10 +152,10 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
           { EnemyType::Weaver, 3 }, { EnemyType::Lancer, 3 },
           { EnemyType::Hulk, 2 } } }, false },
 
-    { "THE SHOAL", "THEY MOVE LIKE ONE ANIMAL.",
-      ObjectiveKind::ClearRoster, 0, 0.75f, 13, { 1.65f, 1.24f, 1 },
-      { { { EnemyType::Brooder, 4 }, { EnemyType::Darter, 10 },
-          { EnemyType::Brooder, 3 }, { EnemyType::Lancer, 5 } } }, false },
+    { "THE SHOAL", "SEVEN NESTS IN THE DARK. GO AND FIND THEM.",
+      ObjectiveKind::DestroyNests, 7, 0.85f, 12, { 1.65f, 1.24f, 1 },
+      { { { EnemyType::Angler, 4 }, { EnemyType::Darter, 8 },
+          { EnemyType::Lancer, 5 } } }, false },
 
     { "EVERYTHING", "ALL OF IT. AT ONCE. IN THE DARK.",
       ObjectiveKind::KillCount, 55, 0.65f, 14, { 1.75f, 1.26f, 1 },

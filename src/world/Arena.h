@@ -17,10 +17,12 @@ public:
     // Swapped in when the depth changes; rebuilds the lamp and the darkness.
     void applyTheme(const DepthTheme& theme);
 
-    // Extra metres of lamp bought in the tree. Kept separate from the theme so
-    // descending still dims the light: a bigger lamp makes a dark depth
-    // survivable rather than making it look like a shallow one.
-    void setLampBonus(float bonus);
+    // The lamp, as the theme sets it, plus whatever was bought in the tree and
+    // times whatever the sub is currently running at. Bonus is kept separate
+    // from the theme so descending still dims the light - a bigger lamp makes
+    // a dark depth survivable rather than making it look like a shallow one -
+    // and the factor is what running dark turns down.
+    void setLamp(float bonus, float factor);
 
     void update(float deltaTime);
 
@@ -55,4 +57,5 @@ private:
     sf::VertexArray m_gloom;
     const DepthTheme* m_theme;
     float             m_lampBonus = 0.0f;
+    float             m_lampFactor = 1.0f;
 };

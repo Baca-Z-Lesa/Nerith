@@ -50,6 +50,11 @@ public:
     // Hatchlings are born inside the arena, so they skip the swim in. They also
     // do not count toward a level's roster: only what the script sent does.
     void markHatched() { m_hasEntered = true; m_scripted = false; }
+
+    // Whether it currently knows where the sub is. Unaware, it wanders and
+    // holds its fire, which is what running dark buys the player.
+    void setAware(bool aware) { m_aware = aware; }
+    bool isAware() const { return m_aware; }
     bool isScripted() const { return m_scripted; }
 
     // Stops a creature that has already swum in from wandering back off screen
@@ -92,6 +97,8 @@ private:
     float        m_broodTimer;
     float        m_playerDistance;  // kept for the stealth fade
     bool         m_inFiringRange;
-    bool         m_hasEntered;      // has it crossed into the lit basin yet
+    bool         m_hasEntered;       // has it crossed into the lit basin yet
+    bool         m_aware;            // does it currently know where the sub is
+    float        m_wanderAngle;      // the heading it drifts along when it does not
     bool         m_scripted;        // false once it was hatched rather than sent
 };

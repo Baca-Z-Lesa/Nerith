@@ -83,6 +83,8 @@ Assets::Assets()
     // creature with a new shot needs no line in here either.
     for (std::size_t i = 0; i < EnemyTypeCount; ++i)
         want(config::EnemyTable[i].shotPath);
+
+    want(config::NestTexturePath);
 }
 
 const sf::Texture& Assets::shotFor(EnemyType type) const

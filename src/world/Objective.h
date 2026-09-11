@@ -14,6 +14,7 @@ public:
 
     virtual void onEnemyKilled(EnemyType) {}
     virtual void onBossDefeated() {}
+    virtual void onNestDestroyed() {}
     virtual void update(float) {}
 
     virtual bool isComplete() const = 0;
@@ -77,6 +78,30 @@ public:
 private:
     float m_target;
     float m_elapsed;
+};
+
+// Find and burn out every nest in the basin. Nothing about this one is solved
+// by holding the middle and turning: the nests are cemented to rock out at the
+// edges, they are not all in sight at once, and they keep hatching until they
+// are dead. It is the level type that makes the arena somewhere to go through
+// rather than somewhere to stand.
+class DestroyNestsObjective : public Objective
+{
+public:
+    explicit DestroyNestsObjective(int total);
+
+    void onNestDestroyed() override;
+    bool isComplete() const override;
+    float getProgress() const override;
+    std::string getLabel() const override;
+
+    // The creatures a nest hatches are not the level's roster; the level stops
+    // sending its own the moment the last nest is out.
+    bool wantsSpawning() const override;
+
+private:
+    int m_total;
+    int m_destroyed;
 };
 
 // Boss levels. Nothing else spawns and nothing else counts.

@@ -76,6 +76,10 @@ void LevelManager::start(int number)
                 static_cast<float>(m_def.objectiveAmount));
             break;
 
+        case ObjectiveKind::DestroyNests:
+            m_objective = std::make_unique<DestroyNestsObjective>(m_def.objectiveAmount);
+            break;
+
         case ObjectiveKind::DefeatBoss:
         {
             auto boss = std::make_unique<DefeatBossObjective>();
@@ -133,6 +137,17 @@ void LevelManager::notifyEnemyKilled(EnemyType type)
 {
     if (m_objective)
         m_objective->onEnemyKilled(type);
+}
+
+void LevelManager::notifyNestDestroyed()
+{
+    if (m_objective)
+        m_objective->onNestDestroyed();
+}
+
+int LevelManager::getNestCount() const
+{
+    return m_def.objective == ObjectiveKind::DestroyNests ? std::max(1, m_def.objectiveAmount) : 0;
 }
 
 void LevelManager::notifyBossDefeated()
