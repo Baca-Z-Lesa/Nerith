@@ -87,6 +87,9 @@ Game::Game()
     , m_flash(0.0f)
     , m_flashColour(sf::Color::White)
     , m_bossAct(0)
+    , m_streak(0)
+    , m_bestStreak(0)
+    , m_blocks(0)
     , m_sirenTimer(0.0f)
     , m_optionRow(0)
     , m_creditsScroll(0.0f)
@@ -315,6 +318,33 @@ void Game::updateFeel(float deltaTime)
         m_sirenTimer = 0.0f;
     }
 
+    // The score follows the fight rather than the level. The pulse comes up
+    // when something is actually hunting you and drops when it is not, so a
+    // quiet stretch is audibly quiet and being found is audible before it is
+    // visible; the dread is the boss and nothing else.
+    {
+        const bool fighting = m_state == State::Fighting && !m_paused;
+
+        int hunting = 0;
+        if (fighting)
+        {
+            for (const Enemy& enemy : m_enemies)
+            {
+                if (enemy.isAlive() && enemy.isAware())
+                    ++hunting;
+            }
+        }
+
+        const float pressure = std::min(1.0f, static_cast<float>(hunting)
+                                                  / config::MusicPulseFull);
+
+        m_audio.setLayer(AudioSystem::Layer::Pulse, fighting ? pressure : 0.0f);
+        m_audio.setLayer(AudioSystem::Layer::Dread,
+                         (fighting && m_boss && m_boss->isAlive()) ? 1.0f : 0.0f);
+    }
+
+    m_audio.updateMusic(deltaTime);
+
     m_noiseTimer = std::max(0.0f, m_noiseTimer - deltaTime);
     m_shake *= std::exp(-config::ShakeDecay * deltaTime);
     if (m_shake < 0.05f)
@@ -356,6 +386,9 @@ void Game::beginLevel(int number)
     m_tally = RunTally{};
     m_paused = false;
     m_bossAct = 0;
+    m_streak = 0;
+    m_bestStreak = 0;
+    m_blocks = 0;
     m_slowTimer = 0.0f;
     m_slowScale = 1.0f;
     m_flash = 0.0f;
@@ -391,6 +424,7 @@ void Game::beginLevel(int number)
     // A dive starts in the first chamber, wherever the walk put it.
     m_player.setPosition(m_arena.getStart());
     m_cameraCentre = m_arena.getStart();
+    m_seabed.reshape(m_arena);
 
     m_player.onLevelStart();
 
@@ -422,9 +456,25 @@ void Game::beginLevel(int number)
     {
         // Every depth has its own creature, and it arrives out of the dark like
         // everything else rather than blinking into the middle of the arena.
-        m_boss.emplace(m_assets, bossForDepth(m_level.getDepth()), pickSpawnPosition(),
+        // In the hall it was given, at the far side of it, so the title card
+        // plays over the thing itself rather than over empty water.
+        const sf::Vector2f hall = m_arena.getHallCentre();
+        const sf::Vector2f away = (hall - m_arena.getStart());
+
+        m_boss.emplace(m_assets, bossForDepth(m_level.getDepth()),
+                       hall + (away.lengthSquared() > 1.0f
+                                   ? away.normalized() * (m_arena.getHallRadius() * 0.55f)
+                                   : sf::Vector2f{ 0.0f, 0.0f }),
                        m_level.getScaling());
+
+        // The camera is already looking at it when the card comes up, and the
+        // roar lands on the first frame rather than somewhere in the middle.
+        m_cameraCentre = m_boss->getPosition();
+
         m_audio.play(Sfx::BossRoar);
+        m_audio.play(Sfx::BossPhase, 0.7f);
+        addShake(config::ShakeDeath * 0.7f);
+        addFlash(config::HudBossColor, 0.6f);
     }
 
     m_state = State::LevelIntro;
@@ -1911,7 +1961,21 @@ void Game::updateBoss(float deltaTime)
 void Game::killEnemy(Enemy& enemy)
 {
     effects::enemyDeath(m_effects, enemy.getPosition());
-    m_audio.play(Sfx::EnemyDie);
+
+    // Momentum. Every kill without being touched pitches the death note up a
+    // step, so a clean run through a room audibly climbs - and the moment
+    // something lands on you it drops back to the floor. Nothing about it is a
+    // score; it is the sound of doing well.
+    ++m_streak;
+    m_bestStreak = std::max(m_bestStreak, m_streak);
+
+    const float pitch = std::min(config::StreakPitchMax,
+                                 1.0f + config::StreakPitchStep
+                                            * static_cast<float>(m_streak));
+    m_audio.play(Sfx::EnemyDie, pitch);
+
+    if (m_streak == config::StreakNotable || m_streak == config::StreakLoud)
+        addFlash(config::HudPipFullEdge, 0.30f);
 
     // Some things take a swing on the way out. Killing a husk in your own face
     // is meant to hurt.
@@ -1967,18 +2031,60 @@ void Game::hurtPlayer(int amount)
 
     const Player::DamageResult result = m_player.takeDamage(amount);
 
+    // A hit that does not land is the best thing that happens in a fight, and
+    // until now it happened silently. Each kind of save gets its own colour,
+    // its own ring and a few frames of held time, so the player knows which of
+    // the things they bought just paid for itself.
     if (result.shieldBroke)
     {
-        m_audio.play(Sfx::PartBreak, 0.8f);
+        m_audio.play(Sfx::PartBreak, 1.2f);
         effects::impact(m_effects, m_player.getPosition(), { 1.0f, 0.0f });
+
+        addHitRing(m_player.getPosition(), config::BlockRingRadius, config::BlockShieldColor);
+        addFlash(config::BlockShieldColor, 0.34f);
+        addHitStop(config::HitStopBlock);
+        addShake(config::ShakeBlock);
+        ++m_blocks;
 
         if (m_playerStats.has(Trait::ReactiveArmour))
             areaDamage(m_player.getPosition(), config::ReactiveBurstRadius, config::ReactiveBurstDamage);
         return;
     }
 
+    if (result.dodged)
+    {
+        // Threading a dash through something is the most skilful thing in the
+        // game. It gets a moment of its own.
+        addHitRing(m_player.getPosition(), config::BlockRingRadius * 0.8f, config::BlockDodgeColor);
+        addSlowMotion(config::SlowMotionDodge, 0.5f);
+        m_audio.play(Sfx::Impact, 0.5f);
+        ++m_blocks;
+        return;
+    }
+
     if (!result.applied)
         return;
+
+    if (result.soaked > 0)
+    {
+        // Plating did not stop the hit, but it took a bite out of it. A
+        // smaller, duller ring: a save, but not a clean one.
+        addHitRing(m_player.getPosition(), config::BlockRingRadius * 0.6f, config::BlockArmourColor);
+        m_audio.play(Sfx::PartBreak, 0.55f);
+    }
+
+    if (result.ventSaved)
+    {
+        // One hit a level cannot finish you, and being told so afterwards is
+        // far too late.
+        bigMoment(m_player.getPosition(), config::BlockVentColor,
+                  config::ShakeDeath, config::SlowMotionBossAct * 0.7f);
+        m_audio.play(Sfx::Vent, 1.3f);
+    }
+
+    // Momentum breaks on a hit that actually lands. That is the whole point of
+    // it: it is a record of not having been touched.
+    m_streak = 0;
 
     effects::playerHurt(m_effects, m_player.getPosition());
     m_audio.play(Sfx::PlayerHurt, result.ventSaved ? 1.3f : 1.0f);
@@ -3116,6 +3222,12 @@ void Game::render()
         info.dashReady = m_player.getDashCooldownFraction();
         info.hasDash = m_playerStats.has(Trait::Dash);
 
+        // Only shown once it is worth showing. A counter that reads 1 the
+        // whole time is noise; one that appears when a run gets going is a
+        // thing the player starts protecting.
+        info.streak = m_streak >= config::StreakNotable ? m_streak : 0;
+        info.streakLoud = m_streak >= config::StreakLoud;
+
         m_hud.draw(m_window, m_player.getHealth(), m_player.getMaxHealth(), info, m_salvage);
 
         if (m_boss)
@@ -3151,7 +3263,9 @@ void Game::render()
             summary.salvage = m_tally.salvage;
             summary.seconds = m_tally.seconds;
             summary.damageTaken = m_tally.damageTaken;
-            summary.accuracy = m_tally.shotsFired > 0
+            summary.blocks = m_blocks;
+        summary.bestStreak = m_bestStreak;
+        summary.accuracy = m_tally.shotsFired > 0
                                    ? static_cast<float>(m_tally.shotsHit)
                                          / static_cast<float>(m_tally.shotsFired)
                                    : 0.0f;

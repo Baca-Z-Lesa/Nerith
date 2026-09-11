@@ -334,6 +334,105 @@ public static class Synth
         return b;
     }
 
+    // ------------------------------------------------------------------
+    //  MUSIC
+    //  Three loops of the same length over the same root, so they can be
+    //  played together and faded independently: the bed is always on, the
+    //  pulse comes up when something is hunting you, and the dread comes up
+    //  for a boss. Nothing here is a tune - a melody would wear out in four
+    //  minutes of a level - it is harmony and rhythm that can sit under a
+    //  fight indefinitely.
+    // ------------------------------------------------------------------
+    const double Root = 55.0; // A1, low enough to feel rather than hear
+
+    static void Loop(float[] b, float seconds)
+    {
+        // Crossfades the tail into the head so the loop point is inaudible.
+        int fade = Count(0.6f);
+        int n = b.Length;
+        for (int i = 0; i < fade && i < n / 2; i++)
+        {
+            float f = (float)i / fade;
+            b[i] = b[i] * f + b[n - fade + i] * (1f - f);
+        }
+    }
+
+    // Always on: a slow chord that breathes, with the fifth drifting in and
+    // out of tune with itself so it never settles.
+    public static float[] MusicBed(float seconds)
+    {
+        int n = Count(seconds);
+        float[] b = new float[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float swell = 0.55f + 0.45f * (float)Math.Sin(2 * Math.PI * t / seconds);
+            float beat = 1f + 0.004f * (float)Math.Sin(2 * Math.PI * 0.21 * t);
+
+            b[i] = (float)(Math.Sin(2 * Math.PI * Root * t) * 0.42
+                         + Math.Sin(2 * Math.PI * Root * 1.5 * t * beat) * 0.26
+                         + Math.Sin(2 * Math.PI * Root * 2.0 * t) * 0.14
+                         + Math.Sin(2 * Math.PI * Root * 3.0 * t) * 0.06) * swell * 0.5f;
+        }
+
+        Loop(b, seconds);
+        return b;
+    }
+
+    // Up when something is hunting you: a heartbeat on the root, and a minor
+    // third above it that is the only thing in the score with any tension.
+    public static float[] MusicPulse(float seconds)
+    {
+        int n = Count(seconds);
+        float[] b = new float[n];
+        float period = 0.92f; // just faster than a resting pulse
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float phase = t % period;
+
+            // Two thumps, the second softer: a heart, not a metronome.
+            float beat = Decay(phase, 0.30f, 3.0f)
+                         + (phase > 0.26f ? Decay(phase - 0.26f, 0.24f, 3.4f) * 0.6f : 0f);
+
+            float body = (float)Math.Sin(2 * Math.PI * Root * 0.5 * t);
+            float third = (float)Math.Sin(2 * Math.PI * Root * 1.19 * t) * 0.30f;
+
+            b[i] = (body * beat + third * beat * 0.7f) * 0.42f;
+        }
+
+        Loop(b, seconds);
+        return b;
+    }
+
+    // Up for a boss: a tritone against the root, which is the interval the ear
+    // refuses to accept as resolved, plus a low grind under it.
+    public static float[] MusicDread(float seconds)
+    {
+        int n = Count(seconds);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, 180f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float swell = 0.4f + 0.6f * (float)Math.Sin(2 * Math.PI * t / seconds * 2.0);
+            float shiver = 1f + 0.02f * (float)Math.Sin(2 * Math.PI * 7.3 * t);
+
+            b[i] = (float)(Math.Sin(2 * Math.PI * Root * t) * 0.34
+                         + Math.Sin(2 * Math.PI * Root * 1.414 * t * shiver) * 0.30
+                         + Math.Sin(2 * Math.PI * Root * 0.5 * t) * 0.22
+                         + noise[i] * 0.35) * swell * 0.5f;
+        }
+
+        Loop(b, seconds);
+        return b;
+    }
+
     // A creature changing its mind. Not a roar: a rising tone that stops dead,
     // because what has to land is the moment the fight turns, and a rise that
     // resolves reads as an ending rather than a beginning.
@@ -490,7 +589,10 @@ $jobs = @(
     @("boss_phase.wav",      [Synth]::BossPhase()),
     @("boss_death.wav",      [Synth]::BossDeath()),
     @("charge.wav",          [Synth]::Charge()),
-    @("siren.wav",           [Synth]::Siren())
+    @("siren.wav",           [Synth]::Siren()),
+    @("music_bed.wav",       [Synth]::MusicBed(16.0)),
+    @("music_pulse.wav",     [Synth]::MusicPulse(16.0)),
+    @("music_dread.wav",     [Synth]::MusicDread(16.0))
 )
 
 foreach ($job in $jobs) {

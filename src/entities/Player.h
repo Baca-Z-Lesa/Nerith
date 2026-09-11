@@ -53,6 +53,8 @@ public:
         bool applied = false;     // health actually went down
         bool shieldBroke = false; // a charge ate it instead
         bool ventSaved = false;   // the emergency vent caught a fatal hit
+        bool dodged = false;      // mid dash, and the dash is the dodge
+        int  soaked = 0;          // damage the plating ate before the rest landed
     };
 
     DamageResult takeDamage(int amount);

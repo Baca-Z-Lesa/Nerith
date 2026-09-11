@@ -268,7 +268,10 @@ Player::DamageResult Player::takeDamage(int amount)
 
     // Cavitation makes the dash itself the dodge.
     if (m_dashTimer > 0.0f && m_stats->has(Trait::DashInvuln))
+    {
+        result.dodged = true;
         return result;
+    }
 
     // A shield charge eats the whole hit, however big it was.
     if (m_shieldCharges > 0)
@@ -285,6 +288,10 @@ Player::DamageResult Player::takeDamage(int amount)
     // tough, not immortal.
     const int armour = m_stats->getInt(Stat::Armour, 0);
     const int taken = std::max(1, amount - armour);
+
+    // What the plating actually ate, so the caller can make something of it.
+    // Armour that works silently is armour the player never notices buying.
+    result.soaked = std::max(0, amount - taken);
 
     if (taken >= m_health && m_ventReady && m_stats->has(Trait::EmergencyVent))
     {

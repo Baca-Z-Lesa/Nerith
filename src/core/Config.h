@@ -466,6 +466,17 @@ namespace config
     inline constexpr float VolumeCharge = 34.0f;
     inline constexpr float VolumeSiren = 44.0f;
 
+    // Music. Three loops over the same root, faded independently.
+    inline constexpr const char* MusicBedPath = "assets/audio/music_bed.wav";
+    inline constexpr const char* MusicPulsePath = "assets/audio/music_pulse.wav";
+    inline constexpr const char* MusicDreadPath = "assets/audio/music_dread.wav";
+    inline constexpr float VolumeMusic = 30.0f;
+    inline constexpr float MusicFadeRate = 0.9f; // per second, so a swell takes about one
+
+    // How many creatures actively hunting you counts as full pressure. Low on
+    // purpose: three things closing in is already a fight.
+    inline constexpr float MusicPulseFull = 4.0f;
+
     // How often something out in the dark calls. Long gaps on purpose: a noise
     // you hear every few seconds stops being frightening.
     inline constexpr float CreatureCallMin = 14.0f;
@@ -541,6 +552,24 @@ namespace config
     // What a moment is made of. Slow motion is the strongest tool in here and
     // the easiest to overuse, so it is reserved for a fight turning and for the
     // blow that ends one.
+    // A hit that does not land. Each save has its own colour so the player can
+    // tell at a glance which of the things they bought just paid for itself.
+    inline constexpr float BlockRingRadius = 74.0f;
+    inline constexpr float HitStopBlock = 0.06f;
+    inline constexpr float ShakeBlock = 8.0f;
+    inline constexpr float SlowMotionDodge = 0.35f;
+    inline constexpr sf::Color BlockShieldColor{ 120, 226, 255 };
+    inline constexpr sf::Color BlockArmourColor{ 186, 196, 210 };
+    inline constexpr sf::Color BlockDodgeColor{ 168, 255, 214 };
+    inline constexpr sf::Color BlockVentColor{ 255, 196, 110 };
+
+    // Momentum: kills without being touched. It is a record of playing well,
+    // and the game gets visibly louder the longer it runs.
+    inline constexpr int   StreakNotable = 5;   // where it starts being shown
+    inline constexpr int   StreakLoud = 12;     // where the screen starts to pulse
+    inline constexpr float StreakPitchStep = 0.045f;
+    inline constexpr float StreakPitchMax = 1.7f;
+
     inline constexpr float SlowMotionScale = 0.34f;
     inline constexpr float SlowMotionBossAct = 1.1f;
     inline constexpr float SlowMotionBossDeath = 2.2f;

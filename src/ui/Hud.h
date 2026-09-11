@@ -31,6 +31,10 @@ public:
         int   maxShieldCharges = 0;
         float dashReady = 1.0f; // 0..1
         bool  hasDash = false;
+
+        // Kills without being touched. Zero means do not draw it at all.
+        int   streak = 0;
+        bool  streakLoud = false;
     };
 
     void draw(sf::RenderTarget& target, int health, int maxHealth,
@@ -50,6 +54,8 @@ public:
         int   kills = 0;
         int   salvage = 0;
         int   damageTaken = 0;
+        int   blocks = 0;      // hits that never landed
+        int   bestStreak = 0;  // the longest run without being touched
         float seconds = 0.0f;
         float accuracy = 0.0f; // 0..1
     };

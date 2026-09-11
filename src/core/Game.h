@@ -331,6 +331,9 @@ private:
     float     m_flash;       // 1 at the moment, fading to 0
     sf::Color m_flashColour;
     int       m_bossAct;     // the act the boss was in last frame
+    int       m_streak;      // kills since the last time something touched you
+    int       m_bestStreak;
+    int       m_blocks;      // hits that did not land, for the summary
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
 
     int   m_optionRow;    // which line of the options screen is selected

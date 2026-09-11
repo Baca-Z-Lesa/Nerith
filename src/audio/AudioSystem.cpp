@@ -79,12 +79,64 @@ AudioSystem::AudioSystem()
     m_ambient = std::make_unique<sf::Sound>(m_ambientBuffer);
     m_ambient->setLooping(true);
     m_ambient->setVolume(config::VolumeAmbient);
+
+    // The three layers are the same length and start together, so they stay in
+    // phase for as long as the game runs. Starting them at different moments
+    // would leave the heartbeat drifting against the chord.
+    const char* const layerPaths[LayerCount] = { config::MusicBedPath,
+                                                 config::MusicPulsePath,
+                                                 config::MusicDreadPath };
+
+    for (std::size_t i = 0; i < LayerCount; ++i)
+    {
+        if (!m_musicBuffers[i].loadFromFile(layerPaths[i]))
+            throw std::runtime_error(std::string("failed to load music: ") + layerPaths[i]);
+
+        m_music[i] = std::make_unique<sf::Sound>(m_musicBuffers[i]);
+        m_music[i]->setLooping(true);
+        m_music[i]->setVolume(0.0f);
+    }
+
+    m_layerTarget[static_cast<std::size_t>(Layer::Bed)] = 1.0f;
+}
+
+void AudioSystem::setLayer(Layer layer, float target)
+{
+    const auto index = static_cast<std::size_t>(layer);
+    if (index < LayerCount)
+        m_layerTarget[index] = std::clamp(target, 0.0f, 1.0f);
+}
+
+void AudioSystem::updateMusic(float deltaTime)
+{
+    for (std::size_t i = 0; i < LayerCount; ++i)
+    {
+        if (!m_music[i])
+            continue;
+
+        // Faded rather than switched: a layer that appears on the frame a
+        // creature notices you sounds like a bug, one that swells over a
+        // second sounds like the game noticing.
+        const float step = config::MusicFadeRate * deltaTime;
+        m_layerLevel[i] += std::clamp(m_layerTarget[i] - m_layerLevel[i], -step, step);
+
+        m_music[i]->setVolume(m_layerLevel[i] * config::VolumeMusic * m_musicScale);
+    }
 }
 
 void AudioSystem::startAmbient()
 {
-    if (!m_muted && m_ambient)
+    if (m_muted)
+        return;
+
+    if (m_ambient)
         m_ambient->play();
+
+    for (auto& layer : m_music)
+    {
+        if (layer)
+            layer->play();
+    }
 }
 
 void AudioSystem::play(Sfx sound, float volumeScale)
@@ -127,10 +179,20 @@ void AudioSystem::setMuted(bool muted)
         m_ambient->pause();
         for (auto& voice : m_voices)
             voice->stop();
+        for (auto& layer : m_music)
+        {
+            if (layer)
+                layer->pause();
+        }
     }
     else
     {
         m_ambient->play();
+        for (auto& layer : m_music)
+        {
+            if (layer)
+                layer->play();
+        }
     }
 }
 

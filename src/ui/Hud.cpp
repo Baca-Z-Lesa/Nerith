@@ -144,6 +144,17 @@ void Hud::draw(sf::RenderTarget& target, int health, int maxHealth,
                         config::HudMargin + 12.0f },
                       1.5f, config::HudDimTextColor);
 
+    // Momentum, once it is worth showing. Gold at first, then the boss colour
+    // once it is long enough that losing it would actually hurt.
+    if (level.streak > 0)
+    {
+        const std::string run = "UNTOUCHED x" + std::to_string(level.streak);
+        const float scale = level.streakLoud ? 2.4f : 1.8f;
+
+        pixelfont::append(m_text, run, { centredX(run, scale), 118.0f }, scale,
+                          level.streakLoud ? config::HudBossColor : config::HudSalvageColor);
+    }
+
     target.draw(m_text);
 
     if (!level.isBoss)
@@ -292,11 +303,13 @@ void Hud::drawSummary(sf::RenderTarget& target, const Summary& summary, float al
 
     // Two columns of label and value, so the numbers line up under each other
     // instead of wandering with the width of the words.
-    const std::string rows[5][2] = {
+    const std::string rows[7][2] = {
         { "KILLS",   std::to_string(summary.kills) },
         { "SALVAGE", "+" + std::to_string(summary.salvage) },
         { "TIME",    std::to_string(static_cast<int>(summary.seconds)) + "S" },
         { "ACCURACY", std::to_string(static_cast<int>(summary.accuracy * 100.0f + 0.5f)) + "%" },
+        { "BEST RUN", "x" + std::to_string(summary.bestStreak) },
+        { "BLOCKED", std::to_string(summary.blocks) },
         { "DAMAGE TAKEN", std::to_string(summary.damageTaken) },
     };
 
@@ -304,7 +317,7 @@ void Hud::drawSummary(sf::RenderTarget& target, const Summary& summary, float al
     const float labelX = static_cast<float>(config::WindowWidth) / 2.0f - 150.0f;
     const float valueX = static_cast<float>(config::WindowWidth) / 2.0f + 120.0f;
 
-    float y = 432.0f;
+    float y = 404.0f;
     for (const auto& row : rows)
     {
         pixelfont::append(m_text, row[0], { labelX, y }, scale,
