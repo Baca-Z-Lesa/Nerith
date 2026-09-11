@@ -8,6 +8,11 @@ namespace
     constexpr auto AuthoredCount = static_cast<int>(AuthoredLevels.size());
 }
 
+int authoredLevelCount()
+{
+    return AuthoredCount;
+}
+
 const char* depthName(int depth)
 {
     switch (depth)

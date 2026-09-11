@@ -37,6 +37,14 @@ public:
     void setMuted(bool muted);
     bool isMuted() const { return m_muted; }
 
+    // Two independent trims, each 0..1, applied on top of the per-sound volumes
+    // in the config. The ambient drone is the loudest thing in the game and the
+    // first thing anyone wants to turn down, so it has its own.
+    void setSfxVolume(float scale);
+    void setMusicVolume(float scale);
+    float getSfxVolume() const { return m_sfxScale; }
+    float getMusicVolume() const { return m_musicScale; }
+
 private:
     static constexpr std::size_t SfxCount = static_cast<std::size_t>(Sfx::Count);
 
@@ -49,4 +57,10 @@ private:
 
     std::size_t m_next;
     bool        m_muted;
+
+    // The depth theme sets the drone's own level; the player's trim multiplies
+    // it, so both are remembered rather than one overwriting the other.
+    float m_sfxScale;
+    float m_musicScale;
+    float m_depthVolume;
 };

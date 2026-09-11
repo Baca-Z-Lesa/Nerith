@@ -17,8 +17,11 @@ class MainMenu
 public:
     enum class Choice
     {
-        Dive,   // into the hub, where the level and the upgrades are picked
-        Reset,  // throw everything away, deliberately
+        Dive,     // into the hub, where the level and the upgrades are picked
+        Controls, // what the keys do
+        Options,  // sound and difficulty
+        Credits,
+        Reset,    // throw everything away, deliberately
         Quit,
     };
 

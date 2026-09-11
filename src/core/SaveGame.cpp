@@ -40,6 +40,30 @@ SaveGame SaveGame::load()
             stream >> data.bestDepth;
         else if (key == "story")
             stream >> data.storySeen;
+        else if (key == "beaten")
+        {
+            int flag = 0;
+            stream >> flag;
+            data.campaignBeaten = flag != 0;
+        }
+        else if (key == "difficulty")
+            stream >> data.difficulty;
+        else if (key == "sfx")
+            stream >> data.sfxVolume;
+        else if (key == "music")
+            stream >> data.musicVolume;
+        else if (key == "muted")
+        {
+            int flag = 0;
+            stream >> flag;
+            data.muted = flag != 0;
+        }
+        else if (key == "fullscreen")
+        {
+            int flag = 0;
+            stream >> flag;
+            data.fullscreen = flag != 0;
+        }
         else if (key == "upgrade")
         {
             std::string id;
@@ -50,6 +74,9 @@ SaveGame SaveGame::load()
 
     data.selectedLevel = std::max(1, data.selectedLevel);
     data.salvage = std::max(0, data.salvage);
+    data.difficulty = std::clamp(data.difficulty, 0, 2);
+    data.sfxVolume = std::clamp(data.sfxVolume, 0, 10);
+    data.musicVolume = std::clamp(data.musicVolume, 0, 10);
 
     // A save written before levels could be replayed has no unlocked_level, so
     // fall back to however far it had reached.
@@ -72,6 +99,12 @@ void SaveGame::save() const
     file << "unlocked_level " << unlockedLevel << '\n';
     file << "level " << selectedLevel << '\n';
     file << "salvage " << salvage << '\n';
+    file << "beaten " << (campaignBeaten ? 1 : 0) << '\n';
+    file << "difficulty " << difficulty << '\n';
+    file << "sfx " << sfxVolume << '\n';
+    file << "music " << musicVolume << '\n';
+    file << "muted " << (muted ? 1 : 0) << '\n';
+    file << "fullscreen " << (fullscreen ? 1 : 0) << '\n';
 
     for (const std::string& id : unlocked)
         file << "upgrade " << id << '\n';

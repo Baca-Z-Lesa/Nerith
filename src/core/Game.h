@@ -2,6 +2,7 @@
 
 #include "audio/AudioSystem.h"
 #include "core/Assets.h"
+#include "core/Config.h"
 #include "core/SaveGame.h"
 #include "effects/ParticleSystem.h"
 #include "entities/Boss.h"
@@ -24,6 +25,7 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include <SFML/Graphics/View.hpp>
 #include <SFML/System/Clock.hpp>
+#include <SFML/Window/Keyboard.hpp>
 
 #include <optional>
 #include <vector>
@@ -41,12 +43,16 @@ private:
     enum class State
     {
         Menu,       // the screen the game opens on
+        Controls,   // what the keys and the mouse do
+        Options,    // sound and difficulty
         Story,      // an interlude between depths
         LevelIntro, // title card, nothing spawns yet
         Fighting,
         LevelClear, // objective met, the water settles
         Upgrading,  // the tree, between levels
         GameOver,
+        Victory,    // the last authored level is behind you
+        Credits,
     };
 
     // What a level cost and what it paid, totalled while it is being fought
@@ -149,6 +155,19 @@ private:
     void drawThreatArrows();
     void drawPauseOverlay();
 
+    // The three flat screens hanging off the title: what the controls are, what
+    // can be turned, and who to blame. None of them owns any state beyond a row
+    // cursor, so they live here rather than in classes of their own.
+    void drawControls();
+    void drawOptions();
+    void drawVictory();
+    void drawCredits();
+
+    void handleOptionsKey(sf::Keyboard::Scancode key);
+    void applySettings();
+
+    const config::DifficultyDef& difficulty() const;
+
     void areaDamage(sf::Vector2f centre, float radius, int damage);
     void addHitRing(sf::Vector2f at, float radius, sf::Color colour);
     void updateHitRings(float deltaTime);
@@ -237,6 +256,10 @@ private:
     float m_shake;    // pixels of camera jitter left, decaying
     float m_hitStop;  // seconds the simulation is held still
     float m_hurtFlash; // 1 at the moment of a bite, fading to 0
+
+    int   m_optionRow;    // which line of the options screen is selected
+    float m_creditsScroll;
+    bool  m_justBeatCampaign; // the clear that ends the campaign, seen once
 
     float m_lastSpawnAngle;
     float m_snowTimer;

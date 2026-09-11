@@ -10,6 +10,27 @@ LevelManager::LevelManager()
     start(1);
 }
 
+const config::DifficultyDef& LevelManager::difficulty() const
+{
+    return config::Difficulties[static_cast<std::size_t>(
+        std::clamp(m_difficulty, 0, static_cast<int>(config::Difficulties.size()) - 1))];
+}
+
+void LevelManager::setDifficulty(int index)
+{
+    m_difficulty = std::clamp(index, 0, static_cast<int>(config::Difficulties.size()) - 1);
+}
+
+EnemyScaling LevelManager::getScaling() const
+{
+    // Only health. What creatures hit for is scaled once, at the single door
+    // every wound goes through, rather than being spread over the contact
+    // damage, the orbs, the mines and the boss.
+    EnemyScaling scaling = m_def.scaling;
+    scaling.health *= difficulty().enemyHealth;
+    return scaling;
+}
+
 void LevelManager::buildQueue()
 {
     m_queue.clear();
@@ -22,7 +43,8 @@ void LevelManager::buildQueue()
     for (const SpawnGroup& group : m_def.script)
     {
         const int count = static_cast<int>(std::lround(static_cast<float>(group.count)
-                                                       * config::GlobalCountScale));
+                                                       * config::GlobalCountScale
+                                                       * difficulty().countScale));
         for (int i = 0; i < std::max(group.count > 0 ? 1 : 0, count); ++i)
             m_queue.push_back(group.type);
     }

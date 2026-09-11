@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 
@@ -41,6 +42,9 @@ namespace
 AudioSystem::AudioSystem()
     : m_next(0)
     , m_muted(false)
+    , m_sfxScale(1.0f)
+    , m_musicScale(1.0f)
+    , m_depthVolume(config::VolumeAmbient)
 {
     for (std::size_t i = 0; i < SfxCount; ++i)
     {
@@ -78,8 +82,21 @@ void AudioSystem::play(Sfx sound, float volumeScale)
     m_next = (m_next + 1) % m_voices.size();
 
     voice.setBuffer(m_buffers[static_cast<std::size_t>(sound)]);
-    voice.setVolume(volumeFor(sound) * volumeScale);
+    voice.setVolume(volumeFor(sound) * volumeScale * m_sfxScale);
     voice.play();
+}
+
+void AudioSystem::setSfxVolume(float scale)
+{
+    m_sfxScale = std::clamp(scale, 0.0f, 1.0f);
+}
+
+void AudioSystem::setMusicVolume(float scale)
+{
+    m_musicScale = std::clamp(scale, 0.0f, 1.0f);
+
+    if (m_ambient)
+        m_ambient->setVolume(m_depthVolume * m_musicScale);
 }
 
 void AudioSystem::setMuted(bool muted)
@@ -106,6 +123,7 @@ void AudioSystem::setDepth(float pitch, float volume)
     if (!m_ambient)
         return;
 
+    m_depthVolume = volume;
     m_ambient->setPitch(pitch);
-    m_ambient->setVolume(volume);
+    m_ambient->setVolume(volume * m_musicScale);
 }

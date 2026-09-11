@@ -251,6 +251,26 @@ namespace config
     inline constexpr float GlobalIntervalScale = 0.74f; // arriving sooner
     inline constexpr std::size_t GlobalMaxAliveBonus = 3;
 
+    // Three settings of the same screws. HARD is the campaign as designed and
+    // as balanced; the other two sit either side of it so somebody meeting the
+    // game for the first time, or somebody who has finished it, both have
+    // somewhere to stand. Nothing else in the game reads the difficulty.
+    struct DifficultyDef
+    {
+        const char* name;
+        const char* note;
+        float enemyHealth;   // multiplies whatever the level table asked for
+        float enemyDamage;   // multiplies every wound that reaches the sub
+        float countScale;    // multiplies GlobalCountScale
+        float salvageScale;
+    };
+
+    inline constexpr std::array<DifficultyDef, 3> Difficulties{ {
+        { "SURVEY", "FEWER OF THEM, AND THEY HIT SOFTER.", 0.75f, 0.60f, 0.78f, 1.0f },
+        { "DESCENT", "THE DIVE AS IT WAS BUILT.", 1.0f, 1.0f, 1.0f, 1.0f },
+        { "ABYSSAL", "MORE OF THEM, TOUGHER, AND THEY BITE.", 1.35f, 1.5f, 1.22f, 1.25f },
+    } };
+
     // --- Level flow ---
     inline constexpr float LevelIntroDuration = 2.8f;
     inline constexpr float LevelClearDuration = 2.2f;
@@ -354,6 +374,9 @@ namespace config
     inline constexpr float HurtFlashFade = 2.6f;
     inline constexpr sf::Color HurtFlashColor{ 168, 26, 34 };
     inline constexpr sf::Color PauseVeil{ 2, 7, 12, 208 };
+
+    inline constexpr float CreditsScrollSpeed = 52.0f;
+    inline constexpr float CreditsScrollEnd = 740.0f;
 
     // Threat arrows: how far outside the frame still counts as a threat worth
     // pointing at, and how many can be on screen before it becomes noise. The

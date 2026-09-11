@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/Config.h"
 #include "world/LevelDef.h"
 #include "world/Objective.h"
 
@@ -16,6 +17,11 @@ class LevelManager
 {
 public:
     LevelManager();
+
+    // The player's difficulty choice, as an index into config::Difficulties.
+    // It only ever lands on the spawn count and the scaling handed to
+    // creatures, so nothing downstream has to know the setting exists.
+    void setDifficulty(int index);
 
     void start(int number);
     void update(float deltaTime);
@@ -35,7 +41,7 @@ public:
     bool isBoss() const { return m_def.isBoss; }
 
     const LevelDef& getDef() const { return m_def; }
-    EnemyScaling getScaling() const { return m_def.scaling; }
+    EnemyScaling getScaling() const;
 
     float getProgress() const;
     std::string getObjectiveLabel() const;
@@ -46,8 +52,11 @@ public:
 private:
     void buildQueue();
 
+    const config::DifficultyDef& difficulty() const;
+
     LevelDef m_def{};
     int      m_number = 1;
+    int      m_difficulty = 1;
 
     std::vector<EnemyType> m_queue;
     std::size_t            m_queueIndex = 0;

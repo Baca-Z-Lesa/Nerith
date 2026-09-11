@@ -78,6 +78,9 @@ Game::Game()
     , m_shake(0.0f)
     , m_hitStop(0.0f)
     , m_hurtFlash(0.0f)
+    , m_optionRow(0)
+    , m_creditsScroll(0.0f)
+    , m_justBeatCampaign(false)
     , m_lastSpawnAngle(0.0f)
     , m_snowTimer(0.0f)
     , m_bubbleTimer(0.0f)
@@ -104,7 +107,11 @@ Game::Game()
     m_salvage = m_save.salvage;
     m_tree.setUnlockedIds(m_save.unlocked);
     applyUpgrades();
+    applySettings();
     m_player.reset();
+
+    if (m_save.fullscreen)
+        toggleFullscreen();
 
     beginLevel(m_save.selectedLevel);
 
@@ -330,6 +337,12 @@ void Game::onLevelComplete()
 
     m_audio.play(Sfx::LevelClear);
 
+    if (m_level.getNumber() >= authoredLevelCount() && !m_save.campaignBeaten)
+    {
+        m_save.campaignBeaten = true;
+        m_justBeatCampaign = true;
+    }
+
     // Clearing a level is the only thing that opens the next one. Beating it
     // again later is always allowed, which is what makes grinding possible.
     m_save.unlockedLevel = std::max(m_save.unlockedLevel, m_level.getNumber() + 1);
@@ -383,7 +396,17 @@ void Game::startNewRun()
     // game is additive.
     m_tree.reset();
     m_salvage = 0;
+
+    // Settings belong to the player rather than to the run, so scuttling the
+    // sub does not also reset the volume and the difficulty.
+    const SaveGame kept = m_save;
     m_save = SaveGame{};
+    m_save.difficulty = kept.difficulty;
+    m_save.sfxVolume = kept.sfxVolume;
+    m_save.musicVolume = kept.musicVolume;
+    m_save.muted = kept.muted;
+    m_save.fullscreen = kept.fullscreen;
+
     applyUpgrades();
     m_player.reset();
 
@@ -448,6 +471,20 @@ void Game::activateMenuChoice()
             maybePlayStory(0, State::Upgrading);
             break;
 
+        case MainMenu::Choice::Controls:
+            m_state = State::Controls;
+            break;
+
+        case MainMenu::Choice::Options:
+            m_optionRow = 0;
+            m_state = State::Options;
+            break;
+
+        case MainMenu::Choice::Credits:
+            m_creditsScroll = 0.0f;
+            m_state = State::Credits;
+            break;
+
         case MainMenu::Choice::Reset:
             startNewRun();
             openMenu();
@@ -455,6 +492,85 @@ void Game::activateMenuChoice()
 
         case MainMenu::Choice::Quit:
             m_window.close();
+            break;
+    }
+}
+
+const config::DifficultyDef& Game::difficulty() const
+{
+    return config::Difficulties[static_cast<std::size_t>(
+        std::clamp(m_save.difficulty, 0, static_cast<int>(config::Difficulties.size()) - 1))];
+}
+
+void Game::applySettings()
+{
+    // One place that pushes the saved settings out into the systems that care,
+    // so loading a save and changing a setting take the same path.
+    m_audio.setSfxVolume(static_cast<float>(m_save.sfxVolume) / 10.0f);
+    m_audio.setMusicVolume(static_cast<float>(m_save.musicVolume) / 10.0f);
+    m_audio.setMuted(m_save.muted);
+    m_level.setDifficulty(m_save.difficulty);
+}
+
+void Game::handleOptionsKey(sf::Keyboard::Scancode key)
+{
+    constexpr int RowCount = 5;
+
+    const auto step = [&](int delta) {
+        switch (m_optionRow)
+        {
+            case 0:
+                m_save.difficulty = std::clamp(m_save.difficulty + delta, 0,
+                                               static_cast<int>(config::Difficulties.size()) - 1);
+                break;
+            case 1: m_save.sfxVolume = std::clamp(m_save.sfxVolume + delta, 0, 10); break;
+            case 2: m_save.musicVolume = std::clamp(m_save.musicVolume + delta, 0, 10); break;
+            case 3:
+                m_save.muted = delta > 0;
+                break;
+            case 4:
+                if ((delta > 0) != m_fullscreen)
+                {
+                    toggleFullscreen();
+                    m_save.fullscreen = m_fullscreen;
+                }
+                break;
+            default: break;
+        }
+
+        applySettings();
+        m_save.save();
+    };
+
+    switch (key)
+    {
+        case sf::Keyboard::Scancode::Up:
+        case sf::Keyboard::Scancode::W:
+            m_optionRow = (m_optionRow + RowCount - 1) % RowCount;
+            break;
+
+        case sf::Keyboard::Scancode::Down:
+        case sf::Keyboard::Scancode::S:
+            m_optionRow = (m_optionRow + 1) % RowCount;
+            break;
+
+        case sf::Keyboard::Scancode::Left:
+        case sf::Keyboard::Scancode::A:
+            step(-1);
+            break;
+
+        case sf::Keyboard::Scancode::Right:
+        case sf::Keyboard::Scancode::D:
+        case sf::Keyboard::Scancode::Enter:
+        case sf::Keyboard::Scancode::Space:
+            step(1);
+            break;
+
+        case sf::Keyboard::Scancode::Escape:
+            openMenu();
+            break;
+
+        default:
             break;
     }
 }
@@ -575,6 +691,29 @@ void Game::processEvents()
                     m_state = m_afterStory;
                 else
                     m_story.advance();
+                continue;
+            }
+
+            if (m_state == State::Options)
+            {
+                handleOptionsKey(keyPressed->scancode);
+                continue;
+            }
+
+            // The flat screens have one way out and nothing else to press.
+            if (m_state == State::Controls || m_state == State::Credits)
+            {
+                if (keyPressed->scancode == sf::Keyboard::Scancode::F11)
+                    toggleFullscreen();
+                else
+                    openMenu();
+                continue;
+            }
+
+            if (m_state == State::Victory)
+            {
+                m_creditsScroll = 0.0f;
+                m_state = State::Credits;
                 continue;
             }
 
@@ -799,8 +938,9 @@ void Game::awardSalvage(int base)
     const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
     const float factor = m_rerun ? config::RerunSalvageFactor : 1.0f;
 
-    const int paid = std::max(1, static_cast<int>(
-                                     std::lround(static_cast<float>(base) * bonus * factor)));
+    const int paid = std::max(1, static_cast<int>(std::lround(
+                                     static_cast<float>(base) * bonus * factor
+                                     * difficulty().salvageScale)));
 
     m_salvage += paid;
     m_tally.salvage += paid;
@@ -1224,6 +1364,11 @@ void Game::killEnemy(Enemy& enemy)
 
 void Game::hurtPlayer(int amount)
 {
+    // The single door every wound comes through, which is why the difficulty
+    // setting is applied here and nowhere else.
+    amount = std::max(1, static_cast<int>(std::lround(static_cast<float>(amount)
+                                                      * difficulty().enemyDamage)));
+
     const Player::DamageResult result = m_player.takeDamage(amount);
 
     if (result.shieldBroke)
@@ -1588,6 +1733,217 @@ void Game::drawPauseOverlay()
     m_window.draw(text);
 }
 
+namespace
+{
+    // Every flat screen draws the same way: a veil, a heading, and rows of
+    // label and value. Shared so they cannot drift apart from each other.
+    void appendRow(sf::VertexArray& text, const std::string& left, const std::string& right,
+                   float y, float scale, sf::Color leftColour, sf::Color rightColour,
+                   float leftX, float rightX)
+    {
+        pixelfont::append(text, left, { leftX, y }, scale, leftColour);
+        pixelfont::append(text, right, { rightX, y }, scale, rightColour);
+    }
+
+    void appendHeading(sf::VertexArray& text, const std::string& title, const std::string& hint)
+    {
+        pixelfont::append(text, title,
+                          { (config::WindowWidth - pixelfont::measure(title, 3.4f)) / 2.0f, 74.0f },
+                          3.4f, config::HudTextColor);
+        pixelfont::append(text, hint,
+                          { (config::WindowWidth - pixelfont::measure(hint, 1.5f)) / 2.0f, 660.0f },
+                          1.5f, config::HudDimTextColor);
+    }
+}
+
+void Game::drawControls()
+{
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    appendHeading(text, "CONTROLS", "ESCAPE GOES BACK");
+
+    struct Row { const char* key; const char* what; };
+    const Row rows[] = {
+        { "W A S D",      "DRIVE" },
+        { "MOUSE",        "AIM. THE HULL TURNS TO FOLLOW IT" },
+        { "LEFT MOUSE",   "WATER JET, HELD DOWN" },
+        { "RIGHT MOUSE",  "TORPEDO, ONCE THE TUBE IS FITTED" },
+        { "SHIFT",        "DASH, ONCE THE ENGINE TAKES IT" },
+        { "TAB",          "THE UPGRADE TREE, MID DIVE" },
+        { "WHEEL  + -",   "ZOOM THE TREE" },
+        { "R",            "STRIP THE HULL BACK, IN THE HUB" },
+        { "ESC  OR  P",   "HOLD AT DEPTH" },
+        { "M",            "MUTE" },
+        { "F11",          "FULLSCREEN" },
+    };
+
+    const float keyX = static_cast<float>(config::WindowWidth) / 2.0f - 300.0f;
+    const float whatX = keyX + 250.0f;
+
+    float y = 176.0f;
+    for (const Row& row : rows)
+    {
+        appendRow(text, row.key, row.what, y, 1.8f, config::HudSalvageColor,
+                  config::HudTextColor, keyX, whatX);
+        y += 38.0f;
+    }
+
+    m_window.draw(text);
+}
+
+void Game::drawOptions()
+{
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    appendHeading(text, "OPTIONS", "ARROWS CHANGE.  ESCAPE GOES BACK.");
+
+    // A bar of ten blocks reads as a level at a glance without needing a
+    // slider widget or a number nobody can picture.
+    const auto meter = [](int tenths) {
+        std::string bar;
+        for (int i = 0; i < 10; ++i)
+            bar += i < tenths ? '#' : '-';
+        return bar;
+    };
+
+    const std::string rows[5][2] = {
+        { "DIFFICULTY", difficulty().name },
+        { "EFFECTS",    meter(m_save.sfxVolume) },
+        { "THE DRONE",  meter(m_save.musicVolume) },
+        { "MUTE",       m_save.muted ? "YES" : "NO" },
+        { "FULLSCREEN", m_fullscreen ? "YES" : "NO" },
+    };
+
+    const float labelX = static_cast<float>(config::WindowWidth) / 2.0f - 260.0f;
+    const float valueX = labelX + 300.0f;
+
+    float y = 220.0f;
+    for (int i = 0; i < 5; ++i)
+    {
+        const bool picked = i == m_optionRow;
+
+        appendRow(text, (picked ? "> " : "  ") + rows[i][0], rows[i][1], y, 2.0f,
+                  picked ? config::HudTextColor : config::HudDimTextColor,
+                  picked ? config::HudSalvageColor : config::HudDimTextColor,
+                  labelX, valueX);
+        y += 46.0f;
+    }
+
+    // The difficulty's own sentence, under the rows, because the name alone
+    // does not say what it actually does.
+    const std::string note = difficulty().note;
+    pixelfont::append(text, note,
+                      { (config::WindowWidth - pixelfont::measure(note, 1.6f)) / 2.0f, 490.0f },
+                      1.6f, config::HudDimTextColor);
+
+    m_window.draw(text);
+}
+
+void Game::drawVictory()
+{
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+
+    const auto centred = [&](const std::string& line, float y, float scale, sf::Color colour) {
+        pixelfont::append(text, line,
+                          { (config::WindowWidth - pixelfont::measure(line, scale)) / 2.0f, y },
+                          scale, colour);
+    };
+
+    centred("THE FLOOR OF IT", 190.0f, 4.4f, config::HudBossColor);
+    centred("TWENTY LEVELS DOWN, THE WATER STOPS MOVING.", 300.0f, 1.8f, config::HudTextColor);
+    centred("NOTHING COMES. NOTHING IS WAITING.", 330.0f, 1.8f, config::HudTextColor);
+    centred("WHATEVER WAS HUNTING YOU IS BEHIND YOU NOW,", 372.0f, 1.8f,
+            config::HudDimTextColor);
+    centred("AND THE TRENCH KEEPS GOING.", 402.0f, 1.8f, config::HudDimTextColor);
+
+    centred("THE DIVE IS OPEN PAST ITS OWN END NOW -", 470.0f, 1.6f, config::HudSalvageColor);
+    centred("THE LEVELS AFTER THIS ONE ARE BUILT BY THE TRENCH ITSELF.", 496.0f, 1.6f,
+            config::HudSalvageColor);
+
+    centred("ENTER", 580.0f, 2.2f, config::HudTextColor);
+
+    m_window.draw(text);
+}
+
+void Game::drawCredits()
+{
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+
+    // Scrolls from the bottom and stops when the last line reaches the top
+    // third, so the list can be read rather than chased.
+    struct Line { const char* text; float scale; bool accent; };
+    const Line lines[] = {
+        { "NERITH", 4.2f, true },
+        { "", 1.0f, false },
+        { "A 2D UNDERWATER HORROR SHOOTER", 1.7f, false },
+        { "WRITTEN IN C++ AND SFML 3, WITHOUT AN ENGINE", 1.7f, false },
+        { "", 1.0f, false },
+        { "DESIGN AND DIRECTION", 1.5f, true },
+        { "PAPO", 2.0f, false },
+        { "", 1.0f, false },
+        { "CODE", 1.5f, true },
+        { "PAPO  WITH  CLAUDE", 2.0f, false },
+        { "", 1.0f, false },
+        { "ART AND SOUND", 1.5f, true },
+        { "GENERATED, EVERY PIXEL AND EVERY WAVEFORM", 1.7f, false },
+        { "NO ASSET WAS DOWNLOADED", 1.7f, false },
+        { "", 1.0f, false },
+        { "BUILT WITH", 1.5f, true },
+        { "SFML 3.0.2   -   MSVC   -   WINDOWS", 1.7f, false },
+        { "", 1.0f, false },
+        { "", 1.0f, false },
+        { "THANK YOU FOR GOING DOWN THERE", 2.0f, true },
+    };
+
+    float y = static_cast<float>(config::WindowHeight) - m_creditsScroll;
+
+    for (const Line& line : lines)
+    {
+        const float height = 22.0f + line.scale * 9.0f;
+
+        if (line.text[0] != '\0' && y > -60.0f && y < static_cast<float>(config::WindowHeight))
+        {
+            pixelfont::append(text, line.text,
+                              { (config::WindowWidth
+                                 - pixelfont::measure(line.text, line.scale)) / 2.0f, y },
+                              line.scale,
+                              line.accent ? config::HudSalvageColor : config::HudTextColor);
+        }
+
+        y += height;
+    }
+
+    m_window.draw(text);
+
+    // The hint gets its own band, because the list scrolls straight through
+    // where it sits.
+    sf::RectangleShape band({ static_cast<float>(config::WindowWidth), 40.0f });
+    band.setPosition({ 0.0f, static_cast<float>(config::WindowHeight) - 40.0f });
+    band.setFillColor(sf::Color(2, 7, 12, 235));
+    m_window.draw(band);
+
+    sf::VertexArray hintText(sf::PrimitiveType::Triangles);
+    const std::string hint = "ESCAPE GOES BACK";
+    pixelfont::append(hintText, hint,
+                      { (config::WindowWidth - pixelfont::measure(hint, 1.5f)) / 2.0f, 692.0f },
+                      1.5f, config::HudDimTextColor);
+    m_window.draw(hintText);
+}
+
 void Game::update(float deltaTime)
 {
     // The world keeps breathing in every state. Only the fight pauses.
@@ -1628,6 +1984,18 @@ void Game::update(float deltaTime)
         case State::Menu:
             m_menuTime += deltaTime;
             m_menu.setCursor(m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_ui));
+            break;
+
+        case State::Credits:
+            // Stops rather than looping: a list that scrolls forever reads as
+            // broken, and there is nothing after the last line anyway.
+            m_creditsScroll = std::min(m_creditsScroll + config::CreditsScrollSpeed * deltaTime,
+                                       config::CreditsScrollEnd);
+            break;
+
+        case State::Controls:
+        case State::Options:
+        case State::Victory:
             break;
 
         case State::LevelIntro:
@@ -1677,9 +2045,17 @@ void Game::update(float deltaTime)
                 m_upgradeScreen.clearCursor();
                 m_upgradeScreen.recentre();
 
+                // Clearing the last authored level is the end of the campaign,
+                // and it only lands once: everything past it is the trench
+                // building its own water.
+                if (m_justBeatCampaign)
+                {
+                    m_justBeatCampaign = false;
+                    m_state = State::Victory;
+                }
                 // Killing a depth ends a chapter, so the story lands between
                 // the kill and the shopping rather than during either.
-                if (m_level.isBoss())
+                else if (m_level.isBoss())
                     maybePlayStory(m_level.getDepth(), State::Upgrading);
                 else
                     m_state = State::Upgrading;
@@ -1825,6 +2201,11 @@ void Game::render()
         m_window.display();
         return;
     }
+
+    if (m_state == State::Controls) { drawControls(); m_window.display(); return; }
+    if (m_state == State::Options)  { drawOptions();  m_window.display(); return; }
+    if (m_state == State::Victory)  { drawVictory();  m_window.display(); return; }
+    if (m_state == State::Credits)  { drawCredits();  m_window.display(); return; }
 
     if (m_state == State::GameOver)
         m_window.draw(m_deathOverlay);

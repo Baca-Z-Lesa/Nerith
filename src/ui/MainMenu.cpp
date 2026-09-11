@@ -46,6 +46,10 @@ void MainMenu::build(bool hasRun, int resumeLevel, int bestLevel, int bestDepth)
                               + depthName(depthOf(resumeLevel)),
                           Choice::Dive });
 
+    m_entries.push_back({ "CONTROLS", "WHAT EVERY KEY DOES", Choice::Controls });
+    m_entries.push_back({ "OPTIONS", "SOUND AND HOW HARD IT BITES", Choice::Options });
+    m_entries.push_back({ "CREDITS", "WHO BUILT IT", Choice::Credits });
+
     if (hasRun)
         m_entries.push_back({ "SCUTTLE", "ERASE ALL SALVAGE AND UPGRADES", Choice::Reset });
 

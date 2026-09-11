@@ -46,6 +46,11 @@ inline constexpr bool isBossLevel(int level) { return levelWithinDepth(level) ==
 
 const char* depthName(int depth);
 
+// How much of the campaign is hand authored. Past it the trench builds its own
+// levels, which is also where the story runs out, so this is what "finished"
+// means.
+int authoredLevelCount();
+
 // =====================================================================
 //  THE CAMPAIGN
 //  Hand authored, because the point is a learning curve rather than a
