@@ -51,6 +51,17 @@ public:
     void splashNeighbours(std::size_t partIndex, int damage);
 
     std::vector<BossShot> takeShots();
+
+    // Creatures the boss wants brought in, drained the same way its shots are.
+    // A creature that calls for help is a different fight from one that does
+    // not, and it costs the caller nothing to ignore.
+    std::vector<EnemyType> takeSummons();
+
+    // Which act of the fight it is in: 0 while it is whole, then one per
+    // threshold it has crossed. The caller reads a change to know it should
+    // stop the world for a moment; the boss itself uses it to decide what it
+    // is willing to do.
+    int getAct() const { return m_act; }
     void confine(sf::Vector2f center, float maxDistance);
 
     // True when any part of the body is close enough to maul the player.
@@ -138,17 +149,29 @@ private:
     int  lampsAlive() const;
     void checkRage();
 
+    // Moves the fight on a step when the creature crosses a threshold. Returns
+    // true on the frame it happens, which is the caller's cue to make an event
+    // of it.
+    void updateActs();
+
+    // The last act of the last creature: the water itself closes in. Shots come
+    // inward off the rim of the basin rather than out of the boss, so there is
+    // no safe distance left to stand at.
+    void closeTheBasin(sf::Vector2f centre);
+
     const BossDef* m_def;
     BossId         m_id;
 
     std::vector<Segment> m_segments;
     std::vector<Part>    m_parts;
     Vitals               m_vitals;
-    std::vector<BossShot> m_pending; // filled by the think code, drained by takeShots
+    std::vector<BossShot>  m_pending; // filled by the think code, drained by takeShots
+    std::vector<EnemyType> m_summons;
 
     sf::Vector2f m_heading;
     sf::Vector2f m_playerPosition;
     sf::Vector2f m_strikeTarget;
+    sf::Vector2f m_confineCentre;
 
     Phase m_phase;
     float m_phaseTimer;
@@ -158,6 +181,9 @@ private:
     float m_visibility;   // 0 fully buried, 1 fully surfaced
     float m_strafe;       // +1 or -1
     float m_spiralAngle;  // Spiral mind: where the arms currently point
+    int   m_act;          // 0 whole, 1 hurt, 2 cornered
+    float m_summonTimer;
+    float m_closeTimer;   // the last act's inward volley
     bool  m_rhythmOpen;   // Bell body: the nucleus is showing
     bool  m_enraged;
     bool  m_hasEntered;

@@ -334,6 +334,118 @@ public static class Synth
         return b;
     }
 
+    // A creature changing its mind. Not a roar: a rising tone that stops dead,
+    // because what has to land is the moment the fight turns, and a rise that
+    // resolves reads as an ending rather than a beginning.
+    public static float[] BossPhase()
+    {
+        float len = 2.6f;
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, 700f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float u = t / len;
+
+            // Rises through most of it, then the last fifth is all fall.
+            float env = u < 0.78f ? (float)Math.Pow(u / 0.78f, 1.5) : (1f - (u - 0.78f) / 0.22f);
+            if (env < 0f) env = 0f;
+
+            float sweep = 58f + 150f * (float)Math.Pow(u, 2.2);
+            float a = (float)Math.Sin(2 * Math.PI * sweep * t);
+            float c = (float)Math.Sin(2 * Math.PI * sweep * 1.5 * t) * 0.4f;
+            float d = (float)Math.Sin(2 * Math.PI * sweep * 0.5 * t) * 0.7f;
+
+            b[i] = (a + c + d + noise[i] * 0.55f) * env * 0.40f;
+        }
+        Edges(b, 0.02f);
+        return b;
+    }
+
+    // Something enormous coming apart. Four seconds, because the end of a boss
+    // has to be allowed to take its time: a hit, then the collapse, then the
+    // long low note of the water closing over it.
+    public static float[] BossDeath()
+    {
+        float len = 4.2f;
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, 340f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+
+            // The initial hit.
+            float crack = Decay(t, 0.5f, 2.2f);
+
+            // The collapse: irregular, so it reads as structure failing rather
+            // than as one explosion.
+            float rubble = 0f;
+            for (int k = 0; k < 5; k++)
+            {
+                float at = 0.25f + k * 0.42f;
+                if (t > at) rubble += Decay(t - at, 1.1f, 2.6f) * (0.7f - k * 0.09f);
+            }
+
+            // And the water closing over it.
+            float tail = Math.Min(1f, t / 1.4f) * Decay(t, len, 1.3f);
+            float low = (float)Math.Sin(2 * Math.PI * 31.0 * t)
+                        + (float)Math.Sin(2 * Math.PI * 46.5 * t) * 0.55f;
+
+            b[i] = (noise[i] * (crack * 1.1f + rubble * 0.8f) + low * tail * 0.5f) * 0.52f;
+        }
+        Edges(b, 0.01f);
+        return b;
+    }
+
+    // A jet wound up to full: a tightening whine that cuts off when it goes.
+    public static float[] Charge()
+    {
+        float len = 0.9f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float u = t / len;
+            float env = (float)Math.Pow(u, 0.8) * (1f - (float)Math.Pow(u, 12));
+            float sweep = 180f + 620f * u * u;
+
+            b[i] = (float)Math.Sin(2 * Math.PI * sweep * t) * env * 0.26f;
+        }
+        Edges(b, 0.01f);
+        return b;
+    }
+
+    // The alarm the sub makes when the hull is nearly gone. Two tones a
+    // semitone apart, which is the interval that will not let you settle.
+    public static float[] Siren()
+    {
+        float len = 1.1f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float env = Math.Min(1f, t / 0.07f) * Decay(t, len, 1.6f);
+            float wow = 1f + 0.05f * (float)Math.Sin(2 * Math.PI * 5.5 * t);
+
+            b[i] = ((float)Math.Sin(2 * Math.PI * 494.0 * t * wow)
+                    + (float)Math.Sin(2 * Math.PI * 466.0 * t)) * env * 0.16f;
+        }
+        Edges(b, 0.01f);
+        return b;
+    }
+
     // A vent letting go: a hiss with a rumble under it, rising then falling,
     // because superheated water arrives before the noise of the rock does.
     public static float[] Vent()
@@ -374,7 +486,11 @@ $jobs = @(
     @("creature_call_a.wav", [Synth]::CreatureCall(58.0)),
     @("creature_call_b.wav", [Synth]::CreatureCall(41.0)),
     @("hatch.wav",           [Synth]::Hatch()),
-    @("vent.wav",            [Synth]::Vent())
+    @("vent.wav",            [Synth]::Vent()),
+    @("boss_phase.wav",      [Synth]::BossPhase()),
+    @("boss_death.wav",      [Synth]::BossDeath()),
+    @("charge.wav",          [Synth]::Charge()),
+    @("siren.wav",           [Synth]::Siren())
 )
 
 foreach ($job in $jobs) {

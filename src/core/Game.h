@@ -197,6 +197,15 @@ private:
     void addHitStop(float seconds);
     void updateFeel(float deltaTime);
 
+    // The three things a moment gets made out of when it matters: the world
+    // slows down, the screen is washed in a colour, and a ring goes out.
+    // Ordinary hits use none of them; a boss changing its mind uses all three.
+    void addSlowMotion(float seconds, float scale);
+    void addFlash(sf::Color colour, float strength);
+    void bigMoment(sf::Vector2f at, sf::Color colour, float shake, float slow);
+
+    void onBossActChanged(int act);
+
     // Small triangles at the edge of the screen for whatever is hunting from
     // outside it. The basin is far larger than the view, so without these a
     // creature can cross the whole arena and bite before it is ever seen.
@@ -311,6 +320,13 @@ private:
 
     bool  m_lampOn;    // the sub's own light, and whether anything can see you
     float m_noiseTimer; // seconds of having given yourself away by firing
+
+    float     m_slowTimer;   // seconds of slow motion left
+    float     m_slowScale;   // how slow, while it lasts
+    float     m_flash;       // 1 at the moment, fading to 0
+    sf::Color m_flashColour;
+    int       m_bossAct;     // the act the boss was in last frame
+    float     m_sirenTimer;  // the hull alarm, once there is almost none left
 
     int   m_optionRow;    // which line of the options screen is selected
     float m_creditsScroll;

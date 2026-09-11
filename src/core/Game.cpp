@@ -82,6 +82,12 @@ Game::Game()
     , m_orbitAngle(0.0f)
     , m_lampOn(true)
     , m_noiseTimer(0.0f)
+    , m_slowTimer(0.0f)
+    , m_slowScale(1.0f)
+    , m_flash(0.0f)
+    , m_flashColour(sf::Color::White)
+    , m_bossAct(0)
+    , m_sirenTimer(0.0f)
     , m_optionRow(0)
     , m_creditsScroll(0.0f)
     , m_justBeatCampaign(false)
@@ -233,8 +239,78 @@ void Game::addHitStop(float seconds)
     m_hitStop = std::max(m_hitStop, seconds);
 }
 
+void Game::addSlowMotion(float seconds, float scale)
+{
+    // Takes the stronger of the two rather than adding, so two events landing
+    // together cannot leave the game crawling for ten seconds.
+    m_slowTimer = std::max(m_slowTimer, seconds);
+    m_slowScale = std::min(m_slowScale, std::clamp(scale, 0.05f, 1.0f));
+}
+
+void Game::addFlash(sf::Color colour, float strength)
+{
+    m_flash = std::max(m_flash, std::clamp(strength, 0.0f, 1.0f));
+    m_flashColour = colour;
+}
+
+void Game::bigMoment(sf::Vector2f at, sf::Color colour, float shake, float slow)
+{
+    // Everything a moment is made of, in one call, so a new one cannot end up
+    // half dressed: the jolt, the held breath, the slowed water, the wash of
+    // colour, and a ring going out from wherever it happened.
+    addShake(shake);
+    addHitStop(config::HitStopBossPart);
+    addSlowMotion(slow, config::SlowMotionScale);
+    addFlash(colour, 0.85f);
+    addHitRing(at, config::BigMomentRing, colour);
+
+    effects::playerDeath(m_effects, at);
+}
+
+void Game::onBossActChanged(int act)
+{
+    // The fight turning is the single loudest thing in the game. It has to be
+    // unmissable, because it is the player's only warning that everything they
+    // had worked out a second ago is about to stop being true.
+    const sf::Color colour = act >= 2 ? config::HudBossColor : config::VentGlowColor;
+
+    bigMoment(m_boss ? m_boss->getPosition() : m_player.getPosition(),
+              colour, config::ShakeDeath, config::SlowMotionBossAct);
+
+    m_audio.play(Sfx::BossPhase);
+    m_audio.play(Sfx::BossRoar, 1.3f);
+}
+
 void Game::updateFeel(float deltaTime)
 {
+    m_flash = std::max(0.0f, m_flash - config::FlashFade * deltaTime);
+
+    if (m_slowTimer > 0.0f)
+    {
+        m_slowTimer -= deltaTime;
+        if (m_slowTimer <= 0.0f)
+            m_slowScale = 1.0f;
+    }
+
+    // The hull alarm, on a loop, once there is almost nothing left of the sub.
+    // It is the difference between reading a number and being told.
+    const bool critical = m_state == State::Fighting && m_player.isAlive()
+                          && m_player.getHealth() <= 1;
+
+    if (critical)
+    {
+        m_sirenTimer -= deltaTime;
+        if (m_sirenTimer <= 0.0f)
+        {
+            m_sirenTimer = config::SirenInterval;
+            m_audio.play(Sfx::Siren);
+        }
+    }
+    else
+    {
+        m_sirenTimer = 0.0f;
+    }
+
     m_noiseTimer = std::max(0.0f, m_noiseTimer - deltaTime);
     m_shake *= std::exp(-config::ShakeDecay * deltaTime);
     if (m_shake < 0.05f)
@@ -270,6 +346,11 @@ void Game::beginLevel(int number)
 
     m_tally = RunTally{};
     m_paused = false;
+    m_bossAct = 0;
+    m_slowTimer = 0.0f;
+    m_slowScale = 1.0f;
+    m_flash = 0.0f;
+    m_sirenTimer = 0.0f;
     m_shake = 0.0f;
     m_hitStop = 0.0f;
     m_hurtFlash = 0.0f;
@@ -927,7 +1008,13 @@ void Game::handleShooting(float deltaTime)
     {
         if (held)
         {
+            const float before = m_charge;
             m_charge = std::min(config::ChargeTime, m_charge + deltaTime);
+
+            // The whine starts the moment the coil catches, so holding the
+            // button is audibly doing something.
+            if (before <= config::ChargeMinimum && m_charge > config::ChargeMinimum)
+                m_audio.play(Sfx::Charge);
 
             // While winding, the sub does not fire at all.
             if (m_charge > config::ChargeMinimum)
@@ -1745,6 +1832,25 @@ void Game::updateBoss(float deltaTime)
                                   shot.direction, config::EnemyOrb, orbDamage);
         effects::hostileMuzzle(m_effects, shot.position, shot.direction);
     }
+
+    // A creature that calls for help. The summons arrive at the edge of the
+    // basin like anything else does, and they are not part of the level's
+    // roster, so they cannot be farmed by standing in a boss fight.
+    for (const EnemyType type : m_boss->takeSummons())
+    {
+        m_enemies.emplace_back(type, m_assets.forEnemy(type), pickSpawnPosition(),
+                               m_level.getScaling());
+        m_enemies.back().markHatched();
+
+        m_audio.play(Sfx::Hatch, 1.2f);
+    }
+
+    // The fight turning.
+    if (m_boss->getAct() != m_bossAct)
+    {
+        m_bossAct = m_boss->getAct();
+        onBossActChanged(m_bossAct);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2061,9 +2167,24 @@ void Game::handleCollisions()
 
             if (hit.killedBoss || !m_boss->isAlive())
             {
-                effects::playerDeath(m_effects, hit.at); // the biggest burst we have
-                m_audio.play(Sfx::BossRoar, 1.2f);
-                addShake(config::ShakeDeath);
+                // The end of a creature is allowed to take its time. Everything
+                // the game has goes into this one: the water slows right down,
+                // the screen washes out, and the body comes apart in pieces
+                // rather than in one burst.
+                bigMoment(hit.at, config::HudBossColor, config::ShakeDeath,
+                          config::SlowMotionBossDeath);
+
+                for (int i = 0; i < 6; ++i)
+                {
+                    const sf::Vector2f scatter(rng::range(30.0f, 150.0f),
+                                               sf::degrees(rng::range(0.0f, 360.0f)));
+                    effects::enemyDeath(m_effects, hit.at + scatter);
+                    addHitRing(hit.at + scatter, 90.0f + 40.0f * static_cast<float>(i),
+                               config::VentGlowColor);
+                }
+
+                m_audio.play(Sfx::BossDeath);
+                m_audio.play(Sfx::BossRoar, 1.4f);
 
                 awardSalvage(m_boss->getSalvage());
 
@@ -2550,6 +2671,12 @@ void Game::update(float deltaTime)
         case State::Fighting:
             if (!m_showUpgrades && !m_paused)
             {
+                // Slow motion applies to the fight and to nothing else: the
+                // camera, the ambience and the clock the player is being timed
+                // on all keep real time, so a moment is a moment rather than a
+                // way to buy seconds.
+                deltaTime *= m_slowScale;
+
                 m_tally.seconds += deltaTime;
                 m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
                 handleShooting(deltaTime);
@@ -2730,6 +2857,17 @@ void Game::render()
     // a vignette around the viewer, not a ring painted on the seabed.
     m_window.setView(m_ui);
     m_arena.drawGloom(m_window);
+
+    // The moment wash. Over the gloom and under the HUD, because it is meant to
+    // take the whole picture for an instant rather than tint it.
+    if (m_flash > 0.0f)
+    {
+        sf::Color wash = m_flashColour;
+        wash.a = static_cast<std::uint8_t>(190.0f * m_flash * m_flash);
+        m_deathOverlay.setFillColor(wash);
+        m_window.draw(m_deathOverlay);
+        m_deathOverlay.setFillColor(config::DeathOverlayColor);
+    }
 
     // A red wash over the whole frame, so a bite is felt at the edge of vision
     // rather than having to be read off the health pips.

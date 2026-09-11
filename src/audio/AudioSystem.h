@@ -21,6 +21,10 @@ enum class Sfx
     CreatureCallB,
     Hatch,
     Vent,
+    BossPhase,     // a creature changing its mind
+    BossDeath,
+    Charge,
+    Siren,         // the hull alarm, when there is almost none of it left
     Count
 };
 

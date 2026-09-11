@@ -23,6 +23,10 @@ namespace
             case Sfx::CreatureCallB: return "assets/audio/creature_call_b.wav";
             case Sfx::Hatch:      return "assets/audio/hatch.wav";
             case Sfx::Vent:       return "assets/audio/vent.wav";
+            case Sfx::BossPhase:  return "assets/audio/boss_phase.wav";
+            case Sfx::BossDeath:  return "assets/audio/boss_death.wav";
+            case Sfx::Charge:     return "assets/audio/charge.wav";
+            case Sfx::Siren:      return "assets/audio/siren.wav";
             default:              return "assets/audio/impact.wav";
         }
     }
@@ -42,6 +46,10 @@ namespace
             case Sfx::CreatureCallB: return config::VolumeCreatureCall;
             case Sfx::Hatch:      return config::VolumeHatch;
             case Sfx::Vent:       return config::VolumeVent;
+            case Sfx::BossPhase:  return config::VolumeBossPhase;
+            case Sfx::BossDeath:  return config::VolumeBossDeath;
+            case Sfx::Charge:     return config::VolumeCharge;
+            case Sfx::Siren:      return config::VolumeSiren;
             default:              return 60.0f;
         }
     }

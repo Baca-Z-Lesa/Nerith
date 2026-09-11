@@ -235,6 +235,23 @@ namespace config
     // be read, fast enough that standing still is never the answer.
     inline constexpr float BossSpiralTurn = 62.0f;
 
+    // The three acts of a fight. Crossing a threshold is one way, and each one
+    // adds something rather than replacing what came before, so the last third
+    // is everything at once instead of a different encounter.
+    inline constexpr float BossActTwo = 0.66f;
+    inline constexpr float BossActThree = 0.33f;
+    inline constexpr int   BossActArmBonus = 2;
+
+    // Act two: it pulls its own dead off the column and sends them at you.
+    inline constexpr float BossSummonInterval = 5.4f;
+    inline constexpr EnemyType BossSummonType = EnemyType::Husk;
+
+    // Act three: the basin closes. Shots come inward off the rim, so backing
+    // off stops being an answer.
+    inline constexpr float BossClosingInterval = 3.1f;
+    inline constexpr float BossClosingRadius = 760.0f;
+    inline constexpr int   BossClosingArms = 22;
+
     inline constexpr float BossSurfaceTime = 4.2f;
     inline constexpr float BossSubmergeTime = 1.7f;
     inline constexpr float BossRiseTime = 0.6f;
@@ -400,6 +417,10 @@ namespace config
     inline constexpr float VolumeCreatureCall = 52.0f;
     inline constexpr float VolumeHatch = 46.0f;
     inline constexpr float VolumeVent = 58.0f;
+    inline constexpr float VolumeBossPhase = 96.0f;
+    inline constexpr float VolumeBossDeath = 100.0f;
+    inline constexpr float VolumeCharge = 34.0f;
+    inline constexpr float VolumeSiren = 44.0f;
 
     // How often something out in the dark calls. Long gaps on purpose: a noise
     // you hear every few seconds stops being frightening.
@@ -473,6 +494,16 @@ namespace config
     inline constexpr float HitStopTorpedo = 0.045f;
     inline constexpr float HitStopPlayerHurt = 0.075f;
     inline constexpr float HitStopBossPart = 0.08f;
+    // What a moment is made of. Slow motion is the strongest tool in here and
+    // the easiest to overuse, so it is reserved for a fight turning and for the
+    // blow that ends one.
+    inline constexpr float SlowMotionScale = 0.34f;
+    inline constexpr float SlowMotionBossAct = 1.1f;
+    inline constexpr float SlowMotionBossDeath = 2.2f;
+    inline constexpr float FlashFade = 2.8f;
+    inline constexpr float BigMomentRing = 420.0f;
+    inline constexpr float SirenInterval = 1.6f;
+
     inline constexpr float HurtFlashFade = 2.6f;
     inline constexpr sf::Color HurtFlashColor{ 168, 26, 34 };
     inline constexpr sf::Color PauseVeil{ 2, 7, 12, 208 };

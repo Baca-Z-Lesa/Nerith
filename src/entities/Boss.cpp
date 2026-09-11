@@ -31,6 +31,7 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     , m_heading(1.0f, 0.0f)
     , m_playerPosition(position)
     , m_strikeTarget(position)
+    , m_confineCentre(position)
     , m_phase(Phase::Stalk)
     , m_phaseTimer(config::BossStalkTime)
     , m_attackTimer(1.0f)
@@ -39,6 +40,9 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     , m_visibility(1.0f)
     , m_strafe(rng::range(0.0f, 1.0f) < 0.5f ? -1.0f : 1.0f)
     , m_spiralAngle(rng::range(0.0f, 360.0f))
+    , m_act(0)
+    , m_summonTimer(config::BossSummonInterval)
+    , m_closeTimer(config::BossClosingInterval)
     , m_rhythmOpen(false)
     , m_enraged(false)
     , m_hasEntered(false)
@@ -566,6 +570,33 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
     const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
 
     checkRage();
+    updateActs();
+
+    // Act two: it starts pulling its own dead off the column and sending them
+    // at you. The column is what the creature is made of, so this visibly
+    // costs it something.
+    if (m_act >= 1)
+    {
+        m_summonTimer -= deltaTime;
+        if (m_summonTimer <= 0.0f)
+        {
+            m_summonTimer = config::BossSummonInterval;
+            m_summons.push_back(config::BossSummonType);
+        }
+    }
+
+    // Act three: the basin closes. This runs alongside the spiral rather than
+    // instead of it, which is what makes the last third of the fight the last
+    // third rather than a different fight.
+    if (m_act >= 2)
+    {
+        m_closeTimer -= deltaTime;
+        if (m_closeTimer <= 0.0f)
+        {
+            m_closeTimer = config::BossClosingInterval;
+            closeTheBasin(m_confineCentre);
+        }
+    }
 
     // It never closes and it never runs. It holds a ring around the player and
     // keeps turning, so the fight is about reading the sweep rather than about
@@ -592,13 +623,52 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
     // spiral rather than only shortening a bar. Blind it completely and it is
     // down to a single arm it can barely aim.
     const int lamps = std::max(1, m_vitals.emitters > 0 ? m_vitals.emitters : lampsAlive());
-    const int arms = std::max(1, lamps + (m_enraged ? m_def->rage.extraShots : 0));
+    const int arms = std::max(1, lamps + (m_enraged ? m_def->rage.extraShots : 0)
+                                     + m_act * config::BossActArmBonus);
 
     for (int i = 0; i < arms; ++i)
     {
         const float spoke = 360.0f * static_cast<float>(i) / static_cast<float>(arms);
         const sf::Angle angle = sf::degrees(m_spiralAngle + spoke + aimError());
         m_pending.push_back({ head + unit(angle) * (m_def->headRadius * 0.55f), unit(angle) });
+    }
+}
+
+std::vector<EnemyType> Boss::takeSummons()
+{
+    std::vector<EnemyType> out;
+    out.swap(m_summons);
+    return out;
+}
+
+void Boss::updateActs()
+{
+    // Two thresholds, so a fight has three shapes rather than two. Crossing one
+    // is one-way: a creature that has decided to stop holding back does not
+    // start again because it got a moment's peace.
+    const float core = getCoreFraction();
+
+    if (m_act < 1 && core < config::BossActTwo)
+        m_act = 1;
+    if (m_act < 2 && core < config::BossActThree)
+        m_act = 2;
+}
+
+void Boss::closeTheBasin(sf::Vector2f centre)
+{
+    // Inward off the rim rather than outward from the body. There is no longer
+    // anywhere in the basin that is far enough away, which is the point: the
+    // last act of the last creature is not survived by backing off.
+    const int arms = config::BossClosingArms;
+
+    for (int i = 0; i < arms; ++i)
+    {
+        const sf::Angle angle = sf::degrees(360.0f * static_cast<float>(i)
+                                                / static_cast<float>(arms)
+                                            + m_time * 22.0f);
+        const sf::Vector2f out = unit(angle);
+
+        m_pending.push_back({ centre + out * config::BossClosingRadius, -out });
     }
 }
 
@@ -645,6 +715,10 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
 
 void Boss::confine(sf::Vector2f center, float maxDistance)
 {
+    // Remembered, because the last act throws shots inward off the rim of the
+    // basin and needs to know where the middle of it is.
+    m_confineCentre = center;
+
     const sf::Vector2f delta = m_segments[0].position - center;
 
     if (delta.lengthSquared() <= maxDistance * maxDistance)
@@ -921,7 +995,12 @@ std::string Boss::getStateLabel() const
         case BossMind::Drifter: return "NUCLEUS EXPOSED";
         case BossMind::Burrower: return "SURFACED";
         case BossMind::Spiral:
-            return m_enraged ? "THE SPIRAL HAS TURNED" : "WINDING";
+            switch (m_act)
+            {
+                case 0:  return "WINDING";
+                case 1:  return "IT IS CALLING ITS DEAD";
+                default: return "THE BASIN IS CLOSING";
+            }
     }
     return "";
 }

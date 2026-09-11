@@ -104,19 +104,28 @@ namespace
             "assets/textures/hol_crown.png", "assets/textures/shot_hollow.png",
             "assets/textures/hol_vertebra.png",
             1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
-            3, 64,
+            3, 96,
             96.0f, 330.0f,
             0.30f, 4, 90.0f,
             { 0.70f, 1.20f, 2, 1.0f },
-            7,
+            10,
             { {
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f, -30.0f, 18.0f, 0.70f,   0.0f, 26 },
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f,  30.0f, 18.0f, 0.70f,   0.0f, 26 },
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f, -30.0f, 18.0f, 0.70f,   0.0f, 26 },
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f,  30.0f, 18.0f, 0.70f,   0.0f, 26 },
-                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 3,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 34 },
-                { PartRole::Armour, "assets/textures/hol_ribs.png",     1,   0.0f,   0.0f, 40.0f, 1.0f,    0.0f, 58 },
-                { PartRole::Organ,  "assets/textures/hol_mass.png",     1,   0.0f,   0.0f, 30.0f, 1.0f,    0.0f, 112 },
+                // Four lamps on the crown: each one is an arm of the spiral.
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f, -30.0f, 18.0f, 0.70f,   0.0f, 30 },
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f,  30.0f, 18.0f, 0.70f,   0.0f, 30 },
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f, -30.0f, 18.0f, 0.70f,   0.0f, 30 },
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f,  30.0f, 18.0f, 0.70f,   0.0f, 30 },
+                // Three joints down the column. Breaking them is what finally
+                // slows the thing down, and they are furthest from the crown,
+                // so going for them means turning your back on the spiral.
+                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 2,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
+                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 3,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
+                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 4,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
+                // Two shells over the mass, one behind the other, so the last
+                // act cannot be skipped by a lucky torpedo early on.
+                { PartRole::Armour, "assets/textures/hol_ribs.png",     1,   0.0f,   0.0f, 40.0f, 1.0f,    0.0f, 70 },
+                { PartRole::Armour, "assets/textures/hol_ribs.png",     1,  14.0f,   0.0f, 34.0f, 0.82f,   0.0f, 70 },
+                { PartRole::Organ,  "assets/textures/hol_mass.png",     1,   0.0f,   0.0f, 30.0f, 1.0f,    0.0f, 180 },
             } }
         },
     };

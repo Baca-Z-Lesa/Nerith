@@ -163,8 +163,10 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
           { EnemyType::Husk, 4 }, { EnemyType::Lancer, 4 },
           { EnemyType::Hulk, 3 }, { EnemyType::Brooder, 2 } } }, false },
 
-    { "THE LEVIATHAN, GROWN", "IT REMEMBERS WHAT YOU DID TO IT.",
-      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 2.60f, 1.25f, 1 },
+    // The floor of the trench. Everything the campaign has taught, asked for
+    // at once, by the thing that was down here before any of it.
+    { "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
+      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 3.40f, 1.30f, 2 },
       { {} }, true },
 } };
 
