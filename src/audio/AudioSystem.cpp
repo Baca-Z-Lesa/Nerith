@@ -19,6 +19,10 @@ namespace
             case Sfx::PartBreak:  return "assets/audio/boss_part_break.wav";
             case Sfx::LevelClear: return "assets/audio/level_clear.wav";
             case Sfx::BossRoar:   return "assets/audio/boss_roar.wav";
+            case Sfx::CreatureCallA: return "assets/audio/creature_call_a.wav";
+            case Sfx::CreatureCallB: return "assets/audio/creature_call_b.wav";
+            case Sfx::Hatch:      return "assets/audio/hatch.wav";
+            case Sfx::Vent:       return "assets/audio/vent.wav";
             default:              return "assets/audio/impact.wav";
         }
     }
@@ -34,6 +38,10 @@ namespace
             case Sfx::PartBreak:  return config::VolumePartBreak;
             case Sfx::LevelClear: return config::VolumeLevelClear;
             case Sfx::BossRoar:   return config::VolumeBossRoar;
+            case Sfx::CreatureCallA:
+            case Sfx::CreatureCallB: return config::VolumeCreatureCall;
+            case Sfx::Hatch:      return config::VolumeHatch;
+            case Sfx::Vent:       return config::VolumeVent;
             default:              return 60.0f;
         }
     }

@@ -131,6 +131,11 @@ private:
     void thinkProwler(float deltaTime, sf::Vector2f playerPosition);
     void thinkDrifter(float deltaTime, sf::Vector2f playerPosition);
     void thinkBurrower(float deltaTime, sf::Vector2f playerPosition);
+    void thinkSpiral(float deltaTime, sf::Vector2f playerPosition);
+
+    // How many lamps are still lit, which is how many arms the spiral has.
+    int  lampsAlive() const;
+    void checkRage();
 
     const BossDef* m_def;
     BossId         m_id;
@@ -151,6 +156,7 @@ private:
     float m_bellPulse;    // Bell body: 0 relaxed, 1 clenched
     float m_visibility;   // 0 fully buried, 1 fully surfaced
     float m_strafe;       // +1 or -1
+    float m_spiralAngle;  // Spiral mind: where the arms currently point
     bool  m_rhythmOpen;   // Bell body: the nucleus is showing
     bool  m_enraged;
     bool  m_hasEntered;

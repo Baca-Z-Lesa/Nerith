@@ -42,6 +42,11 @@ $Materials = @{
     'fish.png'            = 'flesh'
 
     # --- bosses ---
+    'hol_crown.png'     = 'shell'
+    'hol_vertebra.png'  = 'shell'
+    'hol_lamp.png'      = 'glow'
+    'hol_ribs.png'      = 'shell'
+    'hol_mass.png'      = 'jelly'
     'lev_head.png'      = 'shell'
     'lev_body.png'      = 'shell'
     'lev_fin.png'       = 'flesh'
@@ -71,7 +76,7 @@ $Materials = @{
 Write-Host "Drawing the flat art"
 foreach ($script in @('make_sub.ps1', 'make_art.ps1', 'make_particle.ps1', 'make_world.ps1',
                       'make_enemies.ps1', 'make_enemies2.ps1', 'make_creatures.ps1',
-                      'make_ship.ps1')) {
+                      'make_boss4.ps1', 'make_ship.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }

@@ -17,6 +17,10 @@ enum class Sfx
     PartBreak,
     LevelClear,
     BossRoar,
+    CreatureCallA, // something big, far off, that has noticed you
+    CreatureCallB,
+    Hatch,
+    Vent,
     Count
 };
 

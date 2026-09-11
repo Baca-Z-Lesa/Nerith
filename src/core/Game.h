@@ -96,6 +96,19 @@ private:
         float        arm;
     };
 
+    // A crack in the floor that breathes. It glows brighter and brighter while
+    // it builds pressure, then blows a column of scalding water that hurts
+    // whatever is standing on it, the player and the creatures alike. The arena
+    // stops being only a backdrop: there are places in it you cannot stand.
+    struct Vent
+    {
+        sf::Vector2f position;
+        float        radius;
+        float        timer;   // seconds until it blows
+        float        interval;
+        float        erupting; // seconds of eruption left, zero while dormant
+    };
+
     void processEvents();
     void update(float deltaTime);
     void render();
@@ -127,10 +140,17 @@ private:
     void updateTorpedoes(float deltaTime);
     void updateDrones(float deltaTime);
     void updateMines(float deltaTime);
+    void placeVents();
+    void updateVents(float deltaTime);
+    void drawVents();
     void updateSonar(float deltaTime);
     void updateEnemies(float deltaTime);
     void updateBoss(float deltaTime);
     void spawnAmbience(float deltaTime);
+
+    // Something big, a long way off, on a long random timer. Never anything
+    // the player can shoot: it is there to make a quiet stretch feel wrong.
+    void callFromTheDark(float deltaTime);
     void handleCollisions();
     void hurtPlayer(int amount);
     void killEnemy(Enemy& enemy);
@@ -224,6 +244,7 @@ private:
     std::vector<Enemy>      m_enemies;
     std::vector<Drone>      m_drones;
     std::vector<Mine>       m_mines;
+    std::vector<Vent>       m_vents;
     std::vector<HitRing>    m_hitRings;
     std::optional<Boss>     m_boss;
 
@@ -268,6 +289,9 @@ private:
     float m_mineTimer;
     float m_sonarTimer;
     float m_sonarSweep; // 0 when idle, counts down through a ping
+
+    // Seconds until something out in the dark calls. Deliberately long.
+    float m_callTimer;
 
     sf::CircleShape    m_sonarRing;
     sf::CircleShape    m_sonarMark;

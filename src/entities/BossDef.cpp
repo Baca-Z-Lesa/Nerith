@@ -22,6 +22,7 @@ namespace
             2, 40,
             78.0f, 240.0f,
             2.2f, 3, 26.0f,
+            { 0.55f, 1.35f, 3, 1.4f },
             6,
             { {
                 { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  11.0f, -20.0f, 20.0f, 0.62f,   0.0f, 18 },
@@ -47,6 +48,7 @@ namespace
             2, 46,
             34.0f, 0.0f,
             3.0f, 9, 360.0f,
+            { 0.60f, 1.15f, 5, 1.0f },
             7,
             { {
                 { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  62.0f,   0.0f, 26.0f, 0.85f,   0.0f, 26 },
@@ -73,6 +75,7 @@ namespace
             2, 52,
             132.0f, 0.0f,
             1.5f, 5, 54.0f,
+            { 0.58f, 1.30f, 4, 1.5f },
             5,
             { {
                 { PartRole::Fin,   "assets/textures/lev_fin.png",    1,  0.0f, -32.0f, 20.0f, 0.7f, -62.0f, 30 },
@@ -80,6 +83,36 @@ namespace
                 { PartRole::Organ, "assets/textures/worm_vent.png",  2,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
                 { PartRole::Organ, "assets/textures/worm_vent.png",  4,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
                 { PartRole::Organ, "assets/textures/worm_vent.png",  6,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+            } }
+        },
+
+        // =================================================================
+        //  THE HOLLOW
+        //  A crown of bone with nothing inside it. It never closes: it holds
+        //  its distance and winds a turning spiral out of itself, which is
+        //  survivable only by reading which way the arms are sweeping. The
+        //  four lamps on the crown are what it aims with, and every one that
+        //  goes out costs it an arm of the spiral. Behind the ribs there is
+        //  something pale that is the only living part of it left.
+        // =================================================================
+        {
+            "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
+            BossBody::Serpent, BossMind::Spiral,
+            "assets/textures/hol_crown.png", "assets/textures/hol_vertebra.png",
+            1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
+            3, 64,
+            96.0f, 330.0f,
+            0.30f, 4, 90.0f,
+            { 0.70f, 1.20f, 2, 1.0f },
+            7,
+            { {
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f, -30.0f, 18.0f, 0.70f,   0.0f, 26 },
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f,  30.0f, 18.0f, 0.70f,   0.0f, 26 },
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f, -30.0f, 18.0f, 0.70f,   0.0f, 26 },
+                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f,  30.0f, 18.0f, 0.70f,   0.0f, 26 },
+                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 3,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 34 },
+                { PartRole::Armour, "assets/textures/hol_ribs.png",     1,   0.0f,   0.0f, 40.0f, 1.0f,    0.0f, 58 },
+                { PartRole::Organ,  "assets/textures/hol_mass.png",     1,   0.0f,   0.0f, 30.0f, 1.0f,    0.0f, 112 },
             } }
         },
     };

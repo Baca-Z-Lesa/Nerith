@@ -225,6 +225,10 @@ namespace config
     inline constexpr float BossFleeTime = 2.4f;
     inline constexpr float BossEnrageThreshold = 0.35f;
 
+    // Degrees per second the Hollow's spiral arms sweep round. Slow enough to
+    // be read, fast enough that standing still is never the answer.
+    inline constexpr float BossSpiralTurn = 62.0f;
+
     inline constexpr float BossSurfaceTime = 4.2f;
     inline constexpr float BossSubmergeTime = 1.7f;
     inline constexpr float BossRiseTime = 0.6f;
@@ -275,6 +279,24 @@ namespace config
     inline constexpr float LevelIntroDuration = 2.8f;
     inline constexpr float LevelClearDuration = 2.2f;
     inline constexpr float DeathBannerDuration = 2.6f;
+    // --- Hydrothermal vents ---
+    // Cracks in the floor that breathe. They only appear from the second depth
+    // down, and there are more of them the deeper it gets, so the arena itself
+    // becomes an opponent at exactly the point the creatures stop being enough
+    // on their own. Everything they hurt, they hurt equally.
+    inline constexpr int   VentsFirstDepth = 2;
+    inline constexpr int   VentsPerDepth = 2;
+    inline constexpr int   VentsMax = 7;
+    inline constexpr float VentRadiusMin = 74.0f;
+    inline constexpr float VentRadiusMax = 116.0f;
+    inline constexpr float VentIntervalMin = 5.5f;
+    inline constexpr float VentIntervalMax = 9.0f;
+    inline constexpr float VentEruptTime = 1.15f;
+    inline constexpr float VentWarnTime = 1.30f; // glow ramps over this much of the wait
+    inline constexpr int   VentDamage = 2;
+    inline constexpr float VentEnemyDamage = 6.0f; // it cooks creatures harder than it cooks steel
+    inline constexpr sf::Color VentGlowColor{ 236, 132, 62 };
+
     // --- Salvage economy ---
     // Opening up water nobody has cleared is what pays for the tree. Going back
     // over old ground pays a fraction of the kills and no bonus at all, so the
@@ -303,6 +325,14 @@ namespace config
     inline constexpr float VolumePartBreak = 75.0f;
     inline constexpr float VolumeLevelClear = 60.0f;
     inline constexpr float VolumeBossRoar = 85.0f;
+    inline constexpr float VolumeCreatureCall = 52.0f;
+    inline constexpr float VolumeHatch = 46.0f;
+    inline constexpr float VolumeVent = 58.0f;
+
+    // How often something out in the dark calls. Long gaps on purpose: a noise
+    // you hear every few seconds stops being frightening.
+    inline constexpr float CreatureCallMin = 14.0f;
+    inline constexpr float CreatureCallMax = 32.0f;
 
     // =====================================================================
     //  PLAYER SYSTEMS

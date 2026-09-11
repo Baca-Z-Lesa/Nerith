@@ -272,6 +272,91 @@ public static class Synth
         Edges(b, 0.01f);
         return b;
     }
+
+    // Something big, a long way off, that has noticed you. It never resolves
+    // into anything: it is two slow tones sliding past each other, filtered
+    // down until the water has eaten most of it. Played at random during a
+    // fight, which is what stops a quiet stretch from feeling safe.
+    public static float[] CreatureCall(float baseHz)
+    {
+        float len = 3.4f;
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, 190f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+
+            // Slow in, slower out. A call with a hard attack reads as an attack.
+            float env = Math.Min(1f, t / 0.9f) * Decay(t, len, 1.9f);
+
+            // The pitch sags as it runs out of air.
+            float glide = 1f - 0.18f * (t / len);
+            float vib = 1f + 0.035f * (float)Math.Sin(2 * Math.PI * 2.3 * t);
+
+            float a = (float)Math.Sin(2 * Math.PI * baseHz * t * glide * vib);
+            float c = (float)Math.Sin(2 * Math.PI * (baseHz * 1.48) * t * glide) * 0.42f;
+            float d = (float)Math.Sin(2 * Math.PI * (baseHz * 0.51) * t * glide) * 0.55f;
+
+            b[i] = (a + c + d + noise[i] * 0.30f) * env * 0.27f;
+        }
+        Edges(b, 0.05f);
+        return b;
+    }
+
+    // A brooder opening. Wet, short, and low enough to be felt under the
+    // shooting, so a swarm arriving is audible before it is visible.
+    public static float[] Hatch()
+    {
+        float len = 0.42f;
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, 1500f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float env = Decay(t, len, 2.6f);
+
+            // A falling pitch is what makes a pop sound like something giving
+            // way rather than like a click.
+            float sweep = 340f - 250f * (t / len);
+            float body = (float)Math.Sin(2 * Math.PI * sweep * t);
+
+            b[i] = (body * 0.6f + noise[i] * 0.7f) * env * 0.5f;
+        }
+        Edges(b, 0.005f);
+        return b;
+    }
+
+    // A vent letting go: a hiss with a rumble under it, rising then falling,
+    // because superheated water arrives before the noise of the rock does.
+    public static float[] Vent()
+    {
+        float len = 1.5f;
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] hiss = new float[n];
+        for (int i = 0; i < n; i++) hiss[i] = Noise();
+        LowPass(hiss, 2600f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float env = Math.Min(1f, t / 0.12f) * Decay(t, len, 1.7f);
+            float rumble = (float)Math.Sin(2 * Math.PI * 52.0 * t)
+                           + (float)Math.Sin(2 * Math.PI * 78.0 * t) * 0.5f;
+
+            b[i] = (hiss[i] * 0.85f + rumble * 0.35f) * env * 0.40f;
+        }
+        Edges(b, 0.01f);
+        return b;
+    }
 }
 "@
 
@@ -285,7 +370,11 @@ $jobs = @(
     @("player_hurt.wav",     [Synth]::PlayerHurt()),
     @("boss_part_break.wav", [Synth]::PartBreak()),
     @("level_clear.wav",     [Synth]::LevelClear()),
-    @("boss_roar.wav",       [Synth]::BossRoar())
+    @("boss_roar.wav",       [Synth]::BossRoar()),
+    @("creature_call_a.wav", [Synth]::CreatureCall(58.0)),
+    @("creature_call_b.wav", [Synth]::CreatureCall(41.0)),
+    @("hatch.wav",           [Synth]::Hatch()),
+    @("vent.wav",            [Synth]::Vent())
 )
 
 foreach ($job in $jobs) {

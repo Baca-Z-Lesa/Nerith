@@ -88,6 +88,7 @@ Game::Game()
     , m_mineTimer(0.0f)
     , m_sonarTimer(0.0f)
     , m_sonarSweep(0.0f)
+    , m_callTimer(0.0f)
     , m_sonarRing(10.0f, 64)
     , m_sonarMark(9.0f, 3)
     , m_deathOverlay({ static_cast<float>(config::WindowWidth), static_cast<float>(config::WindowHeight) })
@@ -283,6 +284,8 @@ void Game::beginLevel(int number)
     m_enemies.clear();
     m_mines.clear();
     m_hitRings.clear();
+    placeVents();
+    m_callTimer = rng::range(6.0f, config::CreatureCallMax);
     m_boss.reset();
     m_lastSpawnAngle = rng::range(0.0f, 360.0f);
     m_mineTimer = config::MineInterval;
@@ -1056,6 +1059,108 @@ void Game::updateDrones(float deltaTime)
     }
 }
 
+void Game::placeVents()
+{
+    m_vents.clear();
+
+    const int depth = m_level.getDepth();
+    if (depth < config::VentsFirstDepth)
+        return;
+
+    const int wanted = std::min(config::VentsMax,
+                                (depth - config::VentsFirstDepth + 1) * config::VentsPerDepth);
+
+    for (int i = 0; i < wanted; ++i)
+    {
+        // Spread round the basin rather than scattered at random, so a level
+        // never opens with three of them stacked on the spot the sub starts on.
+        const float angle = 360.0f * static_cast<float>(i) / static_cast<float>(wanted)
+                            + rng::range(-22.0f, 22.0f);
+        const float reach = rng::range(config::ArenaRadius * 0.30f, config::ArenaRadius * 0.82f);
+
+        Vent vent;
+        vent.position = WorldCentre
+                        + sf::Vector2f(reach, sf::degrees(angle));
+        vent.radius = rng::range(config::VentRadiusMin, config::VentRadiusMax);
+        vent.interval = rng::range(config::VentIntervalMin, config::VentIntervalMax);
+        // Staggered, so they do not all breathe together.
+        vent.timer = rng::range(1.5f, vent.interval);
+        vent.erupting = 0.0f;
+
+        m_vents.push_back(vent);
+    }
+}
+
+void Game::updateVents(float deltaTime)
+{
+    for (Vent& vent : m_vents)
+    {
+        if (vent.erupting > 0.0f)
+        {
+            vent.erupting -= deltaTime;
+
+            // Damage lands on the frame it opens, not every frame it is open:
+            // standing in it should cost a bite, not delete the sub.
+            if (vent.erupting <= 0.0f)
+                vent.timer = vent.interval;
+
+            continue;
+        }
+
+        vent.timer -= deltaTime;
+        if (vent.timer > 0.0f)
+            continue;
+
+        vent.erupting = config::VentEruptTime;
+        m_audio.play(Sfx::Vent);
+        addShake(config::ShakeTorpedo * 0.7f);
+
+        effects::ventBurst(m_effects, vent.position, vent.radius);
+
+        // The sub and the creatures both, because a hazard that only hurts the
+        // player is a tax, while one that hurts both is a tool. Bosses are the
+        // exception: areaDamage does not reach them, and letting the floor cook
+        // a depth's creature would take the fight away from the player.
+        if ((m_player.getPosition() - vent.position).length() <= vent.radius)
+            hurtPlayer(config::VentDamage);
+
+        areaDamage(vent.position, vent.radius,
+                   std::max(1, static_cast<int>(std::lround(config::VentEnemyDamage))));
+    }
+}
+
+void Game::drawVents()
+{
+    for (const Vent& vent : m_vents)
+    {
+        // Dormant it is a dull ring; as the pressure builds the ring brightens
+        // and thickens, and the eruption is a bright disc. The warning is the
+        // whole point, so it has to be readable before it is dangerous.
+        const bool open = vent.erupting > 0.0f;
+        const float charge = open
+                                 ? 1.0f
+                                 : std::clamp(1.0f - vent.timer / config::VentWarnTime, 0.0f, 1.0f);
+
+        sf::Color glow = config::VentGlowColor;
+        glow.a = static_cast<std::uint8_t>(40.0f + 170.0f * charge);
+
+        const float radius = vent.radius * (open ? 1.0f : 0.62f + 0.38f * charge);
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(vent.position);
+        m_sonarRing.setOutlineThickness(2.5f + 5.5f * charge);
+        m_sonarRing.setOutlineColor(glow);
+
+        sf::Color fill = config::VentGlowColor;
+        fill.a = static_cast<std::uint8_t>(open ? 66.0f * (vent.erupting / config::VentEruptTime)
+                                                : 16.0f * charge);
+        m_sonarRing.setFillColor(fill);
+        m_window.draw(m_sonarRing);
+        m_sonarRing.setFillColor(sf::Color::Transparent);
+    }
+}
+
 void Game::updateMines(float deltaTime)
 {
     if (m_playerStats.has(Trait::Mines) && m_state == State::Fighting)
@@ -1120,6 +1225,24 @@ void Game::updateSonar(float deltaTime)
         m_sonarTimer = config::SonarInterval;
         m_sonarSweep = config::SonarSweepTime;
     }
+}
+
+void Game::callFromTheDark(float deltaTime)
+{
+    // Only while there is a fight to be quiet in. On a menu it would be noise.
+    if (m_state != State::Fighting || m_paused)
+        return;
+
+    m_callTimer -= deltaTime;
+    if (m_callTimer > 0.0f)
+        return;
+
+    m_callTimer = rng::range(config::CreatureCallMin, config::CreatureCallMax);
+
+    // Deeper water calls lower and louder. It is never anything you can shoot.
+    const bool deep = m_level.getDepth() >= 3;
+    m_audio.play(deep ? Sfx::CreatureCallB : Sfx::CreatureCallA,
+                 0.7f + 0.1f * static_cast<float>(m_level.getDepth()));
 }
 
 void Game::spawnAmbience(float deltaTime)
@@ -1308,6 +1431,11 @@ void Game::updateEnemies(float deltaTime)
         m_enemies.back().markHatched();
         effects::enemyDeath(m_effects, hatch.at + offset);
     }
+
+    // One wet pop for the whole brood rather than one per hatchling, which at
+    // four at a time would be a single smeared noise anyway.
+    if (!hatched.empty())
+        m_audio.play(Sfx::Hatch);
 }
 
 void Game::updateBoss(float deltaTime)
@@ -1952,6 +2080,7 @@ void Game::update(float deltaTime)
     updateCamera(deltaTime);
     updateFeel(deltaTime);
     spawnAmbience(deltaTime);
+    callFromTheDark(deltaTime);
 
     // A few frames of held time after something heavy lands. The camera and the
     // ambience above carry on through it, so the pause reads as impact rather
@@ -2023,6 +2152,7 @@ void Game::update(float deltaTime)
                 updateBoss(deltaTime);
                 updateDrones(deltaTime);
                 updateMines(deltaTime);
+                updateVents(deltaTime);
                 updateSonar(deltaTime);
 
                 handleCollisions();
@@ -2094,6 +2224,9 @@ void Game::render()
     m_arena.drawLight(m_window, m_player.getPosition());
 
     m_ambience.draw(m_window);
+
+    // Under everything alive: a vent is a hole in the floor, not an object.
+    drawVents();
 
     for (const Mine& mine : m_mines)
         m_window.draw(mine.sprite);

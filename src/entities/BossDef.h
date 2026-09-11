@@ -8,6 +8,7 @@ enum class BossId
     Leviathan, // the great predator: stalks, telegraphs, charges
     Medusa,    // the bloom sovereign: drifts and pulses rings of stingers
     Worm,      // the trench worm: dives, vanishes, erupts somewhere else
+    Hollow,    // the crown of bone: holds its distance and winds a spiral
     Count
 };
 
@@ -24,6 +25,19 @@ enum class BossMind
     Prowler,  // circles at range, winds up, then charges the player down
     Drifter,  // creeps in and attacks on a slow rhythm
     Burrower, // surfaces, sweeps, dives, comes back somewhere else
+    Spiral,   // keeps its distance and winds a turning spiral out of itself
+};
+
+// What happens when a creature is hurt badly enough to change its mind. Every
+// boss has a second half to its fight, and this is the whole of it: the same
+// behaviour wound tighter, with more coming out of it. Written as data so a new
+// creature gets a second phase by filling in four numbers.
+struct BossRage
+{
+    float cooldownScale = 0.65f; // attacks this much sooner
+    float speedScale = 1.25f;
+    int   extraShots = 2;
+    float spreadScale = 1.2f;
 };
 
 // What a body part is for, and therefore what breaking it costs the creature.
@@ -76,6 +90,8 @@ struct BossDef
     float attackCooldown;
     int   attackShots;
     float attackSpread;   // degrees the volley covers; 360 is a ring
+
+    BossRage rage;
 
     std::size_t partCount;
     std::array<BossPartDef, MaxBossParts> parts;

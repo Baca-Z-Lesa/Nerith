@@ -74,6 +74,7 @@ namespace effects
     void enemyDeath(ParticleSystem& particles, sf::Vector2f position);
     void playerHurt(ParticleSystem& particles, sf::Vector2f position);
     void playerDeath(ParticleSystem& particles, sf::Vector2f position);
+    void ventBurst(ParticleSystem& particles, sf::Vector2f position, float radius);
     void marineSnow(ParticleSystem& particles, sf::Vector2f position);
     void ambientBubble(ParticleSystem& particles, sf::Vector2f position);
 }

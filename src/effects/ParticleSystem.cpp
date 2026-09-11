@@ -184,6 +184,32 @@ void effects::impact(ParticleSystem& particles, sf::Vector2f position, sf::Vecto
                      .count = 12 });
 }
 
+void effects::ventBurst(ParticleSystem& particles, sf::Vector2f position, float radius)
+{
+    // Scalding water goes up and out fast, then the mineral cloud it carried
+    // hangs there and drifts, which is what makes the vent read as hot rather
+    // than as an explosion.
+    particles.emit({ .position = position,
+                     .spread = 3.15f,
+                     .speedMin = radius * 0.9f, .speedMax = radius * 2.4f,
+                     .lifeMin = 0.35f, .lifeMax = 0.95f,
+                     .sizeMin = 4.0f, .sizeMax = 12.0f,
+                     .endSizeScale = 0.3f,
+                     .drag = 2.4f,
+                     .color = { 255, 196, 120, 220 },
+                     .count = 34 });
+
+    particles.emit({ .position = position,
+                     .spread = 3.15f,
+                     .speedMin = 10.0f, .speedMax = radius * 0.8f,
+                     .lifeMin = 1.1f, .lifeMax = 2.4f,
+                     .sizeMin = 6.0f, .sizeMax = 18.0f,
+                     .endSizeScale = 2.0f,
+                     .drag = 1.4f,
+                     .color = { 170, 120, 96, 120 },
+                     .count = 26 });
+}
+
 void effects::enemyDeath(ParticleSystem& particles, sf::Vector2f position)
 {
     // Two layers: a warm flash from the eye, then a cloud of ink and bubbles.

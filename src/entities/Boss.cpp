@@ -38,6 +38,7 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     , m_bellPulse(0.0f)
     , m_visibility(1.0f)
     , m_strafe(rng::range(0.0f, 1.0f) < 0.5f ? -1.0f : 1.0f)
+    , m_spiralAngle(rng::range(0.0f, 360.0f))
     , m_rhythmOpen(false)
     , m_enraged(false)
     , m_hasEntered(false)
@@ -273,9 +274,11 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
     const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
 
     // Hurt badly enough and it breaks off, circles wide, and comes back angry.
-    if (!m_enraged && getCoreFraction() < config::BossEnrageThreshold && m_phase != Phase::Flee)
+    const bool wasEnraged = m_enraged;
+    checkRage();
+
+    if (m_enraged && !wasEnraged && m_phase != Phase::Flee)
     {
-        m_enraged = true;
         m_phase = Phase::Flee;
         m_phaseTimer = config::BossFleeTime;
     }
@@ -295,15 +298,27 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
             m_attackTimer -= deltaTime;
             if (m_attackTimer <= 0.0f)
             {
-                m_attackTimer = m_def->attackCooldown * (m_enraged ? 0.6f : 1.0f);
+                m_attackTimer = m_def->attackCooldown
+                                * (m_enraged ? m_def->rage.cooldownScale : 1.0f);
+
                 const sf::Vector2f muzzle = head + m_heading * m_def->headRadius;
                 const sf::Vector2f aim = direction.rotatedBy(sf::degrees(aimError()));
 
+                // The second half of the fight is the same volley, wider and
+                // with more in it. All four numbers come from the creature's
+                // own rage row rather than from here.
+                const int shots = m_def->attackShots
+                                  + (m_enraged ? m_def->rage.extraShots : 0);
+                const float spread = m_def->attackSpread
+                                     * (m_enraged ? m_def->rage.spreadScale : 1.0f);
+
                 const sf::Angle base = aim.angle();
-                for (int i = 0; i < m_def->attackShots; ++i)
+                for (int i = 0; i < shots; ++i)
                 {
-                    const float step = m_def->attackSpread / static_cast<float>(std::max(1, m_def->attackShots - 1));
-                    const sf::Angle angle = base + sf::degrees(-m_def->attackSpread / 2.0f + step * static_cast<float>(i));
+                    const float step = spread / static_cast<float>(std::max(1, shots - 1));
+                    const sf::Angle angle = base
+                                            + sf::degrees(-spread / 2.0f
+                                                          + step * static_cast<float>(i));
                     m_pending.push_back({ muzzle, unit(angle) });
                 }
             }
@@ -374,8 +389,11 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
 
 void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
 {
+    checkRage();
+
     steer(deltaTime, player, 0.7f);
-    advance(deltaTime, m_speed * m_vitals.mobility);
+    advance(deltaTime, m_speed * m_vitals.mobility
+                           * (m_enraged ? m_def->rage.speedScale : 1.0f));
 
     m_attackTimer -= deltaTime;
 
@@ -399,13 +417,28 @@ void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
     // The burst. Every living arm feeds the ring, so cutting them off is what
     // thins the wall of stingers rather than just shortening a bar.
     const sf::Vector2f centre = m_segments[0].position;
-    const int ring = 4 + 2 * m_vitals.emitters;
+    const int ring = 4 + 2 * m_vitals.emitters
+                     + (m_enraged ? m_def->rage.extraShots : 0);
 
     for (int i = 0; i < ring; ++i)
     {
         const sf::Angle angle = sf::degrees(360.0f * static_cast<float>(i) / static_cast<float>(ring)
                                             + m_time * 24.0f);
         m_pending.push_back({ centre + unit(angle) * (m_def->headRadius * 0.7f), unit(angle) });
+    }
+
+    // Enraged, a second ring goes out between the spokes of the first, so the
+    // gaps the player had learned to stand in close up.
+    if (m_enraged)
+    {
+        for (int i = 0; i < ring; ++i)
+        {
+            const sf::Angle angle = sf::degrees(
+                360.0f * (static_cast<float>(i) + 0.5f) / static_cast<float>(ring)
+                - m_time * 18.0f);
+            m_pending.push_back({ centre + unit(angle) * (m_def->headRadius * 0.45f),
+                                  unit(angle) });
+        }
     }
 
     for (const Part& part : m_parts)
@@ -426,6 +459,8 @@ void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
 
 void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
 {
+    checkRage();
+
     switch (m_phase)
     {
         case Phase::Stalk:
@@ -440,16 +475,24 @@ void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
             m_attackTimer -= deltaTime;
             if (m_attackTimer <= 0.0f)
             {
-                m_attackTimer = m_def->attackCooldown;
+                m_attackTimer = m_def->attackCooldown
+                                * (m_enraged ? m_def->rage.cooldownScale : 1.0f);
+
                 const sf::Vector2f muzzle = m_segments[0].position + m_heading * m_def->headRadius;
                 const sf::Vector2f aim = safeNormal(player - muzzle, m_heading)
                                              .rotatedBy(sf::degrees(aimError()));
                 const sf::Angle base = aim.angle();
 
-                for (int i = 0; i < m_def->attackShots; ++i)
+                const int shots = m_def->attackShots + (m_enraged ? m_def->rage.extraShots : 0);
+                const float spread = m_def->attackSpread
+                                     * (m_enraged ? m_def->rage.spreadScale : 1.0f);
+
+                for (int i = 0; i < shots; ++i)
                 {
-                    const float step = m_def->attackSpread / static_cast<float>(std::max(1, m_def->attackShots - 1));
-                    const sf::Angle angle = base + sf::degrees(-m_def->attackSpread / 2.0f + step * static_cast<float>(i));
+                    const float step = spread / static_cast<float>(std::max(1, shots - 1));
+                    const sf::Angle angle = base
+                                            + sf::degrees(-spread / 2.0f
+                                                          + step * static_cast<float>(i));
                     m_pending.push_back({ muzzle, unit(angle) });
                 }
             }
@@ -515,6 +558,70 @@ void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
     }
 }
 
+void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
+{
+    const sf::Vector2f head = m_segments[0].position;
+    const sf::Vector2f toPlayer = player - head;
+    const float distance = toPlayer.length();
+    const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
+
+    checkRage();
+
+    // It never closes and it never runs. It holds a ring around the player and
+    // keeps turning, so the fight is about reading the sweep rather than about
+    // dodging one telegraphed lunge.
+    const sf::Vector2f tangent{ -direction.y * m_strafe, direction.x * m_strafe };
+    const float pull = (distance - m_def->preferredDistance) / m_def->preferredDistance;
+
+    steer(deltaTime, head + tangent * 190.0f + direction * (pull * 260.0f),
+          0.5f + 0.5f * m_vitals.tracking);
+    advance(deltaTime, m_speed * m_vitals.mobility * (m_enraged ? m_def->rage.speedScale : 1.0f));
+
+    // Enraged, the arms reverse. Everything the player learned about which way
+    // to run stops being true, which is the whole of the second phase.
+    const float turn = config::BossSpiralTurn * (m_enraged ? -1.6f : 1.0f);
+    m_spiralAngle += turn * deltaTime;
+
+    m_attackTimer -= deltaTime;
+    if (m_attackTimer > 0.0f)
+        return;
+
+    m_attackTimer = m_def->attackCooldown * (m_enraged ? m_def->rage.cooldownScale : 1.0f);
+
+    // One arm per living lamp, so putting a lamp out genuinely thins the
+    // spiral rather than only shortening a bar. Blind it completely and it is
+    // down to a single arm it can barely aim.
+    const int lamps = std::max(1, m_vitals.emitters > 0 ? m_vitals.emitters : lampsAlive());
+    const int arms = std::max(1, lamps + (m_enraged ? m_def->rage.extraShots : 0));
+
+    for (int i = 0; i < arms; ++i)
+    {
+        const float spoke = 360.0f * static_cast<float>(i) / static_cast<float>(arms);
+        const sf::Angle angle = sf::degrees(m_spiralAngle + spoke + aimError());
+        m_pending.push_back({ head + unit(angle) * (m_def->headRadius * 0.55f), unit(angle) });
+    }
+}
+
+int Boss::lampsAlive() const
+{
+    int count = 0;
+
+    for (const Part& part : m_parts)
+    {
+        if (part.alive && part.def.role == PartRole::Eye)
+            ++count;
+    }
+    return count;
+}
+
+void Boss::checkRage()
+{
+    // One place, so every creature's second phase starts at the same point in
+    // its life rather than at whatever each think function happened to test.
+    if (!m_enraged && getCoreFraction() < config::BossEnrageThreshold)
+        m_enraged = true;
+}
+
 // ---------------------------------------------------------------------------
 //  Frame
 // ---------------------------------------------------------------------------
@@ -529,6 +636,7 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
         case BossMind::Prowler:  thinkProwler(deltaTime, playerPosition); break;
         case BossMind::Drifter:  thinkDrifter(deltaTime, playerPosition); break;
         case BossMind::Burrower: thinkBurrower(deltaTime, playerPosition); break;
+        case BossMind::Spiral:   thinkSpiral(deltaTime, playerPosition); break;
     }
 
     followChain();
@@ -811,6 +919,8 @@ std::string Boss::getStateLabel() const
             }
         case BossMind::Drifter: return "NUCLEUS EXPOSED";
         case BossMind::Burrower: return "SURFACED";
+        case BossMind::Spiral:
+            return m_enraged ? "THE SPIRAL HAS TURNED" : "WINDING";
     }
     return "";
 }
