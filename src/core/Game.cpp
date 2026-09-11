@@ -1921,7 +1921,7 @@ void Game::updateEnemies(float deltaTime)
         const bool wasAlive = enemy.isAlive();
 
         enemy.update(deltaTime, m_player.getPosition());
-        enemy.confine(m_arena);
+        enemy.confine(m_arena, deltaTime);
 
         // Bleeding can finish something between shots, and that still counts.
         if (wasAlive && !enemy.isAlive())
@@ -3082,7 +3082,10 @@ void Game::render()
     // Everything that lives in the basin is drawn through the camera.
     m_window.setView(m_camera);
 
-    // Far band first: rock past the reef, sliding slower than the floor.
+    // The rock first, then the far boulders standing on it, then the basin cut
+    // out of both. Painting the rock after the far layer would bury it, which
+    // is exactly what used to happen to the basin itself.
+    m_seabed.drawRock(m_window);
     m_seabed.drawFar(m_window, m_cameraCentre);
     m_arena.drawGround(m_window);
     m_seabed.draw(m_window);

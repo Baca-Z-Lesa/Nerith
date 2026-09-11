@@ -58,8 +58,58 @@ namespace config
 
     // The cut edge of the rock, drawn under the floor and showing only where no
     // floor covers it.
-    inline constexpr float WallLip = 34.0f;
-    inline constexpr sf::Color WallLipColor{ 96, 106, 120 };
+    inline constexpr float WallLip = 24.0f;
+    inline constexpr sf::Color WallLipColor{ 62, 72, 86 };
+
+    // --- Making the edge read as a cave rather than as a wall ---
+    // Rock is not turned on a lathe. Each chamber's rim is its radius pushed in
+    // and out by two slow waves round it, which is enough to stop a basin
+    // looking like a diagram of overlapping circles. The collision field and
+    // the drawing both go through the same function, so this changes the shape
+    // of the map and not merely the picture of it.
+    inline constexpr float ChamberRipple = 0.11f;
+
+    // The cut edge, lit. Three bands from outside in: the mass of the rock in
+    // shadow, the cut itself, and then a bright line right on the waterline.
+    // That last line is the whole point - it is what says "this is as far as
+    // you go" without anything having to look like a fence.
+    inline constexpr float WallShelf = 130.0f;    // the dark mass behind the cut
+    inline constexpr sf::Color RockDeepColor{ 22, 26, 34 }; // pillar shafts only
+    inline constexpr float WallRimWidth = 7.0f;
+    inline constexpr sf::Color WallRimLight{ 190, 216, 228, 190 };
+
+    // And the sand right under the rock sits in its shadow, fading back to open
+    // floor. Without this the floor meets the rock as a hard line and the whole
+    // basin reads flat; with it, the wall has somewhere to stand.
+    inline constexpr float WallShadeWidth = 78.0f;
+    inline constexpr sf::Color WallShadeColor{ 2, 6, 11, 190 };
+
+    // Boulders slumped along the foot of the wall. Purely silhouette: they sit
+    // outside the water, so nothing can collide with them, and they exist to
+    // stop the rim from being a curve.
+    inline constexpr int   BouldersPerChamber = 15;
+    inline constexpr float BoulderRadiusMin = 22.0f;
+    inline constexpr float BoulderRadiusMax = 62.0f;
+
+    // --- What a chamber can be ---
+    // A basin of nine identical discs is a shape, not a place. Every chamber
+    // past the first rolls for one of these, and each one changes how the room
+    // is fought rather than only how it looks.
+    inline constexpr float ThroatChance = 0.22f;  // a squeeze, entered down a narrow neck
+    inline constexpr float PillarChance = 0.26f;  // rock columns to break line of fire
+    inline constexpr float PitChance = 0.18f;     // water that will not let you stand still
+    inline constexpr float ThroatCorridorScale = 0.42f;
+
+    inline constexpr int   PillarCountMin = 3;
+    inline constexpr int   PillarCountMax = 6;
+    inline constexpr float PillarRadiusMin = 44.0f;
+    inline constexpr float PillarRadiusMax = 76.0f;
+
+    // The pit's pull, in pixels per second at the middle, mostly round and a
+    // little inward. Strong enough to have to be flown against, never strong
+    // enough to hold anything that commits to leaving.
+    inline constexpr float PitStrength = 190.0f;
+    inline constexpr sf::Color PitMarkColor{ 132, 196, 210, 42 };
 
     // Everything outside the basin is rock, painted as the depth's own floor
     // multiplied down. Darker than the sand by enough that the edge of the map

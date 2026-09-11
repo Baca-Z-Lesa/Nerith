@@ -316,8 +316,14 @@ std::vector<sf::Vector2f> Enemy::takeShots()
     return shots;
 }
 
-void Enemy::confine(const Arena& arena)
+void Enemy::confine(const Arena& arena, float deltaTime)
 {
+    // Dragged by whatever the water is doing here, exactly as the sub is. A
+    // creature caught in a pit circles it instead of coming at you, which is
+    // the whole reason a pit is worth fighting next to.
+    if (m_hasEntered)
+        m_position += arena.currentAt(m_position) * deltaTime;
+
     // The basin is cut out of rock now, so "inside" is a question about the
     // map. A creature still swimming in is left alone; once it is in the water
     // it stays in the water, which is what stops anything gliding through a
@@ -325,6 +331,7 @@ void Enemy::confine(const Arena& arena)
     if (arena.isOpen(m_position, getRadius()))
     {
         m_hasEntered = true;
+        m_sprite.setPosition(m_position);
         return;
     }
 

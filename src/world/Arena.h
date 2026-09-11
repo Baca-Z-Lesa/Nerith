@@ -86,15 +86,52 @@ public:
     // a wall: nests, and the reef dressing.
     sf::Vector2f randomEdgePoint(float inset) const;
 
+    // What kind of room it is. A basin of nine identical discs is a shape
+    // rather than a place, so every chamber past the first rolls for one of
+    // these, and each changes how the room is fought and not only how it looks.
+    enum class ChamberKind
+    {
+        Plain,   // open water
+        Throat,  // entered down a neck too narrow to fight in
+        Pillars, // rock columns standing in it, which break every line of fire
+        Pit,     // water that turns, and will not let anything stand still
+    };
+
     // The shapes themselves, for anything that has to draw the map rather than
     // ask questions about it.
-    struct Chamber { sf::Vector2f centre; float radius; };
+    struct Chamber
+    {
+        sf::Vector2f centre;
+        float        radius;
+        ChamberKind  kind = ChamberKind::Plain;
+        float        phase = 0.0f; // this rim's own offset, so no two match
+    };
+
     struct Corridor { sf::Vector2f from; sf::Vector2f to; float radius; };
+
+    // A column of rock standing in the water: subtracted from the field, so it
+    // stops the sub, the creatures and every shot exactly as the wall does.
+    struct Pillar { sf::Vector2f centre; float radius; };
+
+    // The turning water in a pit, as a disc with a pull that dies at its rim.
+    struct Current { sf::Vector2f centre; float radius; float strength; };
 
     const std::vector<Chamber>& getChambers() const { return m_chambers; }
     const std::vector<Corridor>& getCorridors() const { return m_corridors; }
+    const std::vector<Pillar>& getPillars() const { return m_pillars; }
+
+    // What the water is doing to anything at that point, in pixels per second.
+    // Zero everywhere except inside a pit.
+    sf::Vector2f currentAt(sf::Vector2f position) const;
 
 private:
+    // Where a chamber's rim actually is in a given direction. Both the field
+    // and the drawing go through here, so what is seen and what is collided
+    // with can never drift apart.
+    float edgeRadius(const Chamber& chamber, sf::Vector2f offset) const;
+
+    void buildWallShading();
+    void buildSwirl();
     void buildLightPool();
     void buildGloom();
     void updateCaustics();
@@ -111,6 +148,8 @@ private:
 
     std::vector<Chamber>  m_chambers;
     std::vector<Corridor> m_corridors;
+    std::vector<Pillar>   m_pillars;
+    std::vector<Current>  m_currents;
 
     sf::Vector2f m_start;
     sf::Vector2f m_hallCentre;
@@ -118,8 +157,10 @@ private:
     sf::Vector2f m_boundsMin;
     sf::Vector2f m_boundsMax;
 
-    sf::VertexArray m_rock;   // the lip, drawn under the floor
+    sf::VertexArray m_rock;   // the shelf and the cut lip, drawn under the floor
     sf::VertexArray m_floor;
+    sf::VertexArray m_shade;  // the rim light and the shadow the wall casts inward
+    sf::VertexArray m_swirl;  // the turning water in a pit, redrawn as it turns
     sf::VertexArray m_lightPool;
     sf::VertexArray m_caustics;
     sf::VertexArray m_gloom;

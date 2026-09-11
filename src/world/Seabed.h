@@ -32,6 +32,11 @@ public:
     void update(float deltaTime);
 
     // The floor and everything standing on it. Drawn under the fight.
+    // The rock the whole world is made of, which the basin is then cut out
+    // of. It has to go down before the arena draws its floor, or it paints
+    // over the basin and the map has no visible edges at all.
+    void drawRock(sf::RenderTarget& target) const;
+
     void draw(sf::RenderTarget& target) const;
 
     // Two extra layers that are what actually make a flat top-down scene read

@@ -394,10 +394,13 @@ void Seabed::drawNear(sf::RenderTarget& target, sf::Vector2f cameraCentre) const
     }
 }
 
-void Seabed::draw(sf::RenderTarget& target) const
+void Seabed::drawRock(sf::RenderTarget& target) const
 {
     target.draw(m_sand);
+}
 
+void Seabed::draw(sf::RenderTarget& target) const
+{
     // A contact shadow under every prop, offset the way the key light falls.
     // Nothing else in the scene says "this is standing on the floor" as
     // cheaply, and without it the props look pasted on.

@@ -183,6 +183,11 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
         m_position += movement * speed * deltaTime;
     }
 
+    // Water that turns. A dash is strong enough to leave a pit, ordinary
+    // thrust is not quite, so a pit is something to be crossed on purpose
+    // rather than a place to hold ground in.
+    m_position += arena.currentAt(m_position) * deltaTime;
+
     m_position = arena.clampInside(m_position, config::PlayerRadius);
 
     aimAt(aimTarget);

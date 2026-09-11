@@ -60,7 +60,7 @@ public:
 
     // Keeps a creature that has already swum in inside the water. Anything
     // still crossing the rock to get in is left alone.
-    void confine(const Arena& arena);
+    void confine(const Arena& arena, float deltaTime);
 
     // A number that is only ever this creature's, for as long as it exists.
     // Splitshot and cluster fragments are born inside whatever was just hit,
