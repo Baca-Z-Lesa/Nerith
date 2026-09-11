@@ -775,6 +775,23 @@ void Game::handleUpgradeClick()
     }
 }
 
+void Game::stepSelectedLevel(int delta)
+{
+    // The dive strip is the other half of the hub, and reaching for the mouse
+    // to change one number is the sort of thing that wears a hub out.
+    if (m_state != State::Upgrading)
+        return;
+
+    const int wanted = std::clamp(m_save.selectedLevel + delta, 1, m_save.unlockedLevel);
+    if (wanted == m_save.selectedLevel)
+        return;
+
+    m_save.selectedLevel = wanted;
+    m_upgradeScreen.setLevels(m_save.selectedLevel, m_save.unlockedLevel);
+    m_audio.play(Sfx::Impact, 0.25f);
+    persist();
+}
+
 void Game::stripHull()
 {
     // Only from the hub, and never over a corpse: the game-over tree is a
@@ -974,8 +991,45 @@ void Game::processEvents()
                         performDash();
                     break;
 
-                case sf::Keyboard::Scancode::Enter:
+                case sf::Keyboard::Scancode::Left:
+                    if (upgradesVisible())
+                        m_upgradeScreen.moveFocus({ -1.0f, 0.0f }, m_tree);
+                    break;
+
+                case sf::Keyboard::Scancode::Right:
+                    if (upgradesVisible())
+                        m_upgradeScreen.moveFocus({ 1.0f, 0.0f }, m_tree);
+                    break;
+
+                case sf::Keyboard::Scancode::Up:
+                    if (upgradesVisible())
+                        m_upgradeScreen.moveFocus({ 0.0f, -1.0f }, m_tree);
+                    break;
+
+                case sf::Keyboard::Scancode::Down:
+                    if (upgradesVisible())
+                        m_upgradeScreen.moveFocus({ 0.0f, 1.0f }, m_tree);
+                    break;
+
+                case sf::Keyboard::Scancode::Comma:
+                    stepSelectedLevel(-1);
+                    break;
+
+                case sf::Keyboard::Scancode::Period:
+                    stepSelectedLevel(1);
+                    break;
+
                 case sf::Keyboard::Scancode::Space:
+                    // Space buys whatever the arrow keys have walked to, so the
+                    // whole tree can be worked without ever finding the mouse.
+                    if (upgradesVisible() && m_upgradeScreen.getHovered())
+                    {
+                        handleUpgradeClick();
+                        break;
+                    }
+                    [[fallthrough]];
+
+                case sf::Keyboard::Scancode::Enter:
                     if (m_state == State::Upgrading)
                         diveIntoSelected();
                     break;
@@ -2696,6 +2750,9 @@ void Game::drawControls()
         { "SHIFT",        "DASH, ONCE THE ENGINE TAKES IT" },
         { "F",            "KILL THE LAMP. RUN DARK." },
         { "TAB",          "THE UPGRADE TREE, MID DIVE" },
+        { "ARROWS",       "WALK THE ROOTS, IN THE TREE" },
+        { "SPACE",        "INSTALL WHAT THE ROOTS LANDED ON" },
+        { ",  .",         "PICK THE DIVE, IN THE HUB" },
         { "WHEEL  + -",   "ZOOM THE TREE" },
         { "R",            "STRIP THE HULL BACK, IN THE HUB" },
         { "ESC  OR  P",   "HOLD AT DEPTH" },
@@ -2706,12 +2763,14 @@ void Game::drawControls()
     const float keyX = static_cast<float>(config::WindowWidth) / 2.0f - 300.0f;
     const float whatX = keyX + 250.0f;
 
-    float y = 176.0f;
+    // Fifteen rows now, so the step is tightened to keep the last one on
+    // screen rather than letting it slide off the bottom.
+    float y = 158.0f;
     for (const Row& row : rows)
     {
         appendRow(text, row.key, row.what, y, 1.8f, config::HudSalvageColor,
                   config::HudTextColor, keyX, whatX);
-        y += 38.0f;
+        y += 35.0f;
     }
 
     m_window.draw(text);

@@ -103,17 +103,30 @@ void UpgradeScreen::update(float deltaTime)
     // never be on screen at once and the view has to be drivable.
     sf::Vector2f move{ 0.0f, 0.0f };
 
-    const auto held = [](sf::Keyboard::Scancode a, sf::Keyboard::Scancode b) {
-        return sf::Keyboard::isKeyPressed(a) || sf::Keyboard::isKeyPressed(b);
+    const auto held = [](sf::Keyboard::Scancode key) {
+        return sf::Keyboard::isKeyPressed(key);
     };
 
-    if (held(sf::Keyboard::Scancode::Left, sf::Keyboard::Scancode::A))  move.x += 1.0f;
-    if (held(sf::Keyboard::Scancode::Right, sf::Keyboard::Scancode::D)) move.x -= 1.0f;
-    if (held(sf::Keyboard::Scancode::Up, sf::Keyboard::Scancode::W))    move.y += 1.0f;
-    if (held(sf::Keyboard::Scancode::Down, sf::Keyboard::Scancode::S))  move.y -= 1.0f;
+    // Only WASD pans. The arrow keys walk the roots instead, which would be
+    // the same gesture doing two jobs at once if they dragged the view too.
+    if (held(sf::Keyboard::Scancode::A)) move.x += 1.0f;
+    if (held(sf::Keyboard::Scancode::D)) move.x -= 1.0f;
+    if (held(sf::Keyboard::Scancode::W)) move.y += 1.0f;
+    if (held(sf::Keyboard::Scancode::S)) move.y -= 1.0f;
 
     if (move.lengthSquared() > 0.0f)
+    {
+        // Taking the wheel by hand stops the view chasing the picked node.
+        m_keyboard = false;
         m_pan += move.normalized() * config::TreePanSpeed * deltaTime;
+    }
+    else if (m_keyboard)
+    {
+        // Eased rather than snapped: a jump across the tree loses you, a glide
+        // shows you which way you went.
+        m_pan += (m_panTarget - m_pan)
+                 * std::min(1.0f, config::TreeFollowRate * deltaTime);
+    }
 
     m_pan.x = std::clamp(m_pan.x, -config::TreePanLimit, config::TreePanLimit);
     m_pan.y = std::clamp(m_pan.y, -config::TreePanLimit, config::TreePanLimit);
@@ -127,6 +140,81 @@ void UpgradeScreen::update(float deltaTime)
         m_openness = std::min(target, m_openness + rate * deltaTime);
     else
         m_openness = std::max(target, m_openness - rate * deltaTime);
+}
+
+void UpgradeScreen::recentre()
+{
+    m_pan = { 0.0f, 0.0f };
+    m_panTarget = { 0.0f, 0.0f };
+    m_zoom = 1.0f;
+    m_keyboard = false;
+}
+
+void UpgradeScreen::focusOn(std::size_t index, const UpgradeTree& tree)
+{
+    if (index >= tree.getNodes().size())
+        return;
+
+    if (!m_hovered || *m_hovered != index)
+        m_openness = 0.0f;
+
+    m_hovered = index;
+    m_hoveredLevel.reset();
+    m_keyboard = true;
+
+    // Pan is applied before the zoom, so the negated position is exactly the
+    // offset that puts this node under the origin whatever the zoom is.
+    m_panTarget = -tree.getNodes()[index].position;
+}
+
+void UpgradeScreen::moveFocus(sf::Vector2f direction, const UpgradeTree& tree)
+{
+    const std::vector<UpgradeNode>& nodes = tree.getNodes();
+    if (nodes.empty() || direction.lengthSquared() <= 0.0f)
+        return;
+
+    // Nothing picked yet: start at the hull, which is the one node every root
+    // grows out of.
+    if (!m_hovered || *m_hovered >= nodes.size())
+    {
+        focusOn(0, tree);
+        return;
+    }
+
+    const sf::Vector2f from = nodes[*m_hovered].position;
+    const sf::Vector2f side{ -direction.y, direction.x };
+
+    std::size_t best = *m_hovered;
+    float bestScore = 0.0f;
+    bool found = false;
+
+    for (std::size_t i = 0; i < nodes.size(); ++i)
+    {
+        if (i == *m_hovered)
+            continue;
+
+        const sf::Vector2f delta = nodes[i].position - from;
+        const float forward = delta.dot(direction);
+        if (forward <= 0.0f)
+            continue; // behind you, or exactly sideways
+
+        const float sideways = std::abs(delta.dot(side));
+        if (sideways > forward * 1.8f)
+            continue; // more of a turn than a step
+
+        // Drift across the press costs double, so a step keeps to the limb it
+        // started on whenever anything at all lies straight ahead.
+        const float score = forward + sideways * 2.0f;
+        if (!found || score < bestScore)
+        {
+            found = true;
+            bestScore = score;
+            best = i;
+        }
+    }
+
+    if (found)
+        focusOn(best, tree);
 }
 
 void UpgradeScreen::setLevels(int selected, int unlocked)
@@ -155,6 +243,16 @@ sf::FloatRect UpgradeScreen::levelBounds(int level) const
 
 void UpgradeScreen::setCursor(sf::Vector2f worldPosition, const UpgradeTree& tree)
 {
+    // The mouse is polled every frame whether it moved or not, so without this
+    // a keyboard pick would be wiped again on the very next frame.
+    const bool moved = (worldPosition - m_mouse).lengthSquared() > 1.0f;
+    m_mouse = worldPosition;
+
+    if (m_keyboard && !moved)
+        return;
+
+    m_keyboard = false;
+
     const std::optional<std::size_t> previous = m_hovered;
 
     m_hovered.reset();
@@ -566,14 +664,15 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
         }
         else
         {
-            status = "CLICK TO INSTALL";
+            status = "CLICK OR SPACE TO INSTALL";
         }
 
         pixelfont::append(m_text, status, { config::HudMargin, y }, 1.6f, statusColour);
     }
     else
     {
-        pixelfont::append(m_text, "WASD MOVES.  WHEEL OR +/- ZOOMS.  R STRIPS THE HULL.",
+        pixelfont::append(m_text, "ARROWS PICK.  SPACE INSTALLS.  , . PICK THE DIVE.  "
+                          "WASD PANS.  WHEEL ZOOMS.  R STRIPS THE HULL.",
                           { config::HudMargin, y }, 1.6f, config::HudDimTextColor);
     }
 

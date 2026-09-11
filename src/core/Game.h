@@ -244,6 +244,7 @@ private:
 
     void applyUpgrades();
     void handleUpgradeClick();
+    void stepSelectedLevel(int delta);
     void stripHull();
     bool upgradesVisible() const;
 

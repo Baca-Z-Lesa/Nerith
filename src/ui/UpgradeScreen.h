@@ -20,9 +20,14 @@ class UpgradeScreen
 public:
     UpgradeScreen();
 
-    // Arrow keys or WASD drag the view across the roots; nothing else fits.
+    // WASD drags the view across the roots; the arrow keys walk from node to
+    // node instead, and the view follows whatever they land on.
     void update(float deltaTime);
-    void recentre() { m_pan = { 0.0f, 0.0f }; m_zoom = 1.0f; }
+    void recentre();
+
+    // One step along the roots in that direction, from whatever is picked now.
+    // Picks the hull first if nothing is.
+    void moveFocus(sf::Vector2f direction, const UpgradeTree& tree);
 
     // Mouse wheel, or the plus and minus keys.
     void zoomBy(float steps);
@@ -43,6 +48,8 @@ public:
               const std::string& prompt);
 
 private:
+    void focusOn(std::size_t index, const UpgradeTree& tree);
+
     sf::Vector2f centreOf(const UpgradeNode& node) const;
     sf::FloatRect boundsOf(const UpgradeNode& node) const;
     float nodeRadius() const;
@@ -66,6 +73,14 @@ private:
     int                        m_unlockedLevel = 1;
     sf::Vector2f               m_pan;
     float                      m_zoom = 1.0f;
+
+    // Where the view is being pulled while the keyboard is driving, and the
+    // last place the mouse was seen. A cursor sitting still must not keep
+    // taking the pick back off the arrow keys, so its position is remembered
+    // and only a real move counts.
+    sf::Vector2f               m_panTarget;
+    sf::Vector2f               m_mouse;
+    bool                       m_keyboard = false;
 
     sf::RectangleShape m_backdrop;
     sf::RectangleShape m_box;

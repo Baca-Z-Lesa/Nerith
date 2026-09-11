@@ -658,6 +658,10 @@ namespace config
     // The tree is drawn around the middle of the screen and panned from there.
     inline constexpr sf::Vector2f TreeOrigin{ 640.0f, 372.0f };
     inline constexpr float TreePanSpeed = 620.0f;
+
+    // How fast the view slides to whatever the arrow keys just picked. Fast
+    // enough not to feel like waiting, slow enough to show which way you went.
+    inline constexpr float TreeFollowRate = 7.5f;
     inline constexpr float TreePanLimit = 1150.0f;
     // How fast a node's card unrolls, and how fast it rolls back up. Shutting
     // is faster on purpose: a cursor crossing the tree must not leave a trail
