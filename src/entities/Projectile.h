@@ -32,6 +32,15 @@ public:
     // Spends one body's worth of penetration; true once the shot is used up.
     bool spendPierce();
 
+    // Ricochet: a shot that still has a bounce left turns rather than dying on
+    // the basin wall. `normal` points back into the water.
+    void setBounces(int bounces) { m_bounces = bounces; }
+    bool spendBounce(sf::Vector2f normal);
+
+    // A charged jet is bigger and brighter, so the player can see what the
+    // wait bought them.
+    void setScale(float scale);
+
     bool isAlive() const { return m_alive; }
     void kill() { m_alive = false; }
 
@@ -43,5 +52,7 @@ private:
     float        m_radius;
     int          m_damage;
     int          m_pierce;
+    int          m_bounces;
+    float        m_scale;
     bool         m_alive;
 };

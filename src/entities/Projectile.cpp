@@ -11,6 +11,8 @@ Projectile::Projectile(const sf::Texture& texture, sf::Vector2f position, sf::Ve
     , m_radius(stats.radius)
     , m_damage(std::max(1, damage))
     , m_pierce(std::max(0, pierce))
+    , m_bounces(0)
+    , m_scale(stats.scale)
     , m_alive(true)
 {
     m_sprite.setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
@@ -50,6 +52,30 @@ bool Projectile::spendPierce()
 
     --m_pierce;
     return false;
+}
+
+bool Projectile::spendBounce(sf::Vector2f normal)
+{
+    if (m_bounces <= 0 || normal.lengthSquared() <= 0.0f)
+        return false;
+
+    --m_bounces;
+
+    // Mirror the heading about the wall, then step off it so the shot cannot
+    // be caught by the same boundary test on the very next frame.
+    const sf::Vector2f n = normal.normalized();
+    m_direction = m_direction - n * (2.0f * m_direction.dot(n));
+    m_position += n * (m_radius + 2.0f);
+
+    m_sprite.setRotation(m_direction.angle());
+    m_sprite.setPosition(m_position);
+    return true;
+}
+
+void Projectile::setScale(float scale)
+{
+    m_scale = scale;
+    m_sprite.setScale({ scale, scale });
 }
 
 void Projectile::draw(sf::RenderTarget& target) const

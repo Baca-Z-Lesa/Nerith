@@ -17,6 +17,11 @@ public:
     // Swapped in when the depth changes; rebuilds the lamp and the darkness.
     void applyTheme(const DepthTheme& theme);
 
+    // Extra metres of lamp bought in the tree. Kept separate from the theme so
+    // descending still dims the light: a bigger lamp makes a dark depth
+    // survivable rather than making it look like a shallow one.
+    void setLampBonus(float bonus);
+
     void update(float deltaTime);
 
     // Additive light over the seabed. Drawn before the entities.
@@ -49,4 +54,5 @@ private:
     sf::VertexArray m_caustics;
     sf::VertexArray m_gloom;
     const DepthTheme* m_theme;
+    float             m_lampBonus = 0.0f;
 };

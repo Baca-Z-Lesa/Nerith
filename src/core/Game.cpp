@@ -78,6 +78,8 @@ Game::Game()
     , m_shake(0.0f)
     , m_hitStop(0.0f)
     , m_hurtFlash(0.0f)
+    , m_charge(0.0f)
+    , m_orbitAngle(0.0f)
     , m_optionRow(0)
     , m_creditsScroll(0.0f)
     , m_justBeatCampaign(false)
@@ -293,6 +295,14 @@ void Game::beginLevel(int number)
     m_sonarSweep = 0.0f;
 
     m_player.onLevelStart();
+
+    // The refit crew works between dives, not during one.
+    if (m_playerStats.has(Trait::Refit))
+        m_player.heal(m_playerStats.getInt(Stat::RepairPerLevel, 0));
+
+    // A bought lamp is worth the same at every depth, so it is applied on top
+    // of the theme rather than replacing it.
+    m_arena.setLampBonus(m_playerStats.get(Stat::LampRadius, 0.0f));
 
     // Escorts are rebuilt each level so the count always matches the tree.
     m_drones.clear();
@@ -855,29 +865,78 @@ int Game::getJetDamage() const
     return damage;
 }
 
-void Game::handleShooting()
+void Game::fireJet(sf::Vector2f muzzle, sf::Vector2f direction, float chargeFactor)
 {
-    if (!m_window.hasFocus() || !sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
-        return;
-
-    if (!m_player.tryFire())
-        return;
-
-    const sf::Vector2f muzzle = m_player.getMuzzlePosition();
-    const sf::Vector2f direction = m_player.getAimDirection();
-
     const config::ProjectileStats jet{
         m_playerStats.get(Stat::ProjectileSpeed, config::WaterJet.speed),
-        config::WaterJet.radius,
+        config::WaterJet.radius * (chargeFactor > 1.0f ? 1.8f : 1.0f),
         config::WaterJet.scale
     };
 
-    m_playerShots.emplace_back(m_assets.waterJet, muzzle, direction, jet, getJetDamage(),
-                               m_playerStats.getInt(Stat::Pierce, 0));
+    const int damage = std::max(1, static_cast<int>(std::lround(
+                                       static_cast<float>(getJetDamage()) * chargeFactor)));
+
+    Projectile shot(m_assets.waterJet, muzzle, direction, jet, damage,
+                    m_playerStats.getInt(Stat::Pierce, 0));
+
+    if (m_playerStats.has(Trait::Ricochet))
+        shot.setBounces(m_playerStats.getInt(Stat::RicochetCount, 0));
+
+    if (chargeFactor > 1.0f)
+        shot.setScale(config::WaterJet.scale * 2.1f);
+
+    m_playerShots.push_back(std::move(shot));
+
     effects::muzzleBurst(m_effects, muzzle, direction);
-    m_audio.play(Sfx::JetFire);
+    m_audio.play(Sfx::JetFire, chargeFactor > 1.0f ? 1.6f : 1.0f);
+
+    if (chargeFactor > 1.0f)
+    {
+        addShake(config::ShakeTorpedo * 0.6f);
+        addHitRing(muzzle, config::JetRingRadius * 1.4f, config::CritRingColor);
+    }
 
     ++m_tally.shotsFired;
+}
+
+void Game::handleShooting(float deltaTime)
+{
+    const bool held = m_window.hasFocus()
+                      && sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+
+    // The charge coil turns the fire button into something you hold rather
+    // than something you spam: let go early and it is an ordinary jet, hold it
+    // and one shot carries the whole wait.
+    if (m_playerStats.has(Trait::ChargedShot))
+    {
+        if (held)
+        {
+            m_charge = std::min(config::ChargeTime, m_charge + deltaTime);
+
+            // While winding, the sub does not fire at all.
+            if (m_charge > config::ChargeMinimum)
+                return;
+        }
+        else if (m_charge > config::ChargeMinimum)
+        {
+            const float wound = m_charge / config::ChargeTime;
+            const float factor = 1.0f + (m_playerStats.get(Stat::ChargeMultiplier, 1.0f) - 1.0f)
+                                            * wound;
+            m_charge = 0.0f;
+
+            fireJet(m_player.getMuzzlePosition(), m_player.getAimDirection(), factor);
+            return;
+        }
+        else
+        {
+            m_charge = 0.0f;
+        }
+    }
+
+    if (!held || !m_player.tryFire())
+        return;
+
+    fireJet(m_player.getMuzzlePosition(), m_player.getAimDirection(), 1.0f);
 }
 
 void Game::fireTorpedo()
@@ -1054,8 +1113,12 @@ void Game::updateDrones(float deltaTime)
             continue;
 
         drone.fireTimer = config::DroneFireCooldown;
+        // Drone Teeth is flat damage on top of what a drone does by default.
+        const int bite = config::DroneDamage
+                         + m_playerStats.getInt(Stat::DroneDamage, 0);
+
         m_playerShots.emplace_back(m_assets.waterJet, position, facing,
-                                   config::WaterJet, config::DroneDamage, 0);
+                                   config::WaterJet, bite, 0);
     }
 }
 
@@ -1161,6 +1224,64 @@ void Game::drawVents()
     }
 }
 
+void Game::updateOrbits(float deltaTime)
+{
+    if (!m_playerStats.has(Trait::OrbitShield))
+        return;
+
+    m_orbitAngle += config::OrbitSpeed * deltaTime;
+
+    const int motes = std::max(1, m_playerStats.getInt(Stat::OrbitCount, 0));
+    const sf::Vector2f centre = m_player.getPosition();
+
+    // Each mote eats one orb per frame at most, which keeps a wall of stingers
+    // dangerous even with a full ring up: the motes thin it, they do not delete
+    // it.
+    for (int i = 0; i < motes; ++i)
+    {
+        const sf::Angle angle = sf::degrees(m_orbitAngle
+                                            + 360.0f * static_cast<float>(i)
+                                                  / static_cast<float>(motes));
+        const sf::Vector2f at = centre + unit(angle) * config::OrbitRadius;
+
+        for (Projectile& orb : m_enemyShots)
+        {
+            if (!orb.isAlive())
+                continue;
+
+            const float reach = config::OrbitEatRadius + orb.getRadius();
+            if ((orb.getPosition() - at).lengthSquared() > reach * reach)
+                continue;
+
+            orb.kill();
+            effects::impact(m_effects, orb.getPosition(), -orb.getDirection());
+            m_audio.play(Sfx::Impact, 0.6f);
+            break;
+        }
+    }
+}
+
+void Game::drawOrbits()
+{
+    if (!m_playerStats.has(Trait::OrbitShield))
+        return;
+
+    const int motes = std::max(1, m_playerStats.getInt(Stat::OrbitCount, 0));
+    const sf::Vector2f centre = m_player.getPosition();
+
+    for (int i = 0; i < motes; ++i)
+    {
+        const sf::Angle angle = sf::degrees(m_orbitAngle
+                                            + 360.0f * static_cast<float>(i)
+                                                  / static_cast<float>(motes));
+        const sf::Vector2f at = centre + unit(angle) * config::OrbitRadius;
+
+        m_sonarMark.setPosition(at);
+        m_sonarMark.setOutlineColor(config::HudPipFullEdge);
+        m_window.draw(m_sonarMark);
+    }
+}
+
 void Game::updateMines(float deltaTime)
 {
     if (m_playerStats.has(Trait::Mines) && m_state == State::Fighting)
@@ -1168,7 +1289,11 @@ void Game::updateMines(float deltaTime)
         m_mineTimer -= deltaTime;
         if (m_mineTimer <= 0.0f)
         {
-            m_mineTimer = config::MineInterval;
+            // Deep Mines lays them faster rather than laying two at once: two in
+            // the same place would only ever detonate together.
+            m_mineTimer = config::MineInterval
+                          / std::max(1.0f, static_cast<float>(
+                                              m_playerStats.getInt(Stat::MineCount, 1)));
 
             Mine mine{ sf::Sprite(m_assets.mine), m_player.getSternPosition(),
                        config::MineLifetime, 0.6f };
@@ -1322,6 +1447,28 @@ void Game::updateProjectiles(float deltaTime)
 
     step(m_playerShots);
     step(m_enemyShots);
+
+    // Ricochet: the reef wall stops being the end of a shot and becomes part of
+    // the shot. Bounced off the arena's own edge rather than the far-off kill
+    // boundary, so a carom actually comes back into the fight.
+    if (!m_playerStats.has(Trait::Ricochet))
+        return;
+
+    const float wall = config::ArenaRadius;
+
+    for (Projectile& shot : m_playerShots)
+    {
+        if (!shot.isAlive())
+            continue;
+
+        const sf::Vector2f offset = shot.getPosition() - WorldCentre;
+        if (offset.lengthSquared() < wall * wall)
+            continue;
+
+        // The wall's normal points back at the middle of the basin.
+        if (shot.spendBounce(-offset.normalized()))
+            addHitRing(shot.getPosition(), 22.0f, config::HudDimTextColor);
+    }
 }
 
 void Game::updateTorpedoes(float deltaTime)
@@ -1481,6 +1628,27 @@ void Game::killEnemy(Enemy& enemy)
                                         config::EnemyOrbDamage + m_level.getScaling().bonusDamage);
     }
 
+    // Corpse Bloom: the body is a weapon. Deferred through areaDamage rather
+    // than recursing into killEnemy, so a packed swarm cannot blow the stack.
+    if (m_playerStats.has(Trait::CorpseBloom))
+    {
+        const int bloom = std::max(1, static_cast<int>(std::lround(
+                                          static_cast<float>(enemy.getContactDamage() + 2)
+                                          * config::CorpseBloomFactor * 3.0f)));
+
+        areaDamage(enemy.getPosition(), config::CorpseBloomRadius, bloom);
+        addHitRing(enemy.getPosition(), config::CorpseBloomRadius, config::HudSalvageColor);
+        effects::enemyDeath(m_effects, enemy.getPosition());
+    }
+
+    // Parasite: the sub feeds on what it kills.
+    if (m_playerStats.has(Trait::Lifesteal)
+        && rng::range(0.0f, 1.0f) < m_playerStats.get(Stat::LifestealChance, 0.0f))
+    {
+        m_player.heal(1);
+        addHitRing(m_player.getPosition(), 30.0f, config::HudPipFullEdge);
+    }
+
     awardSalvage(enemy.getSalvage());
     ++m_tally.kills;
 
@@ -1519,6 +1687,31 @@ void Game::hurtPlayer(int amount)
     m_hurtFlash = 1.0f;
     addShake(config::ShakePlayerHurt);
     addHitStop(config::HitStopPlayerHurt);
+
+    // Dead Man: being bitten empties the tubes in every direction at once.
+    // Queued rather than pushed, because this can fire while the shot lists
+    // are being walked.
+    if (m_playerStats.has(Trait::Retaliate))
+    {
+        const int shots = static_cast<int>(config::RetaliateShots);
+        const config::ProjectileStats jet{
+            m_playerStats.get(Stat::ProjectileSpeed, config::WaterJet.speed),
+            config::WaterJet.radius, config::WaterJet.scale
+        };
+
+        for (int i = 0; i < shots; ++i)
+        {
+            const sf::Vector2f direction = unit(sf::degrees(
+                360.0f * static_cast<float>(i) / static_cast<float>(shots)));
+
+            m_pendingPlayerShots.emplace_back(m_assets.waterJet,
+                                              m_player.getPosition() + direction * 22.0f,
+                                              direction, jet, getJetDamage(), 0);
+        }
+
+        addHitRing(m_player.getPosition(), 70.0f, config::HudPipFullEdge);
+        m_audio.play(Sfx::JetFire, 1.5f);
+    }
 }
 
 void Game::handleCollisions()
@@ -1529,6 +1722,18 @@ void Game::handleCollisions()
     const float bleedBonus = m_playerStats.get(Stat::BleedTargetDamage, 0.0f);
     const bool splits = m_playerStats.has(Trait::SplitShot);
     const bool chains = m_playerStats.has(Trait::ChainReaction);
+
+    // Read once rather than per shot per creature: this loop is the hottest
+    // thing in the frame on a busy level.
+    const bool crits = m_playerStats.has(Trait::Crit);
+    const float critChance = m_playerStats.get(Stat::CritChance, 0.0f);
+    const float critBonus = m_playerStats.get(Stat::CritDamage, 0.0f);
+    const bool chills = m_playerStats.has(Trait::Frost);
+    const float chillStrength = m_playerStats.get(Stat::SlowStrength, 0.0f);
+    const float blastRadius = config::TorpedoBlastRadius
+                              + m_playerStats.get(Stat::TorpedoBlast, 0.0f);
+    const bool executes = m_playerStats.has(Trait::Execute);
+    const float executeAt = m_playerStats.get(Stat::ExecuteThreshold, 0.0f);
 
     // Player shots and torpedoes share every rule except what they do on impact.
     const auto resolve = [&](std::vector<Projectile>& shots, bool torpedo) {
@@ -1555,15 +1760,37 @@ void Game::handleCollisions()
                                              static_cast<float>(damage) * (1.0f + bleedBonus))));
                 }
 
+                // A crit doubles, and Cold Eye stacks on top of that doubling.
+                const bool crit = crits && rng::range(0.0f, 1.0f) < critChance;
+                if (crit)
+                {
+                    damage = std::max(1, static_cast<int>(std::lround(
+                                             static_cast<float>(damage) * (2.0f + critBonus))));
+                }
+
                 enemy.takeDamage(damage);
                 if (bleeds && bleedRate > 0.0f)
                     enemy.applyBleed(bleedRate, config::BleedDuration);
+                if (chills)
+                    enemy.applyChill(chillStrength, config::ChillDuration);
+
+                // Cull: anything already this far gone simply stops, which is
+                // what turns a long fight against a hulk into a short one.
+                if (executes && enemy.isAlive()
+                    && enemy.getHealthFraction() <= executeAt)
+                {
+                    enemy.kill();
+                    addHitRing(enemy.getPosition(), enemy.getRadius() * 2.4f,
+                               config::HudBossColor);
+                }
 
                 effects::impact(m_effects, shot.getPosition(), shot.getDirection());
-                m_audio.play(Sfx::Impact);
+                m_audio.play(Sfx::Impact, crit ? 1.5f : 1.0f);
                 addHitRing(shot.getPosition(),
-                           torpedo ? config::TorpedoBlastRadius : config::JetRingRadius,
-                           torpedo ? config::HudBossColor : config::HudPipFullEdge);
+                           crit ? config::CritRingRadius
+                                : (torpedo ? blastRadius : config::JetRingRadius),
+                           crit ? config::CritRingColor
+                                : (torpedo ? config::HudBossColor : config::HudPipFullEdge));
 
                 if (!torpedo)
                     ++m_tally.shotsHit;
@@ -1580,7 +1807,7 @@ void Game::handleCollisions()
                 {
                     // Every torpedo detonates. This is what makes a swarm of
                     // hatchlings answerable without a specific weapon build.
-                    areaDamage(shot.getPosition(), config::TorpedoBlastRadius,
+                    areaDamage(shot.getPosition(), blastRadius,
                                std::max(1, static_cast<int>(std::lround(
                                                 static_cast<float>(shot.getDamage())
                                                 * config::TorpedoSplashFactor))));
@@ -2138,7 +2365,7 @@ void Game::update(float deltaTime)
             {
                 m_tally.seconds += deltaTime;
                 m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
-                handleShooting();
+                handleShooting(deltaTime);
                 emitThrusterTrail(deltaTime);
 
                 updateProjectiles(deltaTime);
@@ -2152,6 +2379,7 @@ void Game::update(float deltaTime)
                 updateBoss(deltaTime);
                 updateDrones(deltaTime);
                 updateMines(deltaTime);
+                updateOrbits(deltaTime);
                 updateVents(deltaTime);
                 updateSonar(deltaTime);
 
@@ -2250,7 +2478,10 @@ void Game::render()
         m_window.draw(drone.sprite);
 
     if (m_player.isAlive())
+    {
         m_player.draw(m_window);
+        drawOrbits();
+    }
 
     // Hit rings sit over the effects: they are the readable part of a hit.
     for (const HitRing& ring : m_hitRings)

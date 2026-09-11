@@ -18,7 +18,10 @@ Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
     , m_aimDirection(1.0f, 0.0f)
     , m_health(std::max(1, static_cast<int>(std::lround(
           static_cast<float>(config::enemyStats(type).health) * scaling.health))))
+    , m_maxHealth(m_health)
     , m_hitFlashTimer(0.0f)
+    , m_chillTimer(0.0f)
+    , m_chillStrength(0.0f)
     , m_bleedTimer(0.0f)
     , m_bleedTick(0.0f)
     , m_bleedRate(0.0f)
@@ -152,6 +155,21 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
 
 void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
 {
+    if (m_chillTimer > 0.0f)
+    {
+        m_chillTimer -= deltaTime;
+        if (m_chillTimer <= 0.0f)
+        {
+            m_chillStrength = 0.0f;
+            m_sprite.setColor(sf::Color::White);
+        }
+    }
+
+    // Chilled water slows everything the creature does, not only how fast it
+    // swims: its guns wind down with it.
+    const float chill = 1.0f - m_chillStrength;
+    deltaTime *= chill;
+
     if (m_fireTimer > 0.0f)
         m_fireTimer -= deltaTime;
 
@@ -289,7 +307,9 @@ void Enemy::applyHitFlash()
 
     m_sprite.setScale({ scale, scale });
 
-    sf::Color tint = strength > 0.0f ? config::EnemyHitFlashTint : sf::Color::White;
+    sf::Color tint = strength > 0.0f ? config::EnemyHitFlashTint
+                     : m_chillTimer > 0.0f ? config::ChillTint
+                                           : sf::Color::White;
 
     // A stealth creature is only a shape in the dark until it is inside the
     // lamp. Being hit gives it away, which is the one tell the player gets.
@@ -311,6 +331,29 @@ void Enemy::takeDamage(int amount)
 {
     m_health -= amount;
     m_hitFlashTimer = config::EnemyHitFlashDuration;
+}
+
+void Enemy::applyChill(float strength, float seconds)
+{
+    // Never all the way to a stop: a frozen creature you can walk away from is
+    // not a fight, and it would make the chill line strictly better than every
+    // other way of dealing with something.
+    m_chillStrength = std::clamp(std::max(m_chillStrength, strength), 0.0f,
+                                 config::MaxChillStrength);
+    m_chillTimer = std::max(m_chillTimer, seconds);
+
+    // It has to be visible, or a player cannot tell a chilled creature from one
+    // that simply has not noticed them yet.
+    m_sprite.setColor(config::ChillTint);
+}
+
+float Enemy::getHealthFraction() const
+{
+    if (m_maxHealth <= 0)
+        return 0.0f;
+
+    return std::clamp(static_cast<float>(m_health) / static_cast<float>(m_maxHealth),
+                      0.0f, 1.0f);
 }
 
 void Enemy::draw(sf::RenderTarget& target) const

@@ -179,7 +179,7 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
     {
         // Multiplying by deltaTime is what makes the speed framerate-independent:
         // the player always covers this many pixels per second of real time.
-        const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed);
+        const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency();
         m_position += movement * speed * deltaTime;
     }
 
@@ -192,6 +192,33 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
     m_visuals.update(m_position, m_aimDirection.angle(), *m_stats, deltaTime);
 }
 
+float Player::urgency() const
+{
+    // Second wind: hurt badly enough, the sub moves and fires like it has
+    // nothing left to lose. A fraction rather than a flag so it reads on the
+    // very hit that takes you under.
+    if (!m_stats->has(Trait::SecondWind))
+        return 1.0f;
+
+    const int maximum = std::max(1, getMaxHealth());
+    const float fraction = static_cast<float>(m_health) / static_cast<float>(maximum);
+
+    return fraction <= config::SecondWindThreshold ? config::SecondWindSpeed : 1.0f;
+}
+
+bool Player::isDesperate() const
+{
+    return urgency() > 1.0f;
+}
+
+void Player::heal(int amount)
+{
+    if (amount <= 0 || m_health <= 0)
+        return;
+
+    m_health = std::min(m_health + amount, getMaxHealth());
+}
+
 bool Player::tryFire()
 {
     if (m_fireTimer > 0.0f)
@@ -201,6 +228,10 @@ bool Player::tryFire()
     // reciprocal. Guarded so a pathological stat cannot divide by zero.
     const float rate = std::max(0.05f, m_stats->get(Stat::FireRate, 1.0f));
     m_fireTimer = config::PlayerFireCooldown / rate;
+
+    if (isDesperate())
+        m_fireTimer *= config::SecondWindFireRate;
+
     return true;
 }
 

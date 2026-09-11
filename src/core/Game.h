@@ -130,7 +130,8 @@ private:
     int  getDepth() const;
 
     // --- combat ---
-    void handleShooting();
+    void handleShooting(float deltaTime);
+    void fireJet(sf::Vector2f muzzle, sf::Vector2f direction, float chargeFactor);
     void fireTorpedo();
     void performDash();
     void emitThrusterTrail(float deltaTime);
@@ -140,6 +141,8 @@ private:
     void updateTorpedoes(float deltaTime);
     void updateDrones(float deltaTime);
     void updateMines(float deltaTime);
+    void updateOrbits(float deltaTime);
+    void drawOrbits();
     void placeVents();
     void updateVents(float deltaTime);
     void drawVents();
@@ -277,6 +280,8 @@ private:
     float m_shake;    // pixels of camera jitter left, decaying
     float m_hitStop;  // seconds the simulation is held still
     float m_hurtFlash; // 1 at the moment of a bite, fading to 0
+    float m_charge;    // seconds the fire button has been held down
+    float m_orbitAngle; // where the defensive motes are in their circle
 
     int   m_optionRow;    // which line of the options screen is selected
     float m_creditsScroll;

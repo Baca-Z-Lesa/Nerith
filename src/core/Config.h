@@ -279,6 +279,28 @@ namespace config
     inline constexpr float LevelIntroDuration = 2.8f;
     inline constexpr float LevelClearDuration = 2.2f;
     inline constexpr float DeathBannerDuration = 2.6f;
+    // --- Chilled water ---
+    // Never all the way to a stop: a creature you can simply walk away from is
+    // not a fight, so the chill line has a ceiling rather than stacking to one.
+    inline constexpr float MaxChillStrength = 0.62f;
+    inline constexpr float ChillDuration = 2.2f;
+    inline constexpr sf::Color ChillTint{ 150, 205, 255 };
+
+    // --- Crits, charges and the rest of the new hardware ---
+    inline constexpr float CritRingRadius = 46.0f;
+    inline constexpr sf::Color CritRingColor{ 255, 226, 128 };
+    inline constexpr float ChargeTime = 0.85f;      // seconds to wind a jet fully
+    inline constexpr float ChargeMinimum = 0.35f;   // below this it is just a jet
+    inline constexpr float RetaliateShots = 10.0f;
+    inline constexpr float CorpseBloomRadius = 96.0f;
+    inline constexpr float CorpseBloomFactor = 0.55f; // of the creature's own max health
+    inline constexpr float OrbitRadius = 62.0f;
+    inline constexpr float OrbitSpeed = 150.0f;       // degrees per second
+    inline constexpr float OrbitEatRadius = 16.0f;
+    inline constexpr float SecondWindThreshold = 0.25f;
+    inline constexpr float SecondWindFireRate = 0.55f; // multiplier on the cooldown
+    inline constexpr float SecondWindSpeed = 1.35f;
+
     // --- Hydrothermal vents ---
     // Cracks in the floor that breathe. They only appear from the second depth
     // down, and there are more of them the deeper it gets, so the arena itself

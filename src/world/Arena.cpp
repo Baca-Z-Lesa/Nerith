@@ -7,6 +7,7 @@
 #include <SFML/Graphics/RenderStates.hpp>
 #include <SFML/System/Angle.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -64,8 +65,8 @@ void Arena::buildLightPool()
         // Built around the origin so drawLight can carry it to the sub.
         appendRingQuad(m_lightPool,
                        { 0.0f, 0.0f }, { 0.0f, 0.0f },
-                       sf::Vector2f(m_theme->lightRadius, a0),
-                       sf::Vector2f(m_theme->lightRadius, a1),
+                       sf::Vector2f(m_theme->lightRadius + m_lampBonus, a0),
+                       sf::Vector2f(m_theme->lightRadius + m_lampBonus, a1),
                        core, edge);
     }
 }
@@ -139,6 +140,16 @@ void Arena::updateCaustics()
         appendRingQuad(m_caustics, start, end, start - edge, end - edge, bright, fade);
         appendRingQuad(m_caustics, start, end, start + edge, end + edge, bright, fade);
     }
+}
+
+void Arena::setLampBonus(float bonus)
+{
+    if (std::abs(bonus - m_lampBonus) < 0.5f)
+        return; // rebuilding the pool every frame would be pointless work
+
+    m_lampBonus = std::max(0.0f, bonus);
+    m_lightPool.clear();
+    buildLightPool();
 }
 
 void Arena::applyTheme(const DepthTheme& theme)

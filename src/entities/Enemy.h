@@ -28,6 +28,15 @@ public:
     void applyBleed(float damagePerSecond, float seconds);
     bool isBleeding() const { return m_bleedTimer > 0.0f; }
 
+    // Chilled water: everything it does gets slower, and it shows.
+    void applyChill(float strength, float seconds);
+    bool isChilled() const { return m_chillTimer > 0.0f; }
+
+    // How much of it is left, which is what an execute threshold is measured
+    // against and what the sonar shows on a wounded creature.
+    float getHealthFraction() const;
+    void kill() { m_health = 0; }
+
     // Directions this creature wants to fire along right now, empty when it is
     // not firing. One call covers aimed shots, shotguns and full rings alike.
     std::vector<sf::Vector2f> takeShots();
@@ -67,7 +76,10 @@ private:
     sf::Vector2f m_position;
     sf::Vector2f m_aimDirection;
     int          m_health;
+    int          m_maxHealth;
     float        m_hitFlashTimer;   // seconds of impact feedback left
+    float        m_chillTimer;
+    float        m_chillStrength;   // 0..0.8 taken off everything it does
     float        m_bleedTimer;
     float        m_bleedTick;
     float        m_bleedRate;

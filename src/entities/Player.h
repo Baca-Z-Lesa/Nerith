@@ -33,6 +33,14 @@ public:
 
     bool tryFire();
     bool tryFireTorpedo();
+
+    // Parasite and the refit crew both put hull back, and neither may overfill
+    // the tank.
+    void heal(int amount);
+
+    // Second wind: true while the sub is hurt badly enough to be running on
+    // fumes, which is what the HUD and the trail read to show it.
+    bool isDesperate() const;
     bool tryDash();
     bool isDashing() const { return m_dashTimer > 0.0f; }
 
@@ -61,6 +69,8 @@ public:
 private:
     // Reads WASD and returns a direction of length 0 or 1.
     static sf::Vector2f readMovementInput();
+
+    float urgency() const; // 1 normally, more when the second wind is up
 
     void aimAt(sf::Vector2f target);
     void updateInvulnerability(float deltaTime);
