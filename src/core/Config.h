@@ -372,8 +372,9 @@ namespace config
     inline constexpr float NestRadius = 44.0f;
     inline constexpr float NestHatchInterval = 4.6f;
     inline constexpr int   NestSalvage = 14;
-    inline constexpr float NestRingMin = 0.52f; // as a fraction of the arena
-    inline constexpr float NestRingMax = 0.88f;
+    // A nest reads back from much further than a creature does: it is the size
+    // of a room and it is bolted to rock.
+    inline constexpr float SonarNestReach = 2.4f;
 
     // The lamp is what lets something find you. Turning it off is the whole
     // second way to play a level: you are nearly blind, but so is everything
@@ -557,6 +558,15 @@ namespace config
     // Threat arrows: how far outside the frame still counts as a threat worth
     // pointing at, and how many can be on screen before it becomes noise. The
     // top inset is deeper because the HUD's own row lives up there.
+    // The basin, small, in the corner. It shows where to go - nests, vents, the
+    // boss, you - and deliberately not what is coming, which is what the threat
+    // arrows are for.
+    inline constexpr float MinimapWidth = 214.0f;
+    inline constexpr float MinimapHeight = 142.0f;
+    inline constexpr float MinimapMargin = 16.0f;
+    inline constexpr sf::Color MinimapBackdrop{ 3, 9, 14, 205 };
+    inline constexpr sf::Color MinimapWater{ 38, 72, 86, 210 };
+
     inline constexpr float ThreatArrowMargin = 34.0f;
     inline constexpr float ThreatArrowTopInset = 104.0f;
     inline constexpr float ThreatArrowRange = 1500.0f;

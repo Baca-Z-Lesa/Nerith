@@ -2409,6 +2409,104 @@ void Game::drawThreatArrows()
         m_window.draw(arrows);
 }
 
+void Game::drawMinimap()
+{
+    const sf::Vector2f low = m_arena.getBoundsMin();
+    const sf::Vector2f high = m_arena.getBoundsMax();
+    const sf::Vector2f span = high - low;
+
+    if (span.x <= 1.0f || span.y <= 1.0f)
+        return;
+
+    // Fitted rather than stretched, so the basin keeps its proportions and the
+    // player can match what they see on it to what they see out of the window.
+    const sf::Vector2f box{ config::MinimapWidth, config::MinimapHeight };
+    const float scale = std::min(box.x / span.x, box.y / span.y);
+
+    const sf::Vector2f corner{ static_cast<float>(config::WindowWidth) - box.x
+                                   - config::MinimapMargin,
+                               static_cast<float>(config::WindowHeight) - box.y
+                                   - config::MinimapMargin };
+    const sf::Vector2f origin = corner + (box - span * scale) / 2.0f;
+
+    const auto toMap = [&](sf::Vector2f world) {
+        return origin + (world - low) * scale;
+    };
+
+    sf::RectangleShape frame(box);
+    frame.setPosition(corner);
+    frame.setFillColor(config::MinimapBackdrop);
+    frame.setOutlineThickness(1.5f);
+    frame.setOutlineColor(config::NodeLockedEdge);
+    m_window.draw(frame);
+
+    // The water, in the same two passes the world uses: every shape, small.
+    sf::VertexArray water(sf::PrimitiveType::Triangles);
+
+    const auto disc = [&water](sf::Vector2f centre, float radius, sf::Color colour) {
+        for (int i = 0; i < 14; ++i)
+        {
+            const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / 14.0f);
+            const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / 14.0f);
+
+            water.append(sf::Vertex{ centre, colour });
+            water.append(sf::Vertex{ centre + sf::Vector2f(radius, a0), colour });
+            water.append(sf::Vertex{ centre + sf::Vector2f(radius, a1), colour });
+        }
+    };
+
+    for (const Arena::Chamber& chamber : m_arena.getChambers())
+        disc(toMap(chamber.centre), std::max(2.0f, chamber.radius * scale), config::MinimapWater);
+
+    for (const Arena::Corridor& corridor : m_arena.getCorridors())
+    {
+        const sf::Vector2f from = toMap(corridor.from);
+        const sf::Vector2f to = toMap(corridor.to);
+        const sf::Vector2f span2 = to - from;
+
+        if (span2.lengthSquared() <= 0.0001f)
+            continue;
+
+        const float width = std::max(1.5f, corridor.radius * scale);
+        const sf::Vector2f across = sf::Vector2f{ -span2.y, span2.x }.normalized() * width;
+
+        water.append(sf::Vertex{ from - across, config::MinimapWater });
+        water.append(sf::Vertex{ from + across, config::MinimapWater });
+        water.append(sf::Vertex{ to + across, config::MinimapWater });
+        water.append(sf::Vertex{ from - across, config::MinimapWater });
+        water.append(sf::Vertex{ to + across, config::MinimapWater });
+        water.append(sf::Vertex{ to - across, config::MinimapWater });
+    }
+
+    m_window.draw(water);
+
+    const auto pip = [&](sf::Vector2f world, float radius, sf::Color colour) {
+        m_sonarMark.setRadius(radius);
+        m_sonarMark.setOrigin({ radius, radius });
+        m_sonarMark.setPosition(toMap(world));
+        m_sonarMark.setOutlineColor(colour);
+        m_sonarMark.setOutlineThickness(2.0f);
+        m_window.draw(m_sonarMark);
+    };
+
+    // What is worth knowing from across the map, and nothing else. Creatures
+    // are deliberately absent: the map tells you where to go, the threat
+    // arrows tell you what is coming.
+    for (const Vent& vent : m_vents)
+        pip(vent.position, 2.5f, config::VentGlowColor);
+
+    for (const Nest& nest : m_nests)
+    {
+        if (nest.alive)
+            pip(nest.position, 4.0f, config::HudSalvageColor);
+    }
+
+    if (m_boss && m_boss->isAlive())
+        pip(m_boss->getPosition(), 5.0f, config::HudBossColor);
+
+    pip(m_player.getPosition(), 3.5f, sf::Color::White);
+}
+
 void Game::drawPauseOverlay()
 {
     // Its own veil rather than the death overlay: pausing is not dying, and a
@@ -2908,6 +3006,26 @@ void Game::render()
             m_sonarMark.setOutlineColor(ping);
             m_window.draw(m_sonarMark);
         }
+
+        // A nest reads back far louder than a creature does: it is cemented to
+        // rock and it is the size of a room. The ping is what makes a sonar
+        // array worth buying on a hunt.
+        sf::Color found = config::HudSalvageColor;
+        found.a = fade;
+
+        for (const Nest& nest : m_nests)
+        {
+            if (!nest.alive
+                || (nest.position - m_player.getPosition()).length() > range * config::SonarNestReach)
+                continue;
+
+            const float mark = config::NestRadius * 1.5f;
+            m_sonarRing.setRadius(mark);
+            m_sonarRing.setOrigin({ mark, mark });
+            m_sonarRing.setPosition(nest.position);
+            m_sonarRing.setOutlineColor(found);
+            m_window.draw(m_sonarRing);
+        }
     }
 
     // Everything from here is pinned to the screen: the darkness closing in is
@@ -2938,7 +3056,10 @@ void Game::render()
     }
 
     if (m_state == State::Fighting && !upgradesVisible() && !m_paused)
+    {
         drawThreatArrows();
+        drawMinimap();
+    }
 
     if (m_state == State::Story)
     {

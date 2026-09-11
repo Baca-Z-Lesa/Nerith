@@ -210,6 +210,11 @@ private:
     // outside it. The basin is far larger than the view, so without these a
     // creature can cross the whole arena and bite before it is ever seen.
     void drawThreatArrows();
+
+    // The basin drawn small in the corner. With a generated map there is no
+    // longer a shape the player can hold in their head, and a hunt across one
+    // without a map is not tense, it is tedious.
+    void drawMinimap();
     void drawPauseOverlay();
 
     // The three flat screens hanging off the title: what the controls are, what
