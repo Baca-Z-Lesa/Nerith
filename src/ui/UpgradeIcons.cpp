@@ -176,6 +176,24 @@ namespace
                 p.head(0.95f, 0.0f, 1.0f, 0.0f, 0.34f);
                 break;
 
+            case Icon::Harpoon:
+                // A barbed head on a line: the barbs are the point of it, so
+                // they are drawn big enough to survive the icon being small.
+                p.line(-0.95f, 0.0f, 0.55f, 0.0f, 0.7f);
+                p.head(0.95f, 0.0f, 1.0f, 0.0f, 0.36f);
+                p.line(0.42f, 0.0f, 0.06f, -0.44f, 0.7f);
+                p.line(0.42f, 0.0f, 0.06f, 0.44f, 0.7f);
+                break;
+
+            case Icon::Pulse:
+                // The hull, and the water leaving it in every direction.
+                p.disc(0.0f, 0.0f, 0.22f, 12);
+                p.arc(0.0f, 0.0f, 0.56f, 0.0f, 360.0f);
+                p.arc(0.0f, 0.0f, 0.92f, 0.0f, 360.0f);
+                p.line(0.56f, 0.0f, 0.92f, 0.0f, 0.6f);
+                p.line(-0.56f, 0.0f, -0.92f, 0.0f, 0.6f);
+                break;
+
             case Icon::Split:
                 p.line(-0.95f, 0.0f, -0.1f, 0.0f);
                 p.line(-0.1f, 0.0f, 0.9f, -0.62f, 0.8f);

@@ -24,6 +24,8 @@ enum class Icon
     Crosshair,
     Crit,         // a crosshair with a spark
     Charge,       // a wound spring
+    Harpoon,      // a barbed head on a line
+    Pulse,        // a body with rings coming off it
 
     // --- torpedoes ---
     Torpedo,

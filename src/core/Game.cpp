@@ -476,6 +476,11 @@ void Game::beginLevel(int number)
     // and not a minute longer: the pressure is meant to be inside a level.
     m_player.repairHull();
     m_hullLost = 0;
+
+    m_harpoon.reset();
+    m_harpoonPull = 0.0f;
+    m_modeTimer = 0.0f;
+    m_fireSlot = 0;
     m_callTimer = rng::range(6.0f, config::CreatureCallMax);
     m_boss.reset();
     m_lastSpawnAngle = rng::range(0.0f, 360.0f);
@@ -1074,6 +1079,13 @@ void Game::processEvents()
                         toggleLamp();
                     break;
 
+                case sf::Keyboard::Scancode::E:
+                    // Round the fitted guns. Nothing happens when only the jet
+                    // is fitted, which is most of the campaign.
+                    if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
+                        cycleFireMode();
+                    break;
+
                 case sf::Keyboard::Scancode::Tab:
                     // Between levels the tree is the screen, so there is nothing
                     // to toggle; after a death there is nothing left to spend.
@@ -1260,10 +1272,280 @@ void Game::handleShooting(float deltaTime)
         }
     }
 
-    if (!held || !m_player.tryFire())
+    if (!held)
+        return;
+
+    // Each mode keeps its own rhythm. The jet goes through the player's fire
+    // timer because everything in the tree tunes it; the other two have their
+    // own clocks, because a harpoon on a jet's cadence would be absurd.
+    switch (modeAt(m_fireSlot))
+    {
+        case FireMode::Harpoon:
+            if (m_modeTimer <= 0.0f)
+            {
+                m_modeTimer = config::HarpoonCooldown;
+                fireHarpoon();
+            }
+            return;
+
+        case FireMode::Pulse:
+            if (m_modeTimer <= 0.0f)
+            {
+                m_modeTimer = config::PulseCooldown;
+                firePulse();
+            }
+            return;
+
+        default:
+            break;
+    }
+
+    if (!m_player.tryFire())
         return;
 
     fireJet(m_player.getMuzzlePosition(), m_player.getAimDirection(), 1.0f);
+}
+
+// ---------------------------------------------------------------------------
+//  Fire modes
+//  The jet, and two guns that are not the jet with different numbers. Cycled
+//  in the water rather than chosen in the hub, because which one is right
+//  changes between one room and the next.
+// ---------------------------------------------------------------------------
+
+int Game::modeCount() const
+{
+    int count = 1; // the jet is always fitted
+    if (m_playerStats.has(Trait::Harpoon))
+        ++count;
+    if (m_playerStats.has(Trait::Pulse))
+        ++count;
+    return count;
+}
+
+Game::FireMode Game::modeAt(int slot) const
+{
+    // Walked rather than indexed, so the slots stay in a fixed order however
+    // many of them are actually fitted.
+    int at = 0;
+    if (at++ == slot)
+        return FireMode::Jet;
+    if (m_playerStats.has(Trait::Harpoon) && at++ == slot)
+        return FireMode::Harpoon;
+    if (m_playerStats.has(Trait::Pulse) && at++ == slot)
+        return FireMode::Pulse;
+
+    return FireMode::Jet;
+}
+
+void Game::cycleFireMode()
+{
+    const int count = modeCount();
+    if (count <= 1)
+        return;
+
+    m_fireSlot = (m_fireSlot + 1) % count;
+    m_audio.play(Sfx::Impact, 1.6f);
+}
+
+const char* Game::modeName(FireMode mode)
+{
+    switch (mode)
+    {
+        case FireMode::Harpoon: return "HARPOON";
+        case FireMode::Pulse:   return "PULSE";
+        default:                return "JET";
+    }
+}
+
+void Game::fireHarpoon()
+{
+    // One line at a time. A second head in the water while the first is still
+    // dragging you would be two anchors pulling opposite ways.
+    if (m_harpoon || m_harpoonPull > 0.0f)
+        return;
+
+    const sf::Vector2f muzzle = m_player.getMuzzlePosition();
+    const sf::Vector2f direction = m_player.getAimDirection();
+
+    const config::ProjectileStats head{ config::HarpoonSpeed, 7.0f, config::WaterJet.scale * 1.4f };
+
+    int damage = config::HarpoonDamage
+                 + std::max(0, m_playerStats.getInt(Stat::ProjectileDamage,
+                                                    config::WaterJetDamage) / 2);
+
+    if (m_player.isBroken(Player::Hull::Gun))
+    {
+        damage = std::max(1, static_cast<int>(std::lround(
+                                 static_cast<float>(damage) * config::BrokenGunDamage)));
+    }
+
+    m_harpoon.emplace(m_assets.torpedo, muzzle, direction, head, damage, 0);
+    m_harpoonFrom = muzzle;
+
+    effects::muzzleBurst(m_effects, muzzle, direction);
+    m_audio.play(Sfx::JetFire, 0.7f);
+    m_noiseTimer = config::NoiseDuration;
+    ++m_tally.shotsFired;
+}
+
+void Game::firePulse()
+{
+    const sf::Vector2f at = m_player.getPosition();
+
+    int damage = config::PulseDamage
+                 + std::max(0, m_playerStats.getInt(Stat::ProjectileDamage,
+                                                    config::WaterJetDamage) / 3);
+
+    if (m_player.isBroken(Player::Hull::Gun))
+    {
+        damage = std::max(1, static_cast<int>(std::lround(
+                                 static_cast<float>(damage) * config::BrokenGunDamage)));
+    }
+
+    areaDamage(at, config::PulseRadius, damage);
+
+    // The cold is the point. A pulse that only hurt would be a worse torpedo;
+    // one that leaves everything it touched slow is how you get out of a room
+    // that has closed around you.
+    for (Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive() || !enemy.isVulnerable())
+            continue;
+
+        if ((enemy.getPosition() - at).length() <= config::PulseRadius + enemy.getRadius())
+            enemy.applyChill(config::PulseChill, config::PulseChillTime);
+    }
+
+    // Hostile water goes with it, which is the other half of why it is the
+    // answer to being surrounded.
+    for (Projectile& shot : m_enemyShots)
+    {
+        if (shot.isAlive() && (shot.getPosition() - at).length() <= config::PulseRadius)
+            shot.kill();
+    }
+
+    effects::ventBurst(m_effects, at, config::PulseRadius * 0.6f);
+    addHitRing(at, config::PulseRadius, config::PulseColor);
+    addShake(config::ShakeTorpedo * 0.7f);
+    m_audio.play(Sfx::Vent, 1.25f);
+
+    m_noiseTimer = config::NoiseDuration;
+    ++m_tally.shotsFired;
+}
+
+void Game::updateHarpoon(float deltaTime)
+{
+    // Being dragged. Steering is ignored for the third of a second it lasts,
+    // which is exactly what makes it worth firing across a room.
+    if (m_harpoonPull > 0.0f)
+    {
+        m_harpoonPull -= deltaTime;
+
+        const sf::Vector2f offset = m_harpoonTo - m_player.getPosition();
+        const float distance = offset.length();
+
+        if (distance <= 26.0f)
+        {
+            m_harpoonPull = 0.0f;
+        }
+        else
+        {
+            const sf::Vector2f step = offset / distance
+                                      * std::min(distance, config::HarpoonPullSpeed * deltaTime);
+
+            m_player.setPosition(m_arena.clampInside(m_player.getPosition() + step,
+                                                     config::PlayerRadius));
+            emitThrusterTrail(deltaTime);
+        }
+    }
+
+    if (!m_harpoon)
+        return;
+
+    m_harpoon->update(deltaTime);
+
+    const sf::Vector2f at = m_harpoon->getPosition();
+    const bool tooFar = (at - m_harpoonFrom).length() > config::HarpoonReach;
+
+    // Rock stops it and it still pulls: the wall is a handhold, which is the
+    // whole reason the line is a movement tool and not only a weapon.
+    if (!m_harpoon->isAlive() || tooFar || !m_arena.isOpen(at, 0.0f))
+    {
+        if (!tooFar && m_harpoon->isAlive())
+        {
+            m_harpoonTo = m_arena.clampInside(at, config::PlayerRadius + 4.0f);
+            m_harpoonPull = config::HarpoonPullTime;
+            m_audio.play(Sfx::Impact, 1.3f);
+            addHitRing(at, 40.0f, config::HarpoonLineColor);
+        }
+
+        m_harpoon.reset();
+        return;
+    }
+
+    for (Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive() || !enemy.isVulnerable())
+            continue;
+
+        const float reach = m_harpoon->getRadius() + enemy.getRadius();
+        if ((enemy.getPosition() - at).lengthSquared() > reach * reach)
+            continue;
+
+        if (enemy.deflects(at))
+        {
+            effects::impact(m_effects, at, -m_harpoon->getDirection());
+            m_audio.play(Sfx::Impact, 0.6f);
+            m_harpoon.reset();
+            return;
+        }
+
+        enemy.takeDamage(m_harpoon->getDamage());
+        effects::impact(m_effects, at, m_harpoon->getDirection());
+        m_audio.play(hitVoice(enemy.getType()), 1.2f);
+        addHitRing(at, config::JetRingRadius, config::HarpoonLineColor);
+        ++m_tally.shotsHit;
+
+        if (!enemy.isAlive())
+            killEnemy(enemy);
+
+        // It bites into whatever it hit and hauls you to it, alive or not.
+        m_harpoonTo = enemy.getPosition();
+        m_harpoonPull = config::HarpoonPullTime;
+
+        m_harpoon.reset();
+        return;
+    }
+}
+
+void Game::drawHarpoon()
+{
+    if (!m_harpoon && m_harpoonPull <= 0.0f)
+        return;
+
+    // The line, drawn as a thin quad from the muzzle to wherever the head is,
+    // because a harpoon without a visible line is a slow bullet.
+    const sf::Vector2f from = m_player.getMuzzlePosition();
+    const sf::Vector2f to = m_harpoon ? m_harpoon->getPosition() : m_harpoonTo;
+
+    const sf::Vector2f span = to - from;
+    if (span.lengthSquared() <= 1.0f)
+        return;
+
+    const sf::Vector2f across = sf::Vector2f{ -span.y, span.x }.normalized() * 1.6f;
+
+    sf::VertexArray line(sf::PrimitiveType::Triangles);
+    line.append(sf::Vertex{ from - across, config::HarpoonLineColor });
+    line.append(sf::Vertex{ from + across, config::HarpoonLineColor });
+    line.append(sf::Vertex{ to + across, config::HarpoonLineColor });
+    line.append(sf::Vertex{ from - across, config::HarpoonLineColor });
+    line.append(sf::Vertex{ to + across, config::HarpoonLineColor });
+    line.append(sf::Vertex{ to - across, config::HarpoonLineColor });
+    m_window.draw(line);
+
+    if (m_harpoon)
+        m_harpoon->draw(m_window);
 }
 
 void Game::fireTorpedo()
@@ -3282,6 +3564,7 @@ void Game::drawControls()
         { "SHIFT",        "DASH, ONCE THE ENGINE TAKES IT" },
         { "F",            "KILL THE LAMP. RUN DARK." },
         { "TAB",          "THE UPGRADE TREE, MID DIVE" },
+        { "E",            "CYCLE THE FITTED GUNS" },
         { "ARROWS",       "WALK THE ROOTS, IN THE TREE" },
         { "SPACE",        "INSTALL WHAT THE ROOTS LANDED ON" },
         { ",  .",         "PICK THE DIVE, IN THE HUB" },
@@ -3685,6 +3968,11 @@ void Game::update(float deltaTime)
                 updateVents(deltaTime);
                 updateNests(deltaTime);
                 updateCargo(deltaTime);
+
+                if (m_modeTimer > 0.0f)
+                    m_modeTimer -= deltaTime;
+
+                updateHarpoon(deltaTime);
                 updateSonar(deltaTime);
 
                 handleCollisions();
@@ -3829,6 +4117,8 @@ void Game::render()
 
     for (const Projectile& torpedo : m_torpedoes)
         torpedo.draw(m_window);
+
+    drawHarpoon();
 
     for (const Drone& drone : m_drones)
         m_window.draw(drone.sprite);
@@ -4007,6 +4297,7 @@ void Game::render()
         info.streakLoud = m_streak >= config::StreakLoud;
         info.held = m_diveSalvage;
         info.broken = m_player.getBrokenMask();
+        info.mode = modeCount() > 1 ? modeName(modeAt(m_fireSlot)) : nullptr;
         info.streakBonus = static_cast<int>(std::lround(
             config::StreakSalvageStep * 100.0f
             * static_cast<float>(std::min(m_streak, config::StreakSalvageCap))));

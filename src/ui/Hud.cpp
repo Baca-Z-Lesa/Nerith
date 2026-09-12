@@ -96,6 +96,19 @@ void Hud::drawSystems(sf::RenderTarget& target, const LevelInfo& level)
         target.draw(m_small);
     }
 
+    // Which gun is up. Only drawn when there is more than one fitted, because
+    // a label that never changes is a label nobody reads.
+    if (level.mode != nullptr)
+    {
+        y += level.maxShieldCharges > 0 ? 18.0f : 0.0f;
+
+        m_text.clear();
+        pixelfont::append(m_text, level.mode, { config::HudMargin, y }, 1.5f,
+                          config::HudPipFullColor);
+        target.draw(m_text);
+        y += 18.0f;
+    }
+
     // What this dive has already cost, named rather than counted. Four short
     // words under the hull is the difference between "I am on low health" and
     // "I have no torpedoes and no dash".
@@ -103,7 +116,7 @@ void Hud::drawSystems(sf::RenderTarget& target, const LevelInfo& level)
     {
         static const char* const names[] = { "SONAR", "TUBE", "GUN", "ENGINE" };
 
-        y += level.maxShieldCharges > 0 ? 18.0f : 0.0f;
+        y += (level.maxShieldCharges > 0 && level.mode == nullptr) ? 18.0f : 0.0f;
 
         float x = config::HudMargin;
         for (unsigned int i = 0; i < 4; ++i)
@@ -124,7 +137,7 @@ void Hud::drawSystems(sf::RenderTarget& target, const LevelInfo& level)
     if (!level.hasDash)
         return;
 
-    if (level.maxShieldCharges > 0 && level.broken == 0u)
+    if (level.maxShieldCharges > 0 && level.broken == 0u && level.mode == nullptr)
         y += 18.0f;
 
     m_bar.setSize({ 70.0f, 4.0f });

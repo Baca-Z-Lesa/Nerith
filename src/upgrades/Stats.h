@@ -76,6 +76,8 @@ enum class Trait
     OrbitShield,     // motes circle the sub and eat incoming orbs
     SecondWind,      // hurt badly, the sub fires and moves faster
     Refit,           // the hull comes back between dives
+    Harpoon,         // a fire mode: a heavy head on a line that drags you to it
+    Pulse,           // a fire mode: no projectile at all, the water itself
     Count
 };
 

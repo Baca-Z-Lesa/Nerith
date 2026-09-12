@@ -371,6 +371,26 @@ namespace config
     // Warden: a shot inside this many degrees either side of where it faces is
     // turned away entirely. Wide enough that backing off does not work,
     // narrow enough that going round it is a real answer.
+    // --- Fire modes ---
+    // Two guns that are not the jet with different numbers. The harpoon is
+    // mobility as much as a weapon: it lands, and then it pulls you to it. The
+    // pulse has no projectile at all, which makes it the answer to being
+    // surrounded rather than to anything at range.
+    inline constexpr float HarpoonSpeed = 980.0f;
+    inline constexpr int   HarpoonDamage = 9;
+    inline constexpr float HarpoonCooldown = 0.95f;
+    inline constexpr float HarpoonReach = 720.0f;  // how far the line runs out
+    inline constexpr float HarpoonPullSpeed = 1350.0f;
+    inline constexpr float HarpoonPullTime = 0.34f;
+    inline constexpr sf::Color HarpoonLineColor{ 196, 208, 214 };
+
+    inline constexpr float PulseRadius = 210.0f;
+    inline constexpr int   PulseDamage = 7;
+    inline constexpr float PulseCooldown = 1.25f;
+    inline constexpr float PulseChill = 0.55f;
+    inline constexpr float PulseChillTime = 2.2f;
+    inline constexpr sf::Color PulseColor{ 150, 226, 255 };
+
     inline constexpr float BulwarkArc = 78.0f;
 
     // --- What a beating does to the sub ---

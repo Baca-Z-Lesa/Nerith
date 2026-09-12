@@ -159,6 +159,21 @@ private:
     int  getDepth() const;
 
     // --- combat ---
+    // The jet, and two guns that are not the jet with different numbers.
+    // Cycled in the water rather than chosen in the hub, because which one is
+    // right changes between one room and the next.
+    enum class FireMode { Jet, Harpoon, Pulse };
+
+    int      modeCount() const;
+    FireMode modeAt(int slot) const;
+    void     cycleFireMode();
+    static const char* modeName(FireMode mode);
+
+    void fireHarpoon();
+    void firePulse();
+    void updateHarpoon(float deltaTime);
+    void drawHarpoon();
+
     void handleShooting(float deltaTime);
     void fireJet(sf::Vector2f muzzle, sf::Vector2f direction, float chargeFactor);
     void fireTorpedo();
@@ -329,6 +344,17 @@ private:
     std::vector<Cargo>      m_cargo;
     std::vector<HitRing>    m_hitRings;
     std::optional<Boss>     m_boss;
+
+    // The harpoon is kept apart from the shot list: there is only ever one, it
+    // has its own collision rules, and while it is dragging the sub it is not
+    // a projectile at all.
+    std::optional<Projectile> m_harpoon;
+    sf::Vector2f              m_harpoonFrom;
+    sf::Vector2f              m_harpoonTo;
+    float                     m_harpoonPull = 0.0f;
+
+    int   m_fireSlot = 0;     // which fitted mode is selected
+    float m_modeTimer = 0.0f; // the cooldown the non-jet modes run on
 
     // Two layers: ambience sits under the entities, impacts sit over them.
     ParticleSystem m_ambience;

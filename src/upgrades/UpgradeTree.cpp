@@ -152,10 +152,13 @@ void UpgradeTree::build()
           20, 0, Icon::Cluster, { "wpn4" },
           { { Stat::SplitCount, 2.0f, 0.0f }, { Stat::FireRate, 0.0f, 0.20f } },
           {}, {}, cell(0, 1, 1) },
-        { "wpn6", "TWIN BORE", "+1 flat damage and +20% fire rate. A second barrel.",
-          28, 0, Icon::TwinCannon, { "wpn5" },
+        // The end of each weapon limb is a different gun rather than another
+        // number. E cycles whatever is fitted, so which one is right is decided
+        // in the water instead of in the hub.
+        { "wpn6", "HARPOON RIG", "+1 damage. Fits the harpoon: a head on a line that drags you to what it hits.",
+          28, 0, Icon::Harpoon, { "wpn5" },
           { { Stat::ProjectileDamage, 1.0f, 0.0f }, { Stat::FireRate, 0.0f, 0.20f } },
-          {}, { ShipPart::TwinCannon }, cell(0, 1, 2) },
+          { Trait::Harpoon }, { ShipPart::TwinCannon }, cell(0, 1, 2) },
 
         { "wpn7", "NARROW BORE", "+40% jet speed. Easier to lead a darter.",
           14, 0, Icon::Pierce, { "wpn3" },
@@ -163,10 +166,10 @@ void UpgradeTree::build()
         { "wpn8", "LANCE", "Jets punch through two extra creatures.",
           20, 0, Icon::Crosshair, { "wpn7" },
           { { Stat::Pierce, 2.0f, 0.0f } }, {}, {}, cell(0, 2, 1) },
-        { "wpn9", "RAILJET", "+2 flat damage, -20% fire rate. One shot, all of it.",
-          28, 0, Icon::Cannon, { "wpn8" },
+        { "wpn9", "PRESSURE PULSE", "+2 damage. Fits the pulse: no shot at all, the water itself, and it leaves them cold.",
+          28, 0, Icon::Pulse, { "wpn8" },
           { { Stat::ProjectileDamage, 2.0f, 0.0f }, { Stat::FireRate, 0.0f, -0.20f } },
-          {}, { ShipPart::HeavyCannon }, cell(0, 2, 2) },
+          { Trait::Pulse }, { ShipPart::HeavyCannon }, cell(0, 2, 2) },
 
         // ==================== TORPEDOES ====================
         { "tor1", "TORPEDO TUBE", "Right mouse fires a slow, heavy torpedo that detonates.",
