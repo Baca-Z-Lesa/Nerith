@@ -436,6 +436,7 @@ private:
     float m_bubbleTimer;
     float m_thrusterTimer;
     float m_mineTimer;
+    float m_navTimer = 0.0f;  // when the flow field was last swept
     float m_sonarTimer;
     float m_sonarSweep; // 0 when idle, counts down through a ping
 

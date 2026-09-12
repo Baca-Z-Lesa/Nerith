@@ -47,12 +47,31 @@ a bonus that grows with the level; going back over old ground pays a third of
 the kills and no bonus, so the way to afford anything is downward.
 
 No two dives are in the same water. The basin is generated per level from a
-seed: nine chambers walked outward from the mouth with corridors cut between
-them and side branches off roughly half, all resolved into one signed distance
-field, so rock is solid, corners are real cover and a creature on the other side
-of a wall has to come around it. Boss levels open into one hall instead. A
-minimap in the corner is the only reason any of it is navigable, and arrows at
-the screen edge point at what is hunting you off it.
+seed and it is a maze rather than a chain: sixteen rooms walked outward from
+the mouth, each cut from two to four lobes so no room is a circle, passages
+that bend and vary in width between them, dead ends hanging off them, and
+several loops tied back across the whole thing. One room in five is far larger
+than the rest, so the map has a rhythm instead of only a length.
+
+Nothing in it is a straight line. Every rim is four harmonics with weights
+rolled per room, leaning off its own centre; passages are cut as runs of
+overlapping wobbled mouthfuls rather than as capsules; and lumps of rock are
+bitten out of the walls, biting into the passages too but never far enough to
+seal one. It all resolves into one signed distance field, so rock is solid,
+corners are real cover and a creature on the other side of a wall has to come
+around it.
+
+Coming around it is a graph and a grid. The rooms and their passages are a
+graph, walked once at generation time so every pair of rooms knows its next
+hop; underneath it a grid of open cells gets a breadth-first sweep out from the
+sub a few times a second, so anything that has lost its line reads its own cell
+and swims the way that leads somewhere. Without the grid the graph is right
+until both ends are in the same room with a pillar between them, and that case
+used to leave one creature alive and unreachable for the rest of a level.
+
+Boss levels open into one hall instead. A minimap in the corner is the only
+reason any of it is navigable, and arrows at the screen edge point at what is
+hunting you off it.
 
 There are four kinds of dive. Most are fought: hold what ground you can
 and kill what arrives. A hunt is not — the nests are cemented to rock out at

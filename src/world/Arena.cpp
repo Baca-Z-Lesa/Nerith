@@ -20,6 +20,21 @@ namespace
         return sf::degrees(360.0f * static_cast<float>(index) / static_cast<float>(Segments));
     }
 
+    // A passage is now cut from hundreds of small mouthfuls, and a mouthful
+    // seventy pixels across does not need ninety-six sides to look round. The
+    // count follows the size, which is the difference between the basin
+    // costing a hundred thousand vertices and costing half a million.
+    std::size_t segmentsFor(float radius)
+    {
+        return static_cast<std::size_t>(std::clamp(radius / 3.0f, 24.0f,
+                                                   static_cast<float>(Segments)));
+    }
+
+    sf::Angle segmentAngle(std::size_t index, std::size_t count)
+    {
+        return sf::degrees(360.0f * static_cast<float>(index) / static_cast<float>(count));
+    }
+
     // Appends one quad of a ring as two triangles.
     void appendRingQuad(sf::VertexArray& array,
                         sf::Vector2f inner0, sf::Vector2f inner1,
@@ -101,66 +116,187 @@ void Arena::generate(unsigned int seed, bool bossRoom)
     m_corridors.clear();
     m_pillars.clear();
     m_currents.clear();
+    m_rooms.clear();
+    m_links.clear();
+    m_nextHop.clear();
 
-    // The first chamber is where the dive starts, and it is always roomy: an
-    // opening thirty pixels wide with something already in it is not a fight.
-    sf::Vector2f cursor = m_center;
-    m_chambers.push_back({ cursor, config::ChamberStartRadius, ChamberKind::Plain,
-                           random.range(0.0f, 6.28f) });
-    m_start = cursor;
+    // A room is not a circle. It is two to four lobes of different sizes
+    // pushed off a common centre, unioned into one cavern - which is what
+    // stops a basin reading as a diagram of overlapping discs and starts it
+    // reading as something water carved.
+    const auto addRoom = [&](sf::Vector2f centre, float radius, ChamberKind kind) {
+        const int index = static_cast<int>(m_rooms.size());
+        m_rooms.push_back({ centre, radius, kind });
+        m_links.emplace_back();
+
+        // Every lobe gets its own outline, not the same one turned round.
+        const auto warped = [&](sf::Vector2f at, float size) {
+            Chamber lobe{ at, size, kind, random.range(0.0f, 6.28f), {}, 0.0f };
+
+            lobe.warp[0] = random.range(0.34f, 0.62f);
+            lobe.warp[1] = random.range(0.16f, 0.38f);
+            lobe.warp[2] = random.range(0.06f, 0.20f);
+            lobe.warp[3] = random.range(0.03f, 0.12f);
+
+            // Every term pulling the same way at once, which is the worst case
+            // the field has to allow for.
+            const float swing = lobe.warp[0] + lobe.warp[1] + lobe.warp[2] + lobe.warp[3];
+            lobe.reach = size * (1.0f + config::ChamberLean * lobe.warp[0])
+                         * (1.0f + config::ChamberRipple * swing);
+
+            m_chambers.push_back(lobe);
+        };
+
+        warped(centre, radius);
+
+        const int lobes = static_cast<int>(random.range(
+            static_cast<float>(config::LobesMin), static_cast<float>(config::LobesMax) + 0.999f));
+
+        for (int i = 0; i < lobes; ++i)
+        {
+            const float angle = random.range(0.0f, 360.0f);
+            const float out = radius * random.range(config::LobeOffsetMin, config::LobeOffsetMax);
+            const float size = radius * random.range(config::LobeScaleMin, config::LobeScaleMax);
+
+            warped(centre + sf::Vector2f(out, sf::degrees(angle)), size);
+        }
+
+        return index;
+    };
+
+    // A passage bends. Cut as a chain of segments with the middle ones pushed
+    // sideways, so getting from one room to the next is a route rather than a
+    // sight line down which everything can shoot you.
+    const auto addCorridor = [&](int from, int to, float radius) {
+        if (from < 0 || to < 0 || from == to)
+            return;
+
+        m_links[static_cast<std::size_t>(from)].push_back(to);
+        m_links[static_cast<std::size_t>(to)].push_back(from);
+
+        const sf::Vector2f a = m_rooms[static_cast<std::size_t>(from)].centre;
+        const sf::Vector2f b = m_rooms[static_cast<std::size_t>(to)].centre;
+        const sf::Vector2f span = b - a;
+        const float length = span.length();
+        if (length <= 1.0f)
+            return;
+
+        const sf::Vector2f across = sf::Vector2f{ -span.y, span.x } / length;
+
+        const int pieces = static_cast<int>(random.range(
+            static_cast<float>(config::CorridorPiecesMin),
+            static_cast<float>(config::CorridorPiecesMax) + 0.999f));
+
+        sf::Vector2f previous = a;
+        for (int i = 1; i <= pieces; ++i)
+        {
+            const float t = static_cast<float>(i) / static_cast<float>(pieces);
+
+            // The kink is strongest in the middle and nothing at the ends, so a
+            // passage always meets its rooms square on.
+            const float bow = std::sin(t * 3.14159265f) * config::CorridorBend
+                              * random.range(-1.0f, 1.0f);
+
+            const sf::Vector2f point = i == pieces ? b : a + span * t + across * bow;
+            const float width = radius * random.range(config::CorridorWidthMin,
+                                                      config::CorridorWidthMax);
+
+            m_corridors.push_back({ previous, point, width });
+
+            // The passage itself is cut as a run of overlapping wobbled
+            // mouthfuls rather than as a capsule. A capsule has two perfectly
+            // straight walls, and a cave has none: this is what stops every
+            // corridor in the basin reading as a drilled tube.
+            const sf::Vector2f leg = point - previous;
+            const float legLength = leg.length();
+            const int bites = std::max(2, static_cast<int>(legLength
+                                                           / (width * config::BiteSpacing)));
+
+            for (int step = 0; step <= bites; ++step)
+            {
+                const float along = static_cast<float>(step) / static_cast<float>(bites);
+                const float size = width * random.range(0.82f, 1.22f);
+
+                Chamber bite{ previous + leg * along, size, ChamberKind::Plain,
+                              random.range(0.0f, 6.28f), {}, 0.0f };
+
+                // Gentler than a room: a passage that wobbles as hard as a
+                // cavern stops being watertight between one mouthful and the
+                // next.
+                bite.warp[0] = random.range(0.16f, 0.30f);
+                bite.warp[1] = random.range(0.08f, 0.18f);
+                bite.warp[2] = random.range(0.04f, 0.10f);
+                bite.warp[3] = random.range(0.02f, 0.06f);
+
+                const float swing = bite.warp[0] + bite.warp[1] + bite.warp[2] + bite.warp[3];
+                bite.reach = size * (1.0f + config::ChamberLean * bite.warp[0])
+                             * (1.0f + config::ChamberRipple * swing);
+
+                m_chambers.push_back(bite);
+            }
+
+            previous = point;
+        }
+    };
+
+    const int start = addRoom(m_center, config::ChamberStartRadius, ChamberKind::Plain);
+    m_start = m_center;
 
     if (bossRoom)
     {
         // A boss needs one room it can actually turn in. It gets a hall off to
         // one side, so arriving at it is still an approach rather than a cut.
         const float angle = random.range(0.0f, 360.0f);
-        const sf::Vector2f hall = cursor
+        const sf::Vector2f hall = m_center
                                   + sf::Vector2f(config::HallDistance, sf::degrees(angle));
 
-        m_chambers.push_back({ hall, config::HallRadius, ChamberKind::Pillars,
-                               random.range(0.0f, 6.28f) });
-        m_corridors.push_back({ cursor, hall, config::CorridorRadius * 1.5f });
+        const int room = addRoom(hall, config::HallRadius, ChamberKind::Pillars);
+        addCorridor(start, room, config::CorridorRadius * 1.5f);
 
         // And two alcoves off the hall, so there is somewhere to break line of
-        // fire in a room that is otherwise a circle.
+        // fire in a room that is otherwise one big opening.
         for (int i = 0; i < 2; ++i)
         {
             const float side = angle + (i == 0 ? 130.0f : -130.0f) + random.range(-20.0f, 20.0f);
-            const sf::Vector2f pocket =
-                hall + sf::Vector2f(config::HallRadius * 0.95f, sf::degrees(side));
-
-            m_chambers.push_back({ pocket, random.range(130.0f, 190.0f), ChamberKind::Plain,
-                                   random.range(0.0f, 6.28f) });
+            const int pocket = addRoom(hall + sf::Vector2f(config::HallRadius * 0.95f,
+                                                           sf::degrees(side)),
+                                       random.range(130.0f, 190.0f), ChamberKind::Plain);
+            addCorridor(room, pocket, config::CorridorRadius);
         }
     }
     else
     {
-        // A walk of chambers joined nose to tail, with the occasional branch
-        // hanging off it. The walk is what makes the map a place to move
-        // through; the branches are what stop it being a corridor.
+        // A walk of rooms joined nose to tail, with branches hanging off it and
+        // loops tied back across it. The walk gives the map a length, the
+        // branches give it dead ends, and the loops are what turn it from a
+        // corridor into something you can get lost in.
         float heading = random.range(0.0f, 360.0f);
+        int previous = start;
 
-        const int count = config::ChamberCount;
-        for (int i = 1; i < count; ++i)
+        for (int i = 1; i < config::RoomCount; ++i)
         {
             heading += random.range(-config::ChamberTurn, config::ChamberTurn);
 
             const float step = random.range(config::ChamberStepMin, config::ChamberStepMax);
-            sf::Vector2f next = cursor + sf::Vector2f(step, sf::degrees(heading));
+            sf::Vector2f next = m_rooms[static_cast<std::size_t>(previous)].centre
+                                + sf::Vector2f(step, sf::degrees(heading));
 
             // Folded back if the walk would leave the world the seabed covers.
-            const sf::Vector2f offset = next - m_center;
-            if (offset.length() > config::MapExtent)
+            if ((next - m_center).length() > config::MapExtent)
             {
-                heading += 180.0f + random.range(-50.0f, 50.0f);
-                next = cursor + sf::Vector2f(step, sf::degrees(heading));
+                heading += 180.0f + random.range(-60.0f, 60.0f);
+                next = m_rooms[static_cast<std::size_t>(previous)].centre
+                       + sf::Vector2f(step, sf::degrees(heading));
             }
 
             float radius = random.range(config::ChamberRadiusMin, config::ChamberRadiusMax);
 
-            // What kind of room this is. Rolled once, here, so the corridor
-            // into it can be narrowed in the same breath - a throat that is
-            // entered through an ordinary mouth is not a throat.
+            // Every so often a room much larger than the walk has been cutting.
+            // A basin of rooms all one size has no rhythm: you never arrive
+            // anywhere, you only continue.
+            if (random.next() < config::GreatHallChance)
+                radius *= config::GreatHallScale;
+
             ChamberKind kind = ChamberKind::Plain;
             const float roll = random.next();
             if (roll < config::ThroatChance)
@@ -173,61 +309,82 @@ void Arena::generate(unsigned int seed, bool bossRoom)
             float corridor = config::CorridorRadius;
             if (kind == ChamberKind::Throat)
             {
-                // Small and hard to get out of again, down a neck too narrow
-                // to turn and fight in. Everything in there has to be dealt
-                // with in there.
                 radius = std::min(radius, config::ChamberRadiusMin * 0.85f);
                 corridor *= config::ThroatCorridorScale;
             }
 
-            m_chambers.push_back({ next, radius, kind, random.range(0.0f, 6.28f) });
-            m_corridors.push_back({ cursor, next, corridor });
+            const int room = addRoom(next, radius, kind);
+            addCorridor(previous, room, corridor);
 
-            // Every so often, a dead end worth swimming down: this is where a
-            // nest ends up, and where a hunt gets its length from.
+            // A dead end worth swimming down: where a nest ends up, and where
+            // a hunt gets its length from.
             if (random.next() < config::BranchChance)
             {
                 const float side = heading + random.range(70.0f, 150.0f)
                                    * (random.next() < 0.5f ? -1.0f : 1.0f);
-                const sf::Vector2f pocket =
-                    next + sf::Vector2f(random.range(240.0f, 380.0f), sf::degrees(side));
 
-                m_chambers.push_back({ pocket, random.range(150.0f, 240.0f), ChamberKind::Plain,
-                                       random.range(0.0f, 6.28f) });
-                m_corridors.push_back({ next, pocket, config::CorridorRadius * 0.85f });
+                const int stub = addRoom(next + sf::Vector2f(random.range(340.0f, 620.0f),
+                                                             sf::degrees(side)),
+                                         random.range(140.0f, 230.0f), ChamberKind::Plain);
+                addCorridor(room, stub, config::CorridorRadius * 0.8f);
             }
 
-            cursor = next;
+            previous = room;
         }
 
-        // One loop back to somewhere earlier, so the map is not a line. A map
-        // you can go round is a map you can lose something in.
-        if (m_chambers.size() > 4)
-        {
-            const std::size_t back = static_cast<std::size_t>(
-                random.range(1.0f, static_cast<float>(m_chambers.size()) * 0.4f));
+        // And then tie it back across itself. One loop makes a ring; several
+        // make a map you have to remember rather than retrace.
+        const auto alreadyLinked = [&](int a, int b) {
+            for (const int other : m_links[static_cast<std::size_t>(a)])
+            {
+                if (other == b)
+                    return true;
+            }
+            return false;
+        };
 
-            m_corridors.push_back({ m_chambers.back().centre,
-                                    m_chambers[back].centre,
-                                    config::CorridorRadius * 0.8f });
+        const int rooms = static_cast<int>(m_rooms.size());
+
+        for (int attempt = 0; attempt < config::LoopAttempts && rooms > 4; ++attempt)
+        {
+            const int a = static_cast<int>(random.range(0.0f, static_cast<float>(rooms)))
+                          % rooms;
+            const int b = static_cast<int>(random.range(0.0f, static_cast<float>(rooms)))
+                          % rooms;
+
+            if (a == b || alreadyLinked(a, b))
+                continue;
+
+            const float gap = (m_rooms[static_cast<std::size_t>(a)].centre
+                               - m_rooms[static_cast<std::size_t>(b)].centre).length();
+
+            // Near enough to be a shortcut, far enough that it is not just a
+            // second doorway into the room next door.
+            if (gap < config::LoopGapMin || gap > config::LoopGapMax)
+                continue;
+
+            addCorridor(a, b, config::CorridorRadius * random.range(0.6f, 0.95f));
         }
     }
 
     // The hall is simply the biggest room, however the map came out.
-    m_hallCentre = m_chambers.front().centre;
-    m_hallRadius = m_chambers.front().radius;
+    m_hallCentre = m_rooms.front().centre;
+    m_hallRadius = m_rooms.front().radius;
+
+    for (const Room& room : m_rooms)
+    {
+        if (room.radius > m_hallRadius)
+        {
+            m_hallRadius = room.radius;
+            m_hallCentre = room.centre;
+        }
+    }
 
     m_boundsMin = m_chambers.front().centre;
     m_boundsMax = m_chambers.front().centre;
 
     for (const Chamber& chamber : m_chambers)
     {
-        if (chamber.radius > m_hallRadius)
-        {
-            m_hallRadius = chamber.radius;
-            m_hallCentre = chamber.centre;
-        }
-
         m_boundsMin.x = std::min(m_boundsMin.x, chamber.centre.x - chamber.radius);
         m_boundsMin.y = std::min(m_boundsMin.y, chamber.centre.y - chamber.radius);
         m_boundsMax.x = std::max(m_boundsMax.x, chamber.centre.x + chamber.radius);
@@ -236,9 +393,9 @@ void Arena::generate(unsigned int seed, bool bossRoom)
 
     // Furnishing, once the rooms are final. Pillars and pits both need to know
     // where the walls ended up, so neither can be decided during the walk.
-    for (const Chamber& chamber : m_chambers)
+    for (const Room& room : m_rooms)
     {
-        if (chamber.kind == ChamberKind::Pillars)
+        if (room.kind == ChamberKind::Pillars)
         {
             const int count = static_cast<int>(random.range(
                 static_cast<float>(config::PillarCountMin),
@@ -246,39 +403,428 @@ void Arena::generate(unsigned int seed, bool bossRoom)
 
             for (int i = 0; i < count; ++i)
             {
-                // Out on a ring rather than anywhere: a column in the middle of
-                // a doorway is a blocked room, and a column against the wall is
-                // not cover, it is scenery.
                 const float angle = random.range(0.0f, 360.0f);
-                const float reach = chamber.radius * random.range(0.34f, 0.72f);
+                const float reach = room.radius * random.range(0.34f, 0.82f);
                 const float size = random.range(config::PillarRadiusMin,
                                                 config::PillarRadiusMax);
 
-                m_pillars.push_back({ chamber.centre + sf::Vector2f(reach, sf::degrees(angle)),
+                m_pillars.push_back({ room.centre + sf::Vector2f(reach, sf::degrees(angle)),
                                       size });
             }
         }
-        else if (chamber.kind == ChamberKind::Pit)
+        else if (room.kind == ChamberKind::Pit)
         {
-            m_currents.push_back({ chamber.centre, chamber.radius * 1.05f,
+            m_currents.push_back({ room.centre, room.radius * 1.15f,
                                    config::PitStrength * random.range(0.8f, 1.25f)
                                        * (random.next() < 0.5f ? -1.0f : 1.0f) });
         }
     }
 
+    // Rubble: lumps of rock bitten out of the wall itself, at a scale between
+    // the ripple on the rim and a column standing in the room. Without them
+    // every wall is a smooth curve however much it wanders, which is the one
+    // thing a cave wall never is.
+    for (const Chamber& chamber : m_chambers)
+    {
+        // Rooms only, and only against their walls. Scattered through a room
+        // they stop being rock and become an obstacle course; scattered down a
+        // passage there are hundreds of them.
+        if (chamber.radius < config::BoulderMinChamber)
+            continue;
+
+        const int lumps = static_cast<int>(random.range(0.0f, config::RubblePerChamber + 0.999f));
+
+        for (int i = 0; i < lumps; ++i)
+        {
+            const sf::Vector2f out = sf::Vector2f(1.0f, sf::degrees(random.range(0.0f, 360.0f)));
+            const float size = random.range(config::RubbleRadiusMin, config::RubbleRadiusMax);
+            const float reach = edgeRadius(chamber, out) * random.range(0.88f, 1.06f);
+            const sf::Vector2f at = chamber.centre + out * reach;
+
+            // A lump is allowed to bite into a passage - that is most of what
+            // makes a passage look cut rather than drilled - but never far
+            // enough to seal it. What has to survive is a gap the sub fits
+            // through, and that is checked rather than assumed.
+            bool blocks = false;
+            for (const Corridor& corridor : m_corridors)
+            {
+                const sf::Vector2f on = closestOnSegment(corridor.from, corridor.to, at);
+                const float axis = (at - on).length();
+
+                if (axis - size < -corridor.radius + config::RubbleClearance)
+                {
+                    blocks = true;
+                    break;
+                }
+            }
+
+            if (!blocks)
+                m_pillars.push_back({ at, size });
+        }
+    }
+
+    buildRoutes();
+    buildNavGrid();
     buildGround();
+}
+
+void Arena::buildRoutes()
+{
+    // The map is generated as a graph, so anything that has to cross it should
+    // walk the graph rather than push at a wall and hope. One breadth-first
+    // search per room, once per level, gives every pair of rooms its next hop:
+    // after that, asking which way to go is a table lookup.
+    const int rooms = static_cast<int>(m_rooms.size());
+    m_nextHop.assign(static_cast<std::size_t>(rooms * rooms), -1);
+
+    if (rooms <= 0)
+        return;
+
+    std::vector<int> came(static_cast<std::size_t>(rooms));
+    std::vector<int> queue(static_cast<std::size_t>(rooms));
+
+    for (int source = 0; source < rooms; ++source)
+    {
+        std::fill(came.begin(), came.end(), -1);
+        came[static_cast<std::size_t>(source)] = source;
+
+        int head = 0;
+        int tail = 0;
+        queue[static_cast<std::size_t>(tail++)] = source;
+
+        while (head < tail)
+        {
+            const int at = queue[static_cast<std::size_t>(head++)];
+
+            for (const int next : m_links[static_cast<std::size_t>(at)])
+            {
+                if (came[static_cast<std::size_t>(next)] != -1)
+                    continue;
+
+                came[static_cast<std::size_t>(next)] = at;
+                queue[static_cast<std::size_t>(tail++)] = next;
+            }
+        }
+
+        // Walk each destination back to the room next to the source: that is
+        // the hop anything standing in source should take to reach it.
+        for (int target = 0; target < rooms; ++target)
+        {
+            if (came[static_cast<std::size_t>(target)] == -1)
+                continue;
+
+            int step = target;
+            while (came[static_cast<std::size_t>(step)] != source && step != source)
+                step = came[static_cast<std::size_t>(step)];
+
+            m_nextHop[static_cast<std::size_t>(source * rooms + target)] = step;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Getting across the basin
+//
+//  The room graph answers "which room next", which is right until both ends
+//  are in the same room with a pillar or a lobe wall between them - and that
+//  is exactly the case that used to leave one creature alive and unreachable
+//  for the rest of a level. So underneath the graph there is a grid: every
+//  cell marked open or not once when the map is cut, and a breadth-first sweep
+//  out from the sub a few times a second that leaves every open cell pointing
+//  at its neighbour one step nearer. Anything that has lost its line reads its
+//  own cell and swims that way.
+// ---------------------------------------------------------------------------
+
+void Arena::buildNavGrid()
+{
+    const sf::Vector2f span = m_boundsMax - m_boundsMin;
+
+    m_navOrigin = m_boundsMin - sf::Vector2f{ config::NavCell, config::NavCell };
+    m_navWidth = static_cast<int>((span.x + config::NavCell * 4.0f) / config::NavCell) + 1;
+    m_navHeight = static_cast<int>((span.y + config::NavCell * 4.0f) / config::NavCell) + 1;
+
+    m_navWidth = std::max(1, m_navWidth);
+    m_navHeight = std::max(1, m_navHeight);
+
+    const std::size_t cells = static_cast<std::size_t>(m_navWidth)
+                              * static_cast<std::size_t>(m_navHeight);
+
+    m_navOpen.assign(cells, 0);
+    m_flowFrom.assign(cells, -1);
+
+    for (int y = 0; y < m_navHeight; ++y)
+    {
+        for (int x = 0; x < m_navWidth; ++x)
+        {
+            const sf::Vector2f at = cellCentre(y * m_navWidth + x);
+            m_navOpen[static_cast<std::size_t>(y * m_navWidth + x)] =
+                isOpen(at, config::NavClearance) ? 1u : 0u;
+        }
+    }
+}
+
+sf::Vector2f Arena::cellCentre(int index) const
+{
+    if (m_navWidth <= 0)
+        return m_center;
+
+    const int x = index % m_navWidth;
+    const int y = index / m_navWidth;
+
+    return m_navOrigin + sf::Vector2f{ (static_cast<float>(x) + 0.5f) * config::NavCell,
+                                       (static_cast<float>(y) + 0.5f) * config::NavCell };
+}
+
+int Arena::cellIndex(sf::Vector2f position) const
+{
+    if (m_navWidth <= 0 || m_navHeight <= 0)
+        return -1;
+
+    const sf::Vector2f local = (position - m_navOrigin) / config::NavCell;
+    const int x = static_cast<int>(std::floor(local.x));
+    const int y = static_cast<int>(std::floor(local.y));
+
+    if (x < 0 || y < 0 || x >= m_navWidth || y >= m_navHeight)
+        return -1;
+
+    return y * m_navWidth + x;
+}
+
+int Arena::nearestOpenCell(sf::Vector2f position) const
+{
+    const int direct = cellIndex(position);
+    if (direct >= 0 && m_navOpen[static_cast<std::size_t>(direct)] != 0u)
+        return direct;
+
+    // Rings outward from where it asked. Anything standing in rock - which
+    // happens to a creature still swimming in - gets the nearest water.
+    const int cx = direct >= 0 ? direct % m_navWidth
+                               : std::clamp(static_cast<int>((position.x - m_navOrigin.x)
+                                                             / config::NavCell),
+                                            0, m_navWidth - 1);
+    const int cy = direct >= 0 ? direct / m_navWidth
+                               : std::clamp(static_cast<int>((position.y - m_navOrigin.y)
+                                                             / config::NavCell),
+                                            0, m_navHeight - 1);
+
+    for (int ring = 1; ring < 12; ++ring)
+    {
+        for (int dy = -ring; dy <= ring; ++dy)
+        {
+            for (int dx = -ring; dx <= ring; ++dx)
+            {
+                if (std::abs(dx) != ring && std::abs(dy) != ring)
+                    continue;
+
+                const int x = cx + dx;
+                const int y = cy + dy;
+                if (x < 0 || y < 0 || x >= m_navWidth || y >= m_navHeight)
+                    continue;
+
+                const int index = y * m_navWidth + x;
+                if (m_navOpen[static_cast<std::size_t>(index)] != 0u)
+                    return index;
+            }
+        }
+    }
+
+    return -1;
+}
+
+void Arena::updateFlow(sf::Vector2f target)
+{
+    if (m_navOpen.empty())
+        return;
+
+    const int source = nearestOpenCell(target);
+    if (source < 0)
+        return;
+
+    // Nothing to do if the sweep already starts where it is being asked to.
+    if (source == m_flowSource)
+        return;
+
+    m_flowSource = source;
+    std::fill(m_flowFrom.begin(), m_flowFrom.end(), -1);
+
+    m_flowQueue.clear();
+    m_flowQueue.push_back(source);
+    m_flowFrom[static_cast<std::size_t>(source)] = source;
+
+    // Eight ways, so a diagonal is a step rather than a staircase.
+    static const int OffsetX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 };
+    static const int OffsetY[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
+
+    for (std::size_t head = 0; head < m_flowQueue.size(); ++head)
+    {
+        const int at = m_flowQueue[head];
+        const int x = at % m_navWidth;
+        const int y = at / m_navWidth;
+
+        for (int i = 0; i < 8; ++i)
+        {
+            const int nx = x + OffsetX[i];
+            const int ny = y + OffsetY[i];
+
+            if (nx < 0 || ny < 0 || nx >= m_navWidth || ny >= m_navHeight)
+                continue;
+
+            const int next = ny * m_navWidth + nx;
+            if (m_navOpen[static_cast<std::size_t>(next)] == 0u
+                || m_flowFrom[static_cast<std::size_t>(next)] != -1)
+            {
+                continue;
+            }
+
+            // A diagonal is only a step if both of the squares it cuts across
+            // are open, or things clip the corners of pillars.
+            if (i >= 4)
+            {
+                const int sideA = y * m_navWidth + nx;
+                const int sideB = ny * m_navWidth + x;
+                if (m_navOpen[static_cast<std::size_t>(sideA)] == 0u
+                    || m_navOpen[static_cast<std::size_t>(sideB)] == 0u)
+                {
+                    continue;
+                }
+            }
+
+            m_flowFrom[static_cast<std::size_t>(next)] = at;
+            m_flowQueue.push_back(next);
+        }
+    }
+}
+
+sf::Vector2f Arena::flowAt(sf::Vector2f position) const
+{
+    if (m_flowFrom.empty())
+        return { 0.0f, 0.0f };
+
+    const int here = nearestOpenCell(position);
+    if (here < 0)
+        return { 0.0f, 0.0f };
+
+    const int step = m_flowFrom[static_cast<std::size_t>(here)];
+    if (step < 0)
+        return { 0.0f, 0.0f }; // walled off from the sub entirely
+
+    const sf::Vector2f to = cellCentre(step);
+    const sf::Vector2f offset = to - position;
+
+    // Standing on the cell it was told to move to: aim at the one after, so it
+    // does not sit on a waypoint jittering.
+    if (offset.lengthSquared() < config::NavCell * config::NavCell * 0.25f
+        && m_flowFrom[static_cast<std::size_t>(step)] >= 0
+        && m_flowFrom[static_cast<std::size_t>(step)] != step)
+    {
+        const sf::Vector2f onward =
+            cellCentre(m_flowFrom[static_cast<std::size_t>(step)]) - position;
+
+        if (onward.lengthSquared() > 1.0f)
+            return onward.normalized();
+    }
+
+    return offset.lengthSquared() > 1.0f ? offset.normalized() : sf::Vector2f{ 0.0f, 0.0f };
+}
+
+int Arena::roomAt(sf::Vector2f position) const
+{
+    // Whichever room's own field this point is deepest inside, and failing
+    // that whichever one is nearest: a point in a corridor belongs to the room
+    // it is closest to, which is the right answer for routing.
+    int best = -1;
+    float bestDepth = 1.0e9f;
+
+    for (std::size_t i = 0; i < m_rooms.size(); ++i)
+    {
+        const float distance = (position - m_rooms[i].centre).length() - m_rooms[i].radius;
+        if (distance < bestDepth)
+        {
+            bestDepth = distance;
+            best = static_cast<int>(i);
+        }
+    }
+
+    return best;
+}
+
+bool Arena::clearLine(sf::Vector2f from, sf::Vector2f to, float radius) const
+{
+    const sf::Vector2f span = to - from;
+    const float length = span.length();
+    if (length <= 1.0f)
+        return true;
+
+    // Stepped at half the radius: fine enough that nothing slips through a
+    // wall between two samples, coarse enough to be worth calling every frame.
+    const float step = std::max(12.0f, radius * 0.5f);
+    const auto steps = static_cast<int>(length / step) + 1;
+
+    for (int i = 1; i <= steps; ++i)
+    {
+        const sf::Vector2f at = from + span * (static_cast<float>(i) / static_cast<float>(steps));
+        if (!isOpen(at, radius))
+            return false;
+    }
+
+    return true;
+}
+
+sf::Vector2f Arena::waypointToward(sf::Vector2f from, sf::Vector2f to, float radius) const
+{
+    // If it can simply swim there, it should: routing round a room you are
+    // already standing in looks like indecision.
+    if (clearLine(from, to, radius))
+        return to;
+
+    const int here = roomAt(from);
+    const int there = roomAt(to);
+    const int rooms = static_cast<int>(m_rooms.size());
+
+    if (here < 0 || there < 0 || rooms <= 0)
+        return to;
+
+    // Same room and no line means something inside it is in the way - a
+    // pillar, or the neck between two lobes. The graph has nothing to say
+    // about that, so fall through to the grid, which does.
+    const int hop = here == there
+                        ? -1
+                        : m_nextHop[static_cast<std::size_t>(here * rooms + there)];
+
+    if (hop >= 0 && hop != here)
+    {
+        const sf::Vector2f next = m_rooms[static_cast<std::size_t>(hop)].centre;
+        if (clearLine(from, next, radius))
+            return next;
+    }
+
+    const sf::Vector2f flow = flowAt(from);
+    if (flow.lengthSquared() > 0.0f)
+        return from + flow * (config::NavCell * 2.0f);
+
+    return hop >= 0 ? m_rooms[static_cast<std::size_t>(hop)].centre : to;
 }
 
 float Arena::edgeRadius(const Chamber& chamber, sf::Vector2f offset) const
 {
-    // Two slow waves round the rim, which is enough to stop a basin looking
-    // like a diagram of overlapping circles. Cheap on purpose: this runs for
-    // every chamber on every query of the field.
+    // Four harmonics rather than two, with weights rolled per chamber and
+    // frequencies that do not divide into each other, so the rim never comes
+    // back round to where it started. Two waves gave a wobbled circle; this
+    // gives an outline with bays, noses and a grain of roughness on top - the
+    // difference between a shape and a wall.
     const float theta = std::atan2(offset.y, offset.x);
-    const float wave = std::sin(theta * 3.0f + chamber.phase) * 0.62f
-                       + std::sin(theta * 7.0f - chamber.phase * 1.7f) * 0.38f;
 
-    return chamber.radius * (1.0f + config::ChamberRipple * wave);
+    const float wave = std::sin(theta * 3.0f + chamber.phase) * chamber.warp[0]
+                       + std::sin(theta * 5.0f - chamber.phase * 1.7f) * chamber.warp[1]
+                       + std::sin(theta * 11.0f + chamber.phase * 2.3f) * chamber.warp[2]
+                       + std::sin(theta * 19.0f - chamber.phase * 3.1f) * chamber.warp[3];
+
+    // Squashed towards one side as well as rippled: a cave mouth is rarely in
+    // the middle of the room it opens into.
+    const float lean = 1.0f + config::ChamberLean
+                                 * std::cos(theta - chamber.phase * 0.7f) * chamber.warp[0];
+
+    return chamber.radius * lean * (1.0f + config::ChamberRipple * wave);
 }
 
 sf::Vector2f Arena::currentAt(sf::Vector2f position) const
@@ -311,17 +857,28 @@ float Arena::depthAt(sf::Vector2f position) const
     // from the nearest edge. Everything about the map's shape is this number.
     float best = 1.0e9f;
 
+    // A shape can only improve the answer if it is nearer than the best so far
+    // plus its own reach, and that comparison can be made on squared distances
+    // with no square root at all. With a room now being several lobes and a
+    // passage several segments, this is the difference between the field being
+    // cheap and the field being the frame.
+    const auto tooFar = [&best](float distanceSquared, float reach) {
+        const float slack = best + reach;
+        return slack <= 0.0f || distanceSquared > slack * slack;
+    };
+
     for (const Chamber& chamber : m_chambers)
     {
         const sf::Vector2f offset = position - chamber.centre;
+
+        if (tooFar(offset.lengthSquared(), chamber.reach))
+            continue;
+
         best = std::min(best, offset.length() - edgeRadius(chamber, offset));
     }
 
-    for (const Corridor& corridor : m_corridors)
-    {
-        const sf::Vector2f on = closestOnSegment(corridor.from, corridor.to, position);
-        best = std::min(best, (position - on).length() - corridor.radius);
-    }
+    // Passages are cut as chambers too, so there is nothing else in the union:
+    // one shape everywhere, and no straight walls anywhere in the basin.
 
     // Pillars are cut back out of whatever the rooms opened up, so they are a
     // max rather than a min. They are kept narrower than the corridors, which
@@ -379,10 +936,12 @@ void Arena::buildGround()
                    + grow * (1.0f + wave * std::sin(theta * 5.0f + chamber.phase * 2.1f));
         };
 
-        for (std::size_t i = 0; i < Segments; ++i)
+        const std::size_t steps = segmentsFor(chamber.radius + grow);
+
+        for (std::size_t i = 0; i < steps; ++i)
         {
-            const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i));
-            const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1));
+            const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i, steps));
+            const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1, steps));
 
             into.append(sf::Vertex{ chamber.centre, colour });
             into.append(sf::Vertex{ chamber.centre + d0 * reach(d0), colour });
@@ -392,36 +951,17 @@ void Arena::buildGround()
 
     const auto disc = [](sf::VertexArray& into, sf::Vector2f centre, float radius,
                          sf::Color colour) {
-        for (std::size_t i = 0; i < Segments; ++i)
+        const std::size_t steps = segmentsFor(radius);
+
+        for (std::size_t i = 0; i < steps; ++i)
         {
-            const sf::Angle a0 = segmentAngle(i);
-            const sf::Angle a1 = segmentAngle(i + 1);
+            const sf::Angle a0 = segmentAngle(i, steps);
+            const sf::Angle a1 = segmentAngle(i + 1, steps);
 
             into.append(sf::Vertex{ centre, colour });
             into.append(sf::Vertex{ centre + sf::Vector2f(radius, a0), colour });
             into.append(sf::Vertex{ centre + sf::Vector2f(radius, a1), colour });
         }
-    };
-
-    const auto capsule = [&disc](sf::VertexArray& into, sf::Vector2f from, sf::Vector2f to,
-                                 float radius, sf::Color colour) {
-        const sf::Vector2f span = to - from;
-        if (span.lengthSquared() <= 0.0001f)
-            return;
-
-        const sf::Vector2f across = sf::Vector2f{ -span.y, span.x }.normalized() * radius;
-
-        into.append(sf::Vertex{ from - across, colour });
-        into.append(sf::Vertex{ from + across, colour });
-        into.append(sf::Vertex{ to + across, colour });
-        into.append(sf::Vertex{ from - across, colour });
-        into.append(sf::Vertex{ to + across, colour });
-        into.append(sf::Vertex{ to - across, colour });
-
-        // The round ends are what make a corridor a capsule, which is what the
-        // collision field already assumes it is.
-        disc(into, from, radius, colour);
-        disc(into, to, radius, colour);
     };
 
     // The mass of the rock is the same rock the seabed is painting everywhere
@@ -441,16 +981,12 @@ void Arena::buildGround()
     for (const Chamber& chamber : m_chambers)
         chamberFan(m_rock, chamber, config::WallLip + config::WallShelf, 0.45f, deep);
 
-    for (const Corridor& corridor : m_corridors)
-        capsule(m_rock, corridor.from, corridor.to,
-                corridor.radius + config::WallLip + config::WallShelf, deep);
+
 
     for (const Chamber& chamber : m_chambers)
         chamberFan(m_rock, chamber, config::WallLip, 0.70f, config::WallLipColor);
 
-    for (const Corridor& corridor : m_corridors)
-        capsule(m_rock, corridor.from, corridor.to, corridor.radius + config::WallLip,
-                config::WallLipColor);
+
 
     // Boulders slumped along the foot of the wall, each about to be half buried
     // by the floor. They exist so that the rim is never a curve; nothing can
@@ -460,6 +996,12 @@ void Arena::buildGround()
 
         for (const Chamber& chamber : m_chambers)
         {
+            // Rooms only. A passage is cut from hundreds of small mouthfuls
+            // now, and fifteen boulders on each of those is a million
+            // triangles and a basin that takes a minute to build.
+            if (chamber.radius < config::BoulderMinChamber)
+                continue;
+
             for (int i = 0; i < config::BouldersPerChamber; ++i)
             {
                 const sf::Vector2f d = sf::Vector2f(1.0f, sf::degrees(rubble.range(0.0f, 360.0f)));
@@ -475,8 +1017,7 @@ void Arena::buildGround()
     for (const Chamber& chamber : m_chambers)
         chamberFan(m_floor, chamber, 0.0f, 0.0f, m_theme->sandNear);
 
-    for (const Corridor& corridor : m_corridors)
-        capsule(m_floor, corridor.from, corridor.to, corridor.radius, m_theme->sandNear);
+
 
     buildWallShading();
 }
@@ -492,8 +1033,12 @@ void Arena::buildWallShading()
     // with more water on the other side is a doorway, and shading one would
     // paint a wall across the middle of open water - which is what a corridor
     // mouth used to get.
+    // Far enough out that the sliver where two overlapping mouthfuls meet is
+    // not mistaken for a wall. A passage cut from hundreds of them has a great
+    // many such slivers, and each one drawn would be a white line across open
+    // water.
     const auto isEdge = [this](sf::Vector2f at, sf::Vector2f out) {
-        return depthAt(at + out * 16.0f) > 0.0f;
+        return depthAt(at + out * 26.0f) > 0.0f;
     };
 
     // Sand in the shadow of the rock, fading back to open floor, and then a
@@ -511,10 +1056,12 @@ void Arena::buildWallShading()
 
     for (const Chamber& chamber : m_chambers)
     {
-        for (std::size_t i = 0; i < Segments; ++i)
+        const std::size_t steps = segmentsFor(chamber.radius);
+
+        for (std::size_t i = 0; i < steps; ++i)
         {
-            const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i));
-            const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1));
+            const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i, steps));
+            const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1, steps));
 
             const sf::Vector2f p0 = chamber.centre + d0 * edgeRadius(chamber, d0);
             const sf::Vector2f p1 = chamber.centre + d1 * edgeRadius(chamber, d1);
@@ -526,46 +1073,31 @@ void Arena::buildWallShading()
         }
     }
 
-    for (const Corridor& corridor : m_corridors)
-    {
-        const sf::Vector2f span = corridor.to - corridor.from;
-        const float length = span.length();
-        if (length <= 1.0f)
-            continue;
-
-        const sf::Vector2f along = span / length;
-        const sf::Vector2f across{ -along.y, along.x };
-        const auto steps = static_cast<std::size_t>(std::max(4.0f, length / 24.0f));
-
-        for (std::size_t side = 0; side < 2; ++side)
-        {
-            const sf::Vector2f out = side == 0 ? across : -across;
-
-            for (std::size_t i = 0; i < steps; ++i)
-            {
-                const float t0 = static_cast<float>(i) / static_cast<float>(steps);
-                const float t1 = static_cast<float>(i + 1) / static_cast<float>(steps);
-
-                const sf::Vector2f p0 = corridor.from + span * t0 + out * corridor.radius;
-                const sf::Vector2f p1 = corridor.from + span * t1 + out * corridor.radius;
-
-                if (!isEdge((p0 + p1) * 0.5f, out))
-                    continue;
-
-                band(p0, p1, out, out);
-            }
-        }
-    }
-
     // Columns last, so they sit on the floor they are standing on: a contact
     // shadow, the shaft, then a smaller face offset up and left, lit from the
     // same corner every sprite in the game is lit from.
     for (const Pillar& pillar : m_pillars)
     {
-        for (std::size_t i = 0; i < Segments; ++i)
+        // A lump embedded in the wall is already drawn - it is the wall. Only
+        // something standing clear of the rock gets a shaft and a lit face,
+        // or every bite out of a corridor wall reads as a column floating on
+        // top of the rock rather than as part of it.
+        float water = 1.0e9f;
+        for (const Chamber& chamber : m_chambers)
         {
-            const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i));
-            const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1));
+            const sf::Vector2f offset = pillar.centre - chamber.centre;
+            water = std::min(water, offset.length() - edgeRadius(chamber, offset));
+        }
+
+        if (water > -pillar.radius * 1.15f)
+            continue;
+
+        const std::size_t steps = segmentsFor(pillar.radius);
+
+        for (std::size_t i = 0; i < steps; ++i)
+        {
+            const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i, steps));
+            const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1, steps));
 
             appendRingQuad(m_shade,
                            pillar.centre + d0 * pillar.radius,
@@ -575,10 +1107,10 @@ void Arena::buildWallShading()
                            shade, shadeClear);
         }
 
-        for (std::size_t i = 0; i < Segments; ++i)
+        for (std::size_t i = 0; i < steps; ++i)
         {
-            const sf::Angle a0 = segmentAngle(i);
-            const sf::Angle a1 = segmentAngle(i + 1);
+            const sf::Angle a0 = segmentAngle(i, steps);
+            const sf::Angle a1 = segmentAngle(i + 1, steps);
 
             m_shade.append(sf::Vertex{ pillar.centre, config::RockDeepColor });
             m_shade.append(sf::Vertex{ pillar.centre + sf::Vector2f(pillar.radius, a0),
@@ -589,10 +1121,10 @@ void Arena::buildWallShading()
 
         const sf::Vector2f lit = pillar.centre - sf::Vector2f{ 0.10f, 0.13f } * pillar.radius;
 
-        for (std::size_t i = 0; i < Segments; ++i)
+        for (std::size_t i = 0; i < steps; ++i)
         {
-            const sf::Angle a0 = segmentAngle(i);
-            const sf::Angle a1 = segmentAngle(i + 1);
+            const sf::Angle a0 = segmentAngle(i, steps);
+            const sf::Angle a1 = segmentAngle(i + 1, steps);
 
             m_shade.append(sf::Vertex{ lit, config::WallLipColor });
             m_shade.append(sf::Vertex{ lit + sf::Vector2f(pillar.radius * 0.84f, a0),

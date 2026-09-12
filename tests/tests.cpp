@@ -136,7 +136,7 @@ namespace
                 case ObjectiveKind::HaulCargo:
                     check(def.objectiveAmount > 0,
                           (where + " drops at least one pod").c_str());
-                    check(def.objectiveAmount <= config::ChamberCount,
+                    check(def.objectiveAmount <= config::RoomCount,
                           (where + " does not drop more pods than there are rooms").c_str());
                     check(def.spawnInterval > 0.0f,
                           (where + " keeps hunting you while you haul").c_str());

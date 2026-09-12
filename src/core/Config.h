@@ -41,13 +41,50 @@ namespace config
     // The step has to be comfortably more than two radii or consecutive
     // chambers merge into one blob and the corridors vanish - which is exactly
     // what happened the first time these were tuned.
-    inline constexpr float MapExtent = 3000.0f;       // how far a walk may wander
-    inline constexpr int   ChamberCount = 9;
+    inline constexpr float MapExtent = 4200.0f;       // how far a walk may wander
+    inline constexpr int   RoomCount = 16;
     inline constexpr float ChamberStartRadius = 380.0f; // where a dive begins
-    inline constexpr float ChamberRadiusMin = 190.0f;
-    inline constexpr float ChamberRadiusMax = 330.0f;
-    inline constexpr float ChamberStepMin = 780.0f;
-    inline constexpr float ChamberStepMax = 1150.0f;
+    inline constexpr float ChamberRadiusMin = 170.0f;
+    inline constexpr float ChamberRadiusMax = 290.0f;
+    inline constexpr float ChamberStepMin = 900.0f;
+    inline constexpr float ChamberStepMax = 1400.0f;
+
+    // A room is not a circle. Two to four lobes of different sizes pushed off
+    // a common centre and unioned, which is what stops the basin reading as a
+    // diagram of overlapping discs. The offsets are kept modest on purpose:
+    // push them further and consecutive rooms merge into one blob, which is
+    // exactly what happened the first time the step was tuned.
+    inline constexpr int   LobesMin = 2;
+    inline constexpr int   LobesMax = 4;
+    inline constexpr float LobeOffsetMin = 0.30f;
+    inline constexpr float LobeOffsetMax = 0.62f;
+    inline constexpr float LobeScaleMin = 0.52f;
+    inline constexpr float LobeScaleMax = 0.88f;
+
+    // A passage bends, and its width is not constant. Straight capsules turn
+    // every corridor into a shooting gallery you can see the far end of.
+    inline constexpr int   CorridorPiecesMin = 3;
+    inline constexpr int   CorridorPiecesMax = 6;
+    inline constexpr float CorridorBend = 250.0f;
+    inline constexpr float CorridorWidthMin = 0.62f;
+    inline constexpr float CorridorWidthMax = 1.45f;
+
+    // How far apart the mouthfuls a passage is cut from sit, as a fraction of
+    // its width. Close enough that consecutive ones always overlap even at
+    // their narrowest, which is what keeps a corridor watertight.
+    inline constexpr float BiteSpacing = 0.62f;
+
+    // Loops are what turn a walk into a maze. Tried rather than placed: a pair
+    // has to be near enough to be a shortcut and far enough that it is not a
+    // second doorway into the room next door.
+    // One room in five or so is much larger than the rest, so the map has a
+    // rhythm rather than being a chain of identical caverns.
+    inline constexpr float GreatHallChance = 0.20f;
+    inline constexpr float GreatHallScale = 1.75f;
+
+    inline constexpr int   LoopAttempts = 26;
+    inline constexpr float LoopGapMin = 900.0f;
+    inline constexpr float LoopGapMax = 2300.0f;
     inline constexpr float ChamberTurn = 78.0f;       // degrees the walk may swing
     inline constexpr float CorridorRadius = 105.0f;
     inline constexpr float BranchChance = 0.45f;
@@ -67,7 +104,12 @@ namespace config
     // looking like a diagram of overlapping circles. The collision field and
     // the drawing both go through the same function, so this changes the shape
     // of the map and not merely the picture of it.
-    inline constexpr float ChamberRipple = 0.11f;
+    inline constexpr float ChamberRipple = 0.30f;
+
+    // How far a room leans off its own centre. Rooms whose widest point is in
+    // the middle read as bubbles; rooms with a long side and a short one read
+    // as something water cut.
+    inline constexpr float ChamberLean = 0.26f;
 
     // The cut edge, lit. Three bands from outside in: the mass of the rock in
     // shadow, the cut itself, and then a bright line right on the waterline.
@@ -76,7 +118,7 @@ namespace config
     inline constexpr float WallShelf = 130.0f;    // the dark mass behind the cut
     inline constexpr sf::Color RockDeepColor{ 22, 26, 34 }; // pillar shafts only
     inline constexpr float WallRimWidth = 7.0f;
-    inline constexpr sf::Color WallRimLight{ 190, 216, 228, 190 };
+    inline constexpr sf::Color WallRimLight{ 190, 216, 228, 132 };
 
     // And the sand right under the rock sits in its shadow, fading back to open
     // floor. Without this the floor meets the rock as a hard line and the whole
@@ -88,6 +130,7 @@ namespace config
     // outside the water, so nothing can collide with them, and they exist to
     // stop the rim from being a curve.
     inline constexpr int   BouldersPerChamber = 15;
+    inline constexpr float BoulderMinChamber = 140.0f;
     inline constexpr float BoulderRadiusMin = 22.0f;
     inline constexpr float BoulderRadiusMax = 62.0f;
 
@@ -105,6 +148,18 @@ namespace config
     inline constexpr float PillarRadiusMin = 44.0f;
     inline constexpr float PillarRadiusMax = 76.0f;
 
+    // Rubble sits between the ripple on the rim and a column standing in the
+    // room: lumps of rock bitten out of the wall, so that a wall is never a
+    // smooth curve however far it wanders. Kept clear of every doorway.
+    inline constexpr float RubblePerChamber = 3.0f;
+    inline constexpr float RubbleRadiusMin = 22.0f;
+    inline constexpr float RubbleRadiusMax = 52.0f;
+
+    // The gap a lump has to leave across a passage. Two hull widths and a
+    // little: enough that a corridor is never a wall, tight enough that it can
+    // become somewhere you have to squeeze.
+    inline constexpr float RubbleClearance = 74.0f;
+
     // The pit's pull, in pixels per second at the middle, mostly round and a
     // little inward. Strong enough to have to be flown against, never strong
     // enough to hold anything that commits to leaving.
@@ -115,7 +170,7 @@ namespace config
     // multiplied down. Darker than the sand by enough that the edge of the map
     // is obvious, and still the depth's colour rather than a flat grey.
     inline constexpr sf::Color RockTint{ 74, 76, 86 };
-    inline constexpr float WorldExtent = 3800.0f;   // half-size the seabed covers
+    inline constexpr float WorldExtent = 5400.0f;   // half-size the seabed covers
     // How far past the edge of the basin the camera is allowed to see. A little
     // overshoot is wanted: rock in frame is what tells the player where the
     // wall is before they hit it.
@@ -140,11 +195,14 @@ namespace config
     inline constexpr sf::Color SandFarColor{ 9, 19, 26 };
     // Scaled to the basin: the map is several times the old circle, so the same
     // counts would leave it bare.
-    inline constexpr std::size_t SandGrainCount = 9000;
-    inline constexpr std::size_t ScatterPropCount = 1500;
-    inline constexpr std::size_t ReefPropCount = 520;
+    // Scaled with the basin, but not linearly: the props are sprites drawn
+    // every frame, so the density drops as the map grows rather than the count
+    // tracking the area.
+    inline constexpr std::size_t SandGrainCount = 16000;
+    inline constexpr std::size_t ScatterPropCount = 1900;
+    inline constexpr std::size_t ReefPropCount = 900;
     inline constexpr float ReefOffset = 22.0f;
-    inline constexpr float PropFieldRadius = 3600.0f;
+    inline constexpr float PropFieldRadius = 5000.0f;
 
     inline constexpr std::size_t MaxCritters = 4;
     inline constexpr float CritterSpawnIntervalMin = 3.5f;
@@ -662,6 +720,22 @@ namespace config
     // How a creature that has lost you behaves: slower than it hunts, on a
     // heading that turns on its own, and not firing at all.
     inline constexpr float WanderSpeedFactor = 0.45f;
+
+    // How hard a creature that has lost the sub still leans towards it. Not a
+    // beeline - running dark has to keep buying something - but enough that
+    // nothing is ever left on the far side of the basin forever.
+    inline constexpr float WanderLean = 0.85f;
+
+    // How often anything crossing the basin asks the map which way to go.
+    // Routing is cheap; routing fifteen times a frame is not.
+    inline constexpr float NavInterval = 0.35f;
+
+    // The navigation grid under the room graph. Seventy pixels is fine enough
+    // to find a way past a pillar and coarse enough that a whole basin is a
+    // few thousand cells rather than a few hundred thousand.
+    inline constexpr float NavCell = 70.0f;
+    inline constexpr float NavClearance = 26.0f;
+
     inline constexpr float WanderTurnRate = 55.0f; // degrees per second, either way
 
     // --- Chilled water ---

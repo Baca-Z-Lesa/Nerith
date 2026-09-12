@@ -22,7 +22,10 @@ public:
     Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
           const EnemyScaling& scaling);
 
-    void update(float deltaTime, sf::Vector2f playerPosition);
+    // The arena comes in because a creature has to be able to get across it.
+    // Without a route it simply grinds into rock whenever the sub is round a
+    // corner, and a level built on killing everything stops being finishable.
+    void update(float deltaTime, sf::Vector2f playerPosition, const Arena& arena);
     void draw(sf::RenderTarget& target) const;
 
     void takeDamage(int amount);
@@ -153,6 +156,13 @@ private:
     float        m_blinkTimer = 0.0f; // Blink
     float        m_blinkTell = 0.0f;
     sf::Vector2f m_heading{ 1.0f, 0.0f }; // Serpent: turned rather than snapped
+
+    // Where it is actually swimming, which is the sub when it can see it and
+    // the next room along the route when it cannot. Recomputed on a timer
+    // rather than every frame: routing is cheap, but not fifteen times a frame
+    // cheap.
+    sf::Vector2f m_navTarget{};
+    float        m_navTimer = 0.0f;
 
     // Serpent: where the head has been, densely, and the ring positions picked
     // off it. Kept as history rather than as springs because a chain of

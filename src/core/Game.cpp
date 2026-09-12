@@ -145,6 +145,7 @@ Game::Game()
     openMenu();
 
     m_audio.startAmbient();
+
 }
 
 void Game::createWindow(bool fullscreen)
@@ -2831,6 +2832,15 @@ void Game::updateEnemies(float deltaTime)
     // Who can currently see the sub. One radius for the whole basin rather than
     // per-creature senses: the player needs a rule they can hold in their head,
     // not a simulation they have to reverse engineer.
+    // The flow field is swept from the sub, so everything that has lost its
+    // line can share one sweep instead of each doing its own arithmetic.
+    m_navTimer -= deltaTime;
+    if (m_navTimer <= 0.0f)
+    {
+        m_navTimer = config::NavInterval;
+        m_arena.updateFlow(m_player.getPosition());
+    }
+
     const float notice = noticeRange();
     const float noticeSquared = notice * notice;
 
@@ -2894,7 +2904,7 @@ void Game::updateEnemies(float deltaTime)
     {
         const bool wasAlive = enemy.isAlive();
 
-        enemy.update(deltaTime, m_player.getPosition());
+        enemy.update(deltaTime, m_player.getPosition(), m_arena);
         enemy.confine(m_arena, deltaTime);
 
         // Bleeding can finish something between shots, and that still counts.
@@ -4266,11 +4276,14 @@ void Game::update(float deltaTime)
                 deltaTime *= m_slowScale;
 
                 m_tally.seconds += deltaTime;
+
                 // Held in a mouth, nothing the player presses moves the sub.
                 // updateBossMoves is what carries it, and the dash is the only
                 // way out.
                 if (m_grabTimer <= 0.0f)
+                {
                     m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
+                }
                 handleShooting(deltaTime);
                 emitThrusterTrail(deltaTime);
 

@@ -6,6 +6,7 @@
 #include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/System/Vector2.hpp>
 
+#include <cstdint>
 #include <vector>
 
 // The water you are allowed to be in, and the light that makes it readable.
@@ -105,6 +106,17 @@ public:
         float        radius;
         ChamberKind  kind = ChamberKind::Plain;
         float        phase = 0.0f; // this rim's own offset, so no two match
+
+        // How much of each harmonic this particular rim is made of. Rolled per
+        // chamber rather than shared, because a single shape function with a
+        // phase shift gives every cavern the same outline turned a bit, and
+        // the eye reads that as one blob repeated rather than as rock.
+        float        warp[4] = { 0.50f, 0.28f, 0.14f, 0.08f };
+
+        // The furthest this rim can possibly reach, worked out once when the
+        // room is cut. The field uses it to skip shapes without a square root,
+        // and getting it wrong shows up as holes in the floor.
+        float        reach = 0.0f;
     };
 
     struct Corridor { sf::Vector2f from; sf::Vector2f to; float radius; };
@@ -124,12 +136,50 @@ public:
     // Zero everywhere except inside a pit.
     sf::Vector2f currentAt(sf::Vector2f position) const;
 
+    // --- Getting across it ---
+    // The basin is generated as a graph of rooms joined by passages, so
+    // anything crossing it walks that graph rather than pushing at a wall and
+    // hoping. Without this a creature that loses its line simply grinds
+    // against rock for the rest of the level, and a level built round killing
+    // everything can stop being finishable.
+    struct Room
+    {
+        sf::Vector2f centre;
+        float        radius;
+        ChamberKind  kind;
+    };
+
+    // Which room a point belongs to, -1 only if there are none at all.
+    int roomAt(sf::Vector2f position) const;
+
+    // True when a circle of that radius can travel the whole way in water.
+    bool clearLine(sf::Vector2f from, sf::Vector2f to, float radius) const;
+
+    // Where to head next to get from one point to another: the target itself
+    // when it can simply be swum to, otherwise the next room along the route.
+    sf::Vector2f waypointToward(sf::Vector2f from, sf::Vector2f to, float radius) const;
+
+    // The flow field, swept out from wherever the sub is a few times a second.
+    // The room graph answers "which room next", which is right until both ends
+    // are in the same room with a pillar between them - and that case is what
+    // used to leave one creature alive and unreachable for a whole level.
+    void updateFlow(sf::Vector2f target);
+    sf::Vector2f flowAt(sf::Vector2f position) const;
+
+    const std::vector<Room>& getRooms() const { return m_rooms; }
+
 private:
     // Where a chamber's rim actually is in a given direction. Both the field
     // and the drawing go through here, so what is seen and what is collided
     // with can never drift apart.
     float edgeRadius(const Chamber& chamber, sf::Vector2f offset) const;
 
+    void buildRoutes();
+    void buildNavGrid();
+
+    int  cellIndex(sf::Vector2f position) const;
+    int  nearestOpenCell(sf::Vector2f position) const;
+    sf::Vector2f cellCentre(int index) const;
     void buildWallShading();
     void buildSwirl();
     void buildLightPool();
@@ -150,6 +200,23 @@ private:
     std::vector<Corridor> m_corridors;
     std::vector<Pillar>   m_pillars;
     std::vector<Current>  m_currents;
+
+    // The graph: the rooms, who they join, and the precomputed next hop for
+    // every pair of them. One breadth-first search per room at generation
+    // time turns every later "which way" into a table lookup.
+    std::vector<Room>             m_rooms;
+    std::vector<std::vector<int>> m_links;
+    std::vector<int>              m_nextHop;
+
+    // The grid under the graph: open or not, and which neighbour is one step
+    // nearer the sub. Rebuilt only when the sub has actually changed cell.
+    sf::Vector2f              m_navOrigin;
+    int                       m_navWidth = 0;
+    int                       m_navHeight = 0;
+    std::vector<std::uint8_t> m_navOpen;
+    std::vector<int>          m_flowFrom;
+    std::vector<int>          m_flowQueue;
+    int                       m_flowSource = -1;
 
     sf::Vector2f m_start;
     sf::Vector2f m_hallCentre;

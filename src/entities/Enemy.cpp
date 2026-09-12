@@ -232,8 +232,17 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
     }
 }
 
-void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
+void Enemy::update(float deltaTime, sf::Vector2f playerPosition, const Arena& arena)
 {
+    // Where to swim, as opposed to where the sub is. Straight at it when the
+    // water is open, and along the room graph when it is not.
+    m_navTimer -= deltaTime;
+    if (m_navTimer <= 0.0f)
+    {
+        m_navTimer = config::NavInterval * rng::range(0.75f, 1.25f);
+        m_navTarget = arena.waypointToward(m_position, playerPosition, getRadius());
+    }
+
     if (m_chillTimer > 0.0f)
     {
         m_chillTimer -= deltaTime;
@@ -263,8 +272,21 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
     {
         m_wanderAngle += rng::range(-config::WanderTurnRate, config::WanderTurnRate) * deltaTime;
 
-        const sf::Vector2f heading{ std::cos(m_wanderAngle * 3.14159265f / 180.0f),
-                                    std::sin(m_wanderAngle * 3.14159265f / 180.0f) };
+        const sf::Vector2f drift{ std::cos(m_wanderAngle * 3.14159265f / 180.0f),
+                                  std::sin(m_wanderAngle * 3.14159265f / 180.0f) };
+
+        // It has lost the sub, not forgotten it. Mostly aimless, but leaning
+        // along the route towards it, because it is hunting by smell now
+        // rather than by sight - and because a creature that truly wanders can
+        // be left on the far side of a basin this size for the rest of a
+        // level, which turns "kill everything" into "go and find everything".
+        const sf::Vector2f route = m_navTarget - m_position;
+        const sf::Vector2f lean = route.lengthSquared() > 1.0f
+                                      ? route.normalized()
+                                      : sf::Vector2f{ 0.0f, 0.0f };
+
+        sf::Vector2f heading = drift + lean * config::WanderLean;
+        heading = heading.lengthSquared() > 0.0f ? heading.normalized() : drift;
 
         m_position += heading * m_stats->speed * m_scaling.speed
                       * config::WanderSpeedFactor * deltaTime;
@@ -366,7 +388,17 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
     if (distance > 0.0f)
     {
         m_aimDirection = toPlayer / distance;
-        move(deltaTime, toPlayer, distance);
+
+        // It aims at the sub and it swims at the route. When the two are the
+        // same thing - which is most of the time - nothing changes; when they
+        // are not, it goes round the rock instead of into it.
+        const sf::Vector2f route = m_navTarget - m_position;
+        const float travel = route.length();
+
+        if (travel > 1.0f)
+            move(deltaTime, route, travel);
+        else
+            move(deltaTime, toPlayer, distance);
 
         // A shield is only a shield if it is pointing somewhere, so these two
         // face where they are actually swimming rather than at the player.
