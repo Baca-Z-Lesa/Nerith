@@ -36,6 +36,7 @@ public:
         int   streak = 0;
         bool  streakLoud = false;
         int   streakBonus = 0; // per cent extra salvage the run is currently paying
+        int   held = 0;        // earned this dive and lost if it ends badly
     };
 
     void draw(sf::RenderTarget& target, int health, int maxHealth,

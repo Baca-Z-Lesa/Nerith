@@ -72,6 +72,8 @@ Game::Game()
     , m_stateTimer(config::LevelIntroDuration)
     , m_menuTime(0.0f)
     , m_salvage(0)
+    , m_diveSalvage(0)
+    , m_lostSalvage(0)
     , m_showUpgrades(false)
     , m_rerun(false)
     , m_respecArmed(false)
@@ -548,9 +550,11 @@ void Game::onLevelComplete()
     // itself and only a fraction for what was in it.
     if (!m_rerun)
     {
-        m_salvage += config::FirstClearBase
-                     + config::FirstClearPerLevel * m_level.getNumber();
+        m_diveSalvage += config::FirstClearBase
+                         + config::FirstClearPerLevel * m_level.getNumber();
     }
+
+    bankSalvage();
 
     m_audio.play(Sfx::LevelClear);
 
@@ -600,9 +604,13 @@ void Game::onPlayerDied()
     addShake(config::ShakeDeath);
     m_hurtFlash = 1.0f;
 
-    // Nothing is taken away. The salvage stays, the tree stays, and the level
-    // is still there to be tried again from the hub. Losing an attempt is the
-    // whole cost of dying: the difficulty is in beating a level at all.
+    // The tree is never taken away and never will be: an upgrade you bought is
+    // yours. What is taken away is the hold - everything this dive earned and
+    // did not surface with. That is what makes the last two minutes of a level
+    // a decision rather than a formality.
+    m_lostSalvage = m_diveSalvage;
+    m_diveSalvage = 0;
+
     m_save.selectedLevel = m_level.getNumber();
     persist();
 }
@@ -1021,10 +1029,12 @@ void Game::processEvents()
                     break;
 
                 case sf::Keyboard::Scancode::Q:
-                    // Only offered by the pause overlay, and it keeps the
-                    // salvage the dive has already earned.
+                    // Surfacing on purpose. It is the only way to keep what a
+                    // dive has earned without finishing it, which is what turns
+                    // a bad run into a decision instead of a write-off.
                     if (m_paused)
                     {
+                        bankSalvage();
                         m_paused = false;
                         m_state = State::Upgrading;
                         m_showUpgrades = false;
@@ -1340,6 +1350,17 @@ Sfx Game::hitVoice(EnemyType type)
     }
 }
 
+void Game::bankSalvage()
+{
+    // Surfacing is what makes it yours. Called when a level closes and when
+    // the player walks out of one on purpose, and never when they drown.
+    if (m_diveSalvage <= 0)
+        return;
+
+    m_salvage += m_diveSalvage;
+    m_diveSalvage = 0;
+}
+
 void Game::awardSalvage(int base)
 {
     if (base <= 0)
@@ -1359,7 +1380,9 @@ void Game::awardSalvage(int base)
                                      static_cast<float>(base) * bonus * factor * run
                                      * difficulty().salvageScale)));
 
-    m_salvage += paid;
+    // Into the hold, not into the bank. Nothing earned on a dive is yours
+    // until you surface with it, which is the whole of what dying costs now.
+    m_diveSalvage += paid;
     m_tally.salvage += paid;
 }
 
@@ -3139,7 +3162,7 @@ void Game::drawPauseOverlay()
         { "M",       "MUTE", false },
         { "F",       "LAMP ON OR OFF", false },
         { "F11",     "FULLSCREEN", false },
-        { "Q",       "SURFACE, KEEPING THE SALVAGE", true },
+        { "Q",       "SURFACE WITH WHAT IS IN THE HOLD", true },
     };
 
     const float scale = 1.8f;
@@ -3153,6 +3176,17 @@ void Game::drawPauseOverlay()
         pixelfont::append(text, row.what, { whatX, y }, scale,
                           row.warn ? config::HudSalvageColor : config::HudTextColor);
         y += 30.0f;
+    }
+
+    // What surfacing is currently worth, so the choice on this screen is a
+    // number rather than a shrug.
+    if (m_diveSalvage > 0)
+    {
+        const std::string hold = std::to_string(m_diveSalvage) + " IN THE HOLD";
+        pixelfont::append(text, hold,
+                          { (config::WindowWidth - pixelfont::measure(hold, 2.0f)) / 2.0f,
+                            y + 26.0f },
+                          2.0f, config::HudBossColor);
     }
 
     m_window.draw(text);
@@ -3922,6 +3956,7 @@ void Game::render()
         // thing the player starts protecting.
         info.streak = m_streak >= config::StreakNotable ? m_streak : 0;
         info.streakLoud = m_streak >= config::StreakLoud;
+        info.held = m_diveSalvage;
         info.streakBonus = static_cast<int>(std::lround(
             config::StreakSalvageStep * 100.0f
             * static_cast<float>(std::min(m_streak, config::StreakSalvageCap))));
@@ -3972,9 +4007,17 @@ void Game::render()
         }
         else if (m_state == State::GameOver)
         {
+            // The tree survives, so the line has to say what did not: the
+            // hold. A death that says NOTHING LOST when it has just cost two
+            // hundred salvage is a lie the player will catch immediately.
+            const std::string cost =
+                m_lostSalvage > 0
+                    ? std::to_string(m_lostSalvage) + " SALVAGE WENT DOWN WITH YOU"
+                    : std::string("THE HOLD WAS EMPTY. TRY IT AGAIN.");
+
             m_hud.drawBanner(m_window, "LEVEL " + std::to_string(m_level.getNumber()),
                              "THE DARK TOOK YOU",
-                             "NOTHING LOST. TRY IT AGAIN.",
+                             cost,
                              config::HudBossColor,
                              bannerAlpha(m_stateTimer, config::DeathBannerDuration));
         }

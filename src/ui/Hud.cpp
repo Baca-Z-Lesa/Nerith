@@ -138,11 +138,26 @@ void Hud::draw(sf::RenderTarget& target, int health, int maxHealth,
                         config::HudMargin - 12.0f },
                       config::HudTextScale, config::HudSalvageColor);
 
-    pixelfont::append(m_text, "TAB UPGRADES",
-                      { static_cast<float>(config::WindowWidth) - config::HudMargin
-                            - pixelfont::measure("TAB UPGRADES", 1.5f),
-                        config::HudMargin + 12.0f },
-                      1.5f, config::HudDimTextColor);
+    // What is in the hold and not yet in the bank. Drowning loses exactly
+    // this, so it has to be on the screen the whole time rather than only in
+    // the summary afterwards.
+    if (level.held > 0)
+    {
+        const std::string held = "+" + std::to_string(level.held) + " IN THE HOLD";
+        pixelfont::append(m_text, held,
+                          { static_cast<float>(config::WindowWidth) - config::HudMargin
+                                - pixelfont::measure(held, 1.5f),
+                            config::HudMargin + 12.0f },
+                          1.5f, config::HudBossColor);
+    }
+    else
+    {
+        pixelfont::append(m_text, "TAB UPGRADES",
+                          { static_cast<float>(config::WindowWidth) - config::HudMargin
+                                - pixelfont::measure("TAB UPGRADES", 1.5f),
+                            config::HudMargin + 12.0f },
+                          1.5f, config::HudDimTextColor);
+    }
 
     // Momentum, once it is worth showing. Gold at first, then the boss colour
     // once it is long enough that losing it would actually hurt.

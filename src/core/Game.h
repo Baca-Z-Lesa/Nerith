@@ -209,6 +209,11 @@ private:
     // penalty cannot be forgotten at one of the call sites.
     void awardSalvage(int base);
 
+    // Moves the dive's hold into the bank. Surfacing is what makes salvage
+    // yours: clearing a level does it, walking out of one on purpose does it,
+    // and drowning does the opposite.
+    void bankSalvage();
+
     // Feel, rather than rules. A jolt of the camera and a few frames of frozen
     // time are what make a torpedo land like a torpedo; the red wash is how the
     // player finds out they have been bitten without reading the health pips.
@@ -335,7 +340,9 @@ private:
     float    m_menuTime;
     State    m_afterStory;
 
-    int   m_salvage;
+    int   m_salvage;      // banked, and safe
+    int   m_diveSalvage;  // earned this dive, and lost if you drown with it
+    int   m_lostSalvage;  // what the last death cost, for the banner
     bool  m_showUpgrades;
 
     // Water that has already been cleared pays a fraction, so the level being
