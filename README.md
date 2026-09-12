@@ -2,9 +2,9 @@
 
 A 2D top-down underwater horror shooter. You drive a submarine down a trench in
 twenty hand-authored levels, four depths, a creature waiting at the bottom of
-each one. Dying costs the attempt and nothing else — the salvage and the upgrade
-tree are permanent, and the difficulty lives in how hard a level is to beat in
-the first place.
+each one, and a trench that keeps generating more of itself after that. The
+upgrade tree is permanent and is never taken away; what a dive earns is not
+yours until you surface with it.
 
 Written in C++20 against SFML 3 with no game engine. Every texture and every
 sound in the game is generated from source by the scripts in `tools/`; no asset
@@ -21,7 +21,8 @@ Grab `dist/Nerith.zip` (or build it, below), unzip it anywhere, run
 | mouse | aim — the hull turns to follow it |
 | left mouse | water jet, held down (held *and released*, with a charge coil) |
 | right mouse | torpedo, once the tube is fitted |
-| `Shift` | dash, once the engine takes it |
+| `Shift` | dash, once the engine takes it — and the way out of a mouth |
+| `E` | cycle the fitted guns |
 | `F` | kill the lamp and run dark |
 | `Tab` | the upgrade tree, mid dive |
 | arrows | walk the roots, in the tree |
@@ -29,7 +30,7 @@ Grab `dist/Nerith.zip` (or build it, below), unzip it anywhere, run
 | `,` `.` | pick the dive, in the hub |
 | wheel, `+` `-` | zoom the tree |
 | `R` | strip the hull back, in the hub |
-| `Esc` or `P` | hold at depth |
+| `Esc` or `P` | hold at depth — and `Q` from there surfaces with the hold |
 | `M` | mute |
 | `F11` | fullscreen |
 
@@ -70,6 +71,24 @@ time, and anything that lands a hit makes you let go of it exactly where you
 are standing. Every other level type is answered by fighting well. This one is
 answered by deciding when to fight at all.
 
+Nothing a dive earns is banked until it surfaces. Clearing a level banks it,
+walking out of one on purpose banks it, and drowning loses every bit of it —
+the banner says how much. The tree survives either way, so the pressure lands
+on the decision to push on rather than on the progress behind it.
+
+A beating takes the sub apart rather than only the bar. Crossing each of four
+thresholds knocks out the next system for the rest of the dive, least crippling
+first: the sonar, then the torpedo tube, then the gun, which lands soft and
+cycles slowly, and last the engine, which costs a third of the speed and the
+dash. The HUD names them, because there is a difference between knowing you are
+on low health and knowing you have no torpedoes and no dash.
+
+The end of each weapon limb is a gun rather than a stat. The harpoon is a heavy
+head on a line that bites into whatever it hits — creature or rock — and hauls
+the sub to it. The pulse has no projectile at all: it empties the water around
+the hull, kills the orbs in it, and leaves everything it touched cold. `E`
+cycles whatever is fitted.
+
 A hit that never lands is worth as much noise as one that does. A shield
 popping, a dash timed into a shot, armour soaking a blow, the vent pulling you
 out of a death: each has its own colour and ring, its own weight of hit stop,
@@ -94,9 +113,25 @@ Bosses are animals rather than health bars. Each is a body towing segments with
 eyes, fins, tentacles, plating and organs bolted to it, and breaking a part takes
 something away: its aim, its speed, one of the arms feeding its attack, or the
 shell over the thing keeping it alive. Every one has three acts, and crossing
-into one is permanent: nothing is replaced, it is added. The last creature in
-the campaign spends its second act pulling its own dead off its column and its
-third closing the basin with shots that come inward off the rim.
+into one is permanent: nothing is replaced, it is added.
+
+Each also has two moves that are not more bullets, alternating so neither
+becomes the one you wait for. The leviathan sweeps its tail in an arc that
+throws you, and grabs — a lunge announced as a charge that, if it connects,
+holds on until you dash out of it. The sovereign plants pods that hatch if they
+are left, and pushes the whole room away from itself. The worm blinds you with
+silt and comes up through the floor exactly where you are standing, the floor
+bulging first. The hollow pulls, and tears pieces out of the basin to throw.
+Aggression compounds with every act, so a cornered creature is relentless
+rather than merely faster.
+
+Below the campaign the water changes. Six creatures live down there that are
+rules rather than bigger numbers: one armoured only where it is looking, one
+that latches onto the hull and drains until it is shaken off, one that is
+untouchable under the floor, one that holds a light up for the rest so that
+running dark stops working, one that arrives instead of swimming, and one whose
+body is the weapon and whose head is only how it steers. The logbook on the
+title screen is where they hold still long enough to be looked at.
 
 ## Building it
 
@@ -123,6 +158,7 @@ src/core        the window, the main loop, the state machine, the save file
                 and Config.h, which is every balance number in the game
 src/entities    the sub, the creatures, the bosses, the projectiles
 src/world       the arena, the seabed, the depth themes, the level table
+                and the logbook text
 src/upgrades    the stat block and the upgrade tree
 src/ui          the HUD, the menus, the upgrade screen, the pixel font
 src/effects     the particle system
@@ -150,6 +186,10 @@ relief pass, which reads a sprite's own alpha as a height map and shades it from
 an upper-left key light. Run it rather than the individual drawing scripts: the
 relief pass is not idempotent, and going through there draws flat and lights
 once. `tools/relief.ps1` holds the pass and the material table.
+
+The grain is seeded from each sprite's own name rather than from a running
+counter, so adding one texture changes one file instead of reshuffling the noise
+on every sprite that sorts after it.
 
 Everything alive is drawn through `tools/organic.ps1`, which builds a body from
 a centre line and a width profile so it tapers instead of ending, grows fins out
