@@ -206,6 +206,12 @@ private:
 
     void onBossActChanged(int act);
 
+    // The ring that closes on a creature about to commit, and the line it is
+    // about to take. Drawn here rather than in Boss for the same reason the hit
+    // rings are: the creature is the thing, this is the game telling you about
+    // the thing.
+    void drawBossTell();
+
     // Small triangles at the edge of the screen for whatever is hunting from
     // outside it. The basin is far larger than the view, so without these a
     // creature can cross the whole arena and bite before it is ever seen.
@@ -332,6 +338,7 @@ private:
     float     m_flash;       // 1 at the moment, fading to 0
     sf::Color m_flashColour;
     int       m_bossAct;     // the act the boss was in last frame
+    bool      m_bossTelling; // whether it was already announcing an attack
     int       m_streak;      // kills since the last time something touched you
     int       m_bestStreak;
     int       m_blocks;      // hits that did not land, for the summary

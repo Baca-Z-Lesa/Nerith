@@ -87,6 +87,7 @@ Game::Game()
     , m_flash(0.0f)
     , m_flashColour(sf::Color::White)
     , m_bossAct(0)
+    , m_bossTelling(false)
     , m_streak(0)
     , m_bestStreak(0)
     , m_blocks(0)
@@ -272,6 +273,55 @@ void Game::bigMoment(sf::Vector2f at, sf::Color colour, float shake, float slow)
     addHitRing(at, config::BigMomentRing, colour);
 
     effects::playerDeath(m_effects, at);
+}
+
+void Game::drawBossTell()
+{
+    const float tell = m_boss->getTell();
+    if (tell <= 0.0f)
+        return;
+
+    const sf::Vector2f at = m_boss->getPosition();
+    const float body = m_boss->getRadius();
+    const bool lunge = m_boss->isTellLunge();
+    const sf::Color base = lunge ? config::BossTellLungeColor : config::BossTellColor;
+
+    // A ring closing on the body. It starts wide and loose and arrives tight
+    // and bright exactly as the blow does, so the timing is readable without a
+    // number and without having to know the fight.
+    const float radius = body * (config::BossTellRing - (config::BossTellRing - 1.0f) * tell);
+
+    sf::Color edge = base;
+    edge.a = static_cast<std::uint8_t>(90.0f + 165.0f * tell);
+
+    m_sonarRing.setRadius(radius);
+    m_sonarRing.setOrigin({ radius, radius });
+    m_sonarRing.setPosition(at);
+    m_sonarRing.setOutlineThickness(2.0f + 5.0f * tell);
+    m_sonarRing.setOutlineColor(edge);
+    m_window.draw(m_sonarRing);
+
+    if (!lunge)
+        return;
+
+    // A charge also draws the line it is about to take, tapering away from the
+    // creature. Standing on that line is the mistake; stepping off it is the
+    // answer, and both have to be visible before it moves.
+    const sf::Vector2f aim = m_boss->getTellAim();
+    const sf::Vector2f across{ -aim.y, aim.x };
+    const sf::Vector2f nose = at + aim * body;
+    const sf::Vector2f tip = nose + aim * (body * config::BossTellReach * tell);
+
+    sf::Color root = base;
+    root.a = static_cast<std::uint8_t>(150.0f * tell);
+    sf::Color point = base;
+    point.a = 0;
+
+    sf::VertexArray spear(sf::PrimitiveType::Triangles);
+    spear.append(sf::Vertex{ nose - across * (body * 0.30f), root });
+    spear.append(sf::Vertex{ nose + across * (body * 0.30f), root });
+    spear.append(sf::Vertex{ tip, point });
+    m_window.draw(spear);
 }
 
 void Game::onBossActChanged(int act)
@@ -1225,8 +1275,15 @@ void Game::awardSalvage(int base)
     const float bonus = 1.0f + m_playerStats.get(Stat::SalvageBonus, 0.0f);
     const float factor = m_rerun ? config::RerunSalvageFactor : 1.0f;
 
+    // Momentum pays. A clean run is worth going for rather than merely being
+    // worth hearing, and the first thing that lands on you takes the whole
+    // multiplier back rather than shaving it.
+    const float run = 1.0f + config::StreakSalvageStep
+                                 * static_cast<float>(std::min(m_streak,
+                                                               config::StreakSalvageCap));
+
     const int paid = std::max(1, static_cast<int>(std::lround(
-                                     static_cast<float>(base) * bonus * factor
+                                     static_cast<float>(base) * bonus * factor * run
                                      * difficulty().salvageScale)));
 
     m_salvage += paid;
@@ -1972,7 +2029,20 @@ void Game::updateBoss(float deltaTime)
     if (!m_boss)
         return;
 
+    const bool wasTelling = m_bossTelling;
+
     m_boss->update(deltaTime, m_player.getPosition());
+
+    // The announcement gets a sound of its own. A tell nobody hears is a tell
+    // that only works when the player happens to be looking at the creature,
+    // and at this size they are usually looking at the water around it.
+    m_bossTelling = m_boss->isTelling();
+    if (m_bossTelling && !wasTelling)
+    {
+        m_audio.play(Sfx::Charge, m_boss->isTellLunge() ? 1.25f : 0.95f);
+        addShake(config::ShakeTorpedo * 0.35f);
+    }
+
     // A boss is held in the hall rather than in the whole basin: it is far too
     // big to be allowed down a corridor, and the hall is cut for it.
     m_boss->confine(m_arena.getHallCentre(),
@@ -2552,13 +2622,25 @@ void Game::drawThreatArrows()
         const sf::Vector2f tip = half + direction * std::min(toSide, toTop);
 
         const sf::Vector2f side{ -direction.y, direction.x };
-        const float size = threat.boss ? 15.0f : 10.0f;
+        float size = threat.boss ? 15.0f : 10.0f;
 
         // Close threats are solid, distant ones barely there, so the edge of the
         // screen reads as a proximity meter rather than a list.
         const float nearness = 1.0f - threat.distance / config::ThreatArrowRange;
         sf::Color colour = threat.boss ? config::HudBossColor : config::HudPipFullEdge;
         colour.a = static_cast<std::uint8_t>(60.0f + 175.0f * nearness * nearness);
+
+        // A creature winding up off the edge of the frame would otherwise
+        // announce itself to nobody. The arrow takes the tell colour and swells
+        // with it, so the warning arrives even when the creature has not.
+        if (threat.boss && m_boss && m_boss->isTelling())
+        {
+            const float tell = m_boss->getTell();
+            colour = m_boss->isTellLunge() ? config::BossTellLungeColor
+                                           : config::BossTellColor;
+            colour.a = static_cast<std::uint8_t>(120.0f + 135.0f * tell);
+            size *= 1.0f + 0.9f * tell;
+        }
 
         arrows.append(sf::Vertex{ tip + direction * size * 0.9f, colour });
         arrows.append(sf::Vertex{ tip - direction * size * 0.7f + side * size * 0.7f, colour });
@@ -3101,7 +3183,10 @@ void Game::render()
         m_window.draw(mine.sprite);
 
     if (m_boss)
+    {
         m_boss->draw(m_window);
+        drawBossTell();
+    }
 
     for (const Enemy& enemy : m_enemies)
         enemy.draw(m_window);
@@ -3289,6 +3374,9 @@ void Game::render()
         // thing the player starts protecting.
         info.streak = m_streak >= config::StreakNotable ? m_streak : 0;
         info.streakLoud = m_streak >= config::StreakLoud;
+        info.streakBonus = static_cast<int>(std::lround(
+            config::StreakSalvageStep * 100.0f
+            * static_cast<float>(std::min(m_streak, config::StreakSalvageCap))));
 
         m_hud.draw(m_window, m_player.getHealth(), m_player.getMaxHealth(), info, m_salvage);
 

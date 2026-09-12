@@ -62,6 +62,14 @@ public:
     // stop the world for a moment; the boss itself uses it to decide what it
     // is willing to do.
     int getAct() const { return m_act; }
+
+    // The moment before a committed attack, as 0 at the announcement rising to
+    // 1 as the blow lands. Anything that can really hurt you says so first, so
+    // that blocking one is a read rather than a guess.
+    float getTell() const;
+    bool  isTelling() const { return m_tellTimer > 0.0f; }
+    sf::Vector2f getTellAim() const { return m_tellAim; }
+    bool  isTellLunge() const { return m_tellLunge; } // a charge, rather than a volley
     void confine(sf::Vector2f center, float maxDistance);
 
     // True when any part of the body is close enough to maul the player.
@@ -130,6 +138,8 @@ private:
         int   organs = 0;
     };
 
+    void beginTell(float seconds, sf::Vector2f aim, bool lunge);
+
     void refreshVitals();
     void steer(float deltaTime, sf::Vector2f target, float turnScale);
     void advance(float deltaTime, float speed);
@@ -172,6 +182,13 @@ private:
     sf::Vector2f m_playerPosition;
     sf::Vector2f m_strikeTarget;
     sf::Vector2f m_confineCentre;
+
+    // Counted down by update, so every mind announces its attacks the same way
+    // and the drawing has one thing to ask rather than four.
+    float        m_tellTimer = 0.0f;
+    float        m_tellLength = 1.0f;
+    sf::Vector2f m_tellAim{ 1.0f, 0.0f };
+    bool         m_tellLunge = false;
 
     Phase m_phase;
     float m_phaseTimer;

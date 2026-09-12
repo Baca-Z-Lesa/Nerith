@@ -319,6 +319,17 @@ namespace config
 
     inline constexpr float BossStalkTime = 3.4f;
     inline constexpr float BossWindTime = 0.85f;
+
+    // How long before a committed attack the creature announces it, and what
+    // the announcement looks like. A ring closes on the body over this long
+    // and a spear grows along the line it is about to take. Blocking used to
+    // be a coin toss because nothing said a blow was coming; this is what
+    // turns it into something you can read and answer.
+    inline constexpr float BossTellTime = 0.62f;
+    inline constexpr float BossTellRing = 3.1f;   // ring radius, in body radii, at the start
+    inline constexpr float BossTellReach = 2.4f;  // how far ahead a lunge draws its line
+    inline constexpr sf::Color BossTellColor{ 255, 146, 92 };
+    inline constexpr sf::Color BossTellLungeColor{ 255, 92, 88 };
     inline constexpr float BossStrikeTime = 1.15f;
     inline constexpr float BossRecoverTime = 1.3f;
     inline constexpr float BossFleeTime = 2.4f;
@@ -619,6 +630,13 @@ namespace config
     inline constexpr int   StreakLoud = 12;     // where the screen starts to pulse
     inline constexpr float StreakPitchStep = 0.045f;
     inline constexpr float StreakPitchMax = 1.7f;
+
+    // What a streak is actually worth. Every kill without being touched pays
+    // a little more for the next one, and the first hit that lands takes all
+    // of it back. That is the whole point: the counter was a number nobody had
+    // a reason to care about until losing it cost something.
+    inline constexpr float StreakSalvageStep = 0.05f;
+    inline constexpr int   StreakSalvageCap = 24;  // +120% and no further
 
     inline constexpr float SlowMotionScale = 0.34f;
     inline constexpr float SlowMotionBossAct = 1.1f;

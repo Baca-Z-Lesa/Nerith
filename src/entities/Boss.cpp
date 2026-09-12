@@ -299,6 +299,9 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
                   0.4f + 0.6f * m_vitals.tracking);
             advance(deltaTime, m_speed * m_vitals.mobility);
 
+            if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+                beginTell(std::max(0.05f, m_attackTimer), direction, false);
+
             m_attackTimer -= deltaTime;
             if (m_attackTimer <= 0.0f)
             {
@@ -332,6 +335,7 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
             {
                 m_phase = Phase::Wind;
                 m_phaseTimer = config::BossWindTime;
+                beginTell(config::BossWindTime, direction, true);
             }
             break;
         }
@@ -415,6 +419,15 @@ void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
 
     m_bellPulse = std::max(0.0f, m_bellPulse - deltaTime * 2.0f);
 
+    // Announced on the way down rather than on the frame it fires. Sized to
+    // whatever is actually left, so a creature whose cooldown is shorter than
+    // the tell still announces - it simply announces for less long.
+    if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+    {
+        beginTell(std::max(0.05f, m_attackTimer),
+                  safeNormal(player - m_segments[0].position, m_heading), false);
+    }
+
     if (m_attackTimer > 0.0f)
         return;
 
@@ -476,6 +489,12 @@ void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
             m_segments[0].angle = m_heading.angle();
             advance(deltaTime, m_speed * m_vitals.mobility);
 
+            if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+            {
+                beginTell(std::max(0.05f, m_attackTimer),
+                          safeNormal(player - m_segments[0].position, m_heading), false);
+            }
+
             m_attackTimer -= deltaTime;
             if (m_attackTimer <= 0.0f)
             {
@@ -532,6 +551,10 @@ void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
 
                 m_phase = Phase::Rising;
                 m_phaseTimer = config::BossRiseTime;
+
+                // Coming up is itself an attack, and the whole rise is its own
+                // warning: the silt lifts before the stingers do.
+                beginTell(config::BossRiseTime, m_heading, false);
             }
             break;
 
@@ -612,6 +635,11 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
     // to run stops being true, which is the whole of the second phase.
     const float turn = config::BossSpiralTurn * (m_enraged ? -1.6f : 1.0f);
     m_spiralAngle += turn * deltaTime;
+
+    if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+    {
+        beginTell(std::max(0.05f, m_attackTimer), direction, false);
+    }
 
     m_attackTimer -= deltaTime;
     if (m_attackTimer > 0.0f)
@@ -701,6 +729,10 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
     m_time += deltaTime;
     m_playerPosition = playerPosition;
 
+    // Counted down here rather than in each mind, so a tell cannot be left
+    // hanging by whichever branch happened to start it.
+    m_tellTimer = std::max(0.0f, m_tellTimer - deltaTime);
+
     switch (m_def->mind)
     {
         case BossMind::Prowler:  thinkProwler(deltaTime, playerPosition); break;
@@ -711,6 +743,22 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
 
     followChain();
     placeParts(deltaTime);
+}
+
+void Boss::beginTell(float seconds, sf::Vector2f aim, bool lunge)
+{
+    m_tellTimer = seconds;
+    m_tellLength = std::max(0.01f, seconds);
+    m_tellAim = aim;
+    m_tellLunge = lunge;
+}
+
+float Boss::getTell() const
+{
+    if (m_tellTimer <= 0.0f)
+        return 0.0f;
+
+    return std::clamp(1.0f - m_tellTimer / m_tellLength, 0.0f, 1.0f);
 }
 
 void Boss::confine(sf::Vector2f center, float maxDistance)

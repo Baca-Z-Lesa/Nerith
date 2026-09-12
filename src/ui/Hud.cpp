@@ -153,6 +153,15 @@ void Hud::draw(sf::RenderTarget& target, int health, int maxHealth,
 
         pixelfont::append(m_text, run, { centredX(run, scale), 118.0f }, scale,
                           level.streakLoud ? config::HudBossColor : config::HudSalvageColor);
+
+        // What it is worth, under it. Without the number the streak is a thing
+        // to notice; with it, it is a thing to protect.
+        if (level.streakBonus > 0)
+        {
+            const std::string paid = "+" + std::to_string(level.streakBonus) + "% SALVAGE";
+            pixelfont::append(m_text, paid, { centredX(paid, 1.4f), 118.0f + scale * 9.0f },
+                              1.4f, config::HudSalvageColor);
+        }
     }
 
     target.draw(m_text);

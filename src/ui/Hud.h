@@ -35,6 +35,7 @@ public:
         // Kills without being touched. Zero means do not draw it at all.
         int   streak = 0;
         bool  streakLoud = false;
+        int   streakBonus = 0; // per cent extra salvage the run is currently paying
     };
 
     void draw(sf::RenderTarget& target, int health, int maxHealth,
