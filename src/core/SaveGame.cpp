@@ -38,6 +38,15 @@ SaveGame SaveGame::load()
             stream >> data.bestLevel;
         else if (key == "best_depth")
             stream >> data.bestDepth;
+        else if (key == "killed")
+        {
+            // One line for the whole logbook, in EnemyType order. A save from
+            // before the logbook existed simply has none, which reads as an
+            // empty book rather than as an error.
+            int count = 0;
+            while (stream >> count)
+                data.killed.push_back(std::max(0, count));
+        }
         else if (key == "story")
             stream >> data.storySeen;
         else if (key == "beaten")
@@ -100,6 +109,15 @@ void SaveGame::save() const
     file << "level " << selectedLevel << '\n';
     file << "salvage " << salvage << '\n';
     file << "beaten " << (campaignBeaten ? 1 : 0) << '\n';
+
+    if (!killed.empty())
+    {
+        file << "killed";
+        for (const int count : killed)
+            file << ' ' << count;
+        file << '\n';
+    }
+
     file << "difficulty " << difficulty << '\n';
     file << "sfx " << sfxVolume << '\n';
     file << "music " << musicVolume << '\n';

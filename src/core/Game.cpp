@@ -3,6 +3,7 @@
 #include "core/Config.h"
 #include "core/Random.h"
 #include "ui/PixelFont.h"
+#include "world/Bestiary.h"
 
 #include <SFML/Graphics/View.hpp>
 #include <SFML/System/Angle.hpp>
@@ -94,6 +95,7 @@ Game::Game()
     , m_carrying(-1)
     , m_sirenTimer(0.0f)
     , m_optionRow(0)
+    , m_beastRow(0)
     , m_creditsScroll(0.0f)
     , m_justBeatCampaign(false)
     , m_lastSpawnAngle(0.0f)
@@ -690,6 +692,11 @@ void Game::activateMenuChoice()
             m_state = State::Controls;
             break;
 
+        case MainMenu::Choice::Bestiary:
+            m_beastRow = 0;
+            m_state = State::Bestiary;
+            break;
+
         case MainMenu::Choice::Options:
             m_optionRow = 0;
             m_state = State::Options;
@@ -929,6 +936,31 @@ void Game::processEvents()
             if (m_state == State::Options)
             {
                 handleOptionsKey(keyPressed->scancode);
+                continue;
+            }
+
+            // The logbook is the one flat screen with something to move
+            // through, so it takes the arrows before the blanket exit below.
+            if (m_state == State::Bestiary)
+            {
+                switch (keyPressed->scancode)
+                {
+                    case sf::Keyboard::Scancode::Up:
+                    case sf::Keyboard::Scancode::W:
+                        m_beastRow = (m_beastRow + static_cast<int>(EnemyTypeCount) - 1)
+                                     % static_cast<int>(EnemyTypeCount);
+                        break;
+                    case sf::Keyboard::Scancode::Down:
+                    case sf::Keyboard::Scancode::S:
+                        m_beastRow = (m_beastRow + 1) % static_cast<int>(EnemyTypeCount);
+                        break;
+                    case sf::Keyboard::Scancode::F11:
+                        toggleFullscreen();
+                        break;
+                    default:
+                        openMenu();
+                        break;
+                }
                 continue;
             }
 
@@ -2348,6 +2380,16 @@ void Game::killEnemy(Enemy& enemy)
 {
     effects::enemyDeath(m_effects, enemy.getPosition());
 
+    // The logbook. Counted here rather than in the tally, because it outlives
+    // the run: it is a record of what has been met, not of what this dive did.
+    {
+        const auto index = static_cast<std::size_t>(enemy.getType());
+        if (m_save.killed.size() <= index)
+            m_save.killed.resize(EnemyTypeCount, 0);
+
+        ++m_save.killed[index];
+    }
+
     // Momentum. Every kill without being touched pitches the death note up a
     // step, so a clean run through a room audibly climbs - and the moment
     // something lands on you it drops back to the floor. Nothing about it is a
@@ -3264,6 +3306,143 @@ void Game::drawVictory()
     m_window.draw(text);
 }
 
+void Game::drawBestiary()
+{
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    appendHeading(text, "LOGBOOK", "ARROWS PICK.  ESCAPE GOES BACK.");
+
+    const auto killsOf = [this](std::size_t index) {
+        return index < m_save.killed.size() ? m_save.killed[index] : 0;
+    };
+
+    int met = 0;
+    for (std::size_t i = 0; i < EnemyTypeCount; ++i)
+        met += killsOf(i) > 0 ? 1 : 0;
+
+    const std::string tally = "MET " + std::to_string(met) + "/"
+                              + std::to_string(static_cast<int>(EnemyTypeCount));
+    pixelfont::append(text, tally, { config::HudMargin, 116.0f }, 1.6f, config::HudDimTextColor);
+
+    // The list down the left. Anything never killed is a blank line rather
+    // than a name: the book is a record of what has actually been met, and
+    // reading it ahead of time would give the whole trench away.
+    const float listX = config::HudMargin;
+    float y = 150.0f;
+
+    for (std::size_t i = 0; i < EnemyTypeCount; ++i)
+    {
+        const bool known = killsOf(i) > 0;
+        const bool picked = static_cast<int>(i) == m_beastRow;
+
+        const std::string label = known ? bestiary::Entries[i].name : "- - - - -";
+
+        sf::Color colour = config::HudDimTextColor;
+        if (picked)
+            colour = known ? sf::Color::White : config::NodeLockedEdge;
+        else if (known)
+            colour = config::HudTextColor;
+
+        pixelfont::append(text, picked ? ("> " + label) : ("  " + label),
+                          { listX, y }, 1.7f, colour);
+
+        if (known)
+        {
+            const std::string count = std::to_string(killsOf(i));
+            pixelfont::append(text, count,
+                              { 330.0f - pixelfont::measure(count, 1.4f), y + 2.0f },
+                              1.4f, config::HudSalvageColor);
+        }
+
+        y += 30.0f;
+    }
+
+    m_window.draw(text);
+
+    // The panel on the right: the animal itself, as big as it will go, and
+    // what the book has to say about it.
+    const auto row = static_cast<std::size_t>(std::clamp(m_beastRow, 0,
+                                                         static_cast<int>(EnemyTypeCount) - 1));
+    const bool known = killsOf(row) > 0;
+
+    sf::RectangleShape panel;
+    panel.setSize({ 820.0f, 480.0f });
+    panel.setPosition({ 400.0f, 140.0f });
+    panel.setFillColor(sf::Color(4, 12, 18, 210));
+    panel.setOutlineThickness(2.0f);
+    panel.setOutlineColor(known ? config::NodeReadyEdge : config::NodeLockedEdge);
+    m_window.draw(panel);
+
+    sf::VertexArray panelText(sf::PrimitiveType::Triangles);
+
+    if (!known)
+    {
+        const std::string unknown = "NOT YET MET";
+        pixelfont::append(panelText, unknown,
+                          { 400.0f + (820.0f - pixelfont::measure(unknown, 2.4f)) / 2.0f, 350.0f },
+                          2.4f, config::NodeLockedEdge);
+        m_window.draw(panelText);
+        return;
+    }
+
+    const bestiary::Entry& entry = bestiary::Entries[row];
+    const auto type = static_cast<EnemyType>(row);
+
+    // Scaled to fill the plate rather than drawn at the size it fights at: the
+    // whole point of the book is that it is the one place these hold still.
+    sf::Sprite portrait(m_assets.forEnemy(type));
+    const sf::Vector2f size(portrait.getTexture().getSize());
+    portrait.setOrigin(size / 2.0f);
+
+    // The portrait sits over the text rather than beside it: the longest line
+    // in the book is fifty-eight characters, and beside a portrait there is
+    // nowhere near enough room for that without shrinking it to nothing.
+    const float fit = std::min(340.0f / std::max(1.0f, size.x), 190.0f / std::max(1.0f, size.y));
+    portrait.setScale({ fit, fit });
+    portrait.setPosition({ 810.0f, 255.0f });
+    m_window.draw(portrait);
+
+    const float textX = 440.0f;
+
+    pixelfont::append(panelText, entry.name, { textX, 370.0f }, 3.0f, config::HudTextColor);
+    pixelfont::append(panelText, entry.what, { textX, 424.0f }, 1.5f, config::HudDimTextColor);
+    pixelfont::append(panelText, entry.how, { textX, 450.0f }, 1.5f, config::HudSalvageColor);
+
+    const config::EnemyStats& stats = config::enemyStats(type);
+
+    struct Line { const char* label; std::string value; };
+    const Line lines[] = {
+        { "KILLED", std::to_string(killsOf(row)) },
+        { "HULL",   std::to_string(stats.health) },
+        { "BITE",   std::to_string(stats.contactDamage) },
+        { "SALVAGE", std::to_string(stats.salvage) },
+    };
+
+    // Two columns, because four stacked rows under two lines of prose would
+    // run the panel out of floor.
+    float statX = textX;
+    float statY = 500.0f;
+
+    for (const Line& line : lines)
+    {
+        pixelfont::append(panelText, line.label, { statX, statY }, 1.5f, config::HudDimTextColor);
+        pixelfont::append(panelText, line.value, { statX + 130.0f, statY }, 1.5f,
+                          config::HudTextColor);
+
+        statY += 30.0f;
+        if (statY > 540.0f)
+        {
+            statY = 500.0f;
+            statX += 330.0f;
+        }
+    }
+
+    m_window.draw(panelText);
+}
+
 void Game::drawCredits()
 {
     m_deathOverlay.setFillColor(config::PauseVeil);
@@ -3699,6 +3878,7 @@ void Game::render()
     }
 
     if (m_state == State::Controls) { drawControls(); m_window.display(); return; }
+    if (m_state == State::Bestiary) { drawBestiary(); m_window.display(); return; }
     if (m_state == State::Options)  { drawOptions();  m_window.display(); return; }
     if (m_state == State::Victory)  { drawVictory();  m_window.display(); return; }
     if (m_state == State::Credits)  { drawCredits();  m_window.display(); return; }

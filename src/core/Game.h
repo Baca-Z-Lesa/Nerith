@@ -44,6 +44,7 @@ private:
     {
         Menu,       // the screen the game opens on
         Controls,   // what the keys and the mouse do
+        Bestiary,   // the logbook: what has been met, and what it was
         Options,    // sound and difficulty
         Story,      // an interlude between depths
         LevelIntro, // title card, nothing spawns yet
@@ -245,6 +246,7 @@ private:
     // can be turned, and who to blame. None of them owns any state beyond a row
     // cursor, so they live here rather than in classes of their own.
     void drawControls();
+    void drawBestiary();
     void drawOptions();
     void drawVictory();
     void drawCredits();
@@ -371,6 +373,7 @@ private:
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
 
     int   m_optionRow;    // which line of the options screen is selected
+    int   m_beastRow;     // which animal the logbook is open at
     float m_creditsScroll;
     bool  m_justBeatCampaign; // the clear that ends the campaign, seen once
 

@@ -23,6 +23,11 @@ struct SaveGame
 
     // Settings live here too. They are the player's, not the run's, so a reset
     // leaves them alone.
+    // What has been killed and how often. Kept so the logbook has something to
+    // show and so a creature met once is a creature remembered: it is the only
+    // place in the game where these animals hold still long enough to look at.
+    std::vector<int> killed;
+
     int  difficulty = 1;      // index into config::Difficulties
     int  sfxVolume = 10;      // tenths, 0..10
     int  musicVolume = 7;

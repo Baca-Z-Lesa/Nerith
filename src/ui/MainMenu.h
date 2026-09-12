@@ -19,6 +19,7 @@ public:
     {
         Dive,     // into the hub, where the level and the upgrades are picked
         Controls, // what the keys do
+        Bestiary, // what has been met, and what it was
         Options,  // sound and difficulty
         Credits,
         Reset,    // throw everything away, deliberately

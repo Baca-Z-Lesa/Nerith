@@ -12,10 +12,13 @@ namespace
 {
     // Six entries have to fit between the strap line and the footer hint, so
     // the rows are tighter than they were when there were three.
-    constexpr float FirstEntryY = 340.0f;
-    constexpr float EntryStep = 52.0f;
+    // Sized for seven entries, which is what there are once the logbook and a
+    // run to scuttle are both in the list. Tightened rather than scrolled: a
+    // title screen that scrolls is a title screen that has lost the plot.
+    constexpr float FirstEntryY = 318.0f;
+    constexpr float EntryStep = 48.0f;
     constexpr float EntryWidth = 420.0f;
-    constexpr float EntryHeight = 44.0f;
+    constexpr float EntryHeight = 41.0f;
 
     float centredX(const std::string& text, float scale)
     {
@@ -49,6 +52,7 @@ void MainMenu::build(bool hasRun, int resumeLevel, int bestLevel, int bestDepth)
                           Choice::Dive });
 
     m_entries.push_back({ "CONTROLS", "WHAT EVERY KEY DOES", Choice::Controls });
+    m_entries.push_back({ "LOGBOOK", "WHAT YOU HAVE MET DOWN THERE", Choice::Bestiary });
     m_entries.push_back({ "OPTIONS", "SOUND AND HOW HARD IT BITES", Choice::Options });
     m_entries.push_back({ "CREDITS", "WHO BUILT IT", Choice::Credits });
 
