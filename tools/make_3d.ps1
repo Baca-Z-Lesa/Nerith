@@ -39,6 +39,17 @@ $Materials = @{
     'enemy_weaver.png'    = 'shell'
     'enemy_husk.png'      = 'flesh'
     'enemy_angler.png'    = 'flesh'
+
+    # Below the campaign. The material is the rule: the warden is shell because
+    # it is a shield, the herald is glow because it is a lamp, and the revenant
+    # is rock because most of what you see of it is the silt on its back.
+    'enemy_warden.png'    = 'shell'
+    'enemy_siphon.png'    = 'flesh'
+    'enemy_revenant.png'  = 'rock'
+    'enemy_herald.png'    = 'glow'
+    'enemy_rift.png'      = 'jelly'
+    'enemy_coilworm.png'  = 'shell'
+    'enemy_coil_seg.png'  = 'shell'
     'fish.png'            = 'flesh'
 
     # --- bosses ---
@@ -73,6 +84,8 @@ $Materials = @{
     'shot_spitter.png'    = 'glow'
     'shot_bloom.png'      = 'glow'
     'shot_weaver.png'     = 'glow'
+    'shot_rift.png'       = 'glow'
+    'shot_siphon.png'     = 'glow'
     'shot_husk.png'       = 'shell'
     'shot_leviathan.png'  = 'glow'
     'shot_sovereign.png'  = 'glow'
@@ -90,7 +103,7 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_enemies.ps1', 'make_enemies2.ps1', 'make_bestiary.ps1',
                       'make_creatures.ps1', 'make_bosses.ps1',
                       'make_boss4.ps1', 'make_shots.ps1', 'make_nest.ps1',
-                      'make_cargo.ps1', 'make_ship.ps1')) {
+                      'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }

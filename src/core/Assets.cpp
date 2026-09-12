@@ -86,6 +86,7 @@ Assets::Assets()
 
     want(config::NestTexturePath);
     want(config::CargoTexturePath);
+    want(config::SerpentSegmentPath);
 }
 
 const sf::Texture& Assets::shotFor(EnemyType type) const

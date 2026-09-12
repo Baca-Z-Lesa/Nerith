@@ -7,6 +7,8 @@
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/System/Vector2.hpp>
 
+#include <algorithm>
+#include <memory>
 #include <vector>
 
 namespace config { struct EnemyStats; }
@@ -24,6 +26,37 @@ public:
     void draw(sf::RenderTarget& target) const;
 
     void takeDamage(int amount);
+
+    // --- the deep creatures ---
+    // Warden: a shot arriving from inside its shield arc does nothing at all.
+    // Asked by the collision code before any damage is handed over.
+    bool deflects(sf::Vector2f from) const;
+
+    // Revenant: false while it is under the floor, when it can neither be hit
+    // nor hurt anything.
+    bool isVulnerable() const;
+
+    // Siphon: it stops swimming and holds on. Latched, it rides the hull, and
+    // only a dash or its own death gets it off.
+    bool isLatched() const { return m_latched; }
+    void latchTo(sf::Vector2f hull);
+    void shakeOff(sf::Vector2f away);
+    bool wantsBite(float deltaTime); // true once per bite interval while attached
+
+    // Herald: refreshed every frame by whatever is near enough to be helped.
+    // Held as a timer so a creature that swims out of the aura loses it rather
+    // than keeping it for the rest of the level.
+    void bolster(float seconds) { m_auraTimer = std::max(m_auraTimer, seconds); }
+    bool isBolstered() const { return m_auraTimer > 0.0f; }
+
+    // Rift: 0 when it is not about to move, rising to 1 as it goes.
+    float getBlinkTell() const;
+
+    // Coilworm: the rings it is towing, and whether any of them is on you.
+    // Only the head can be hurt, so this is asked separately from the hit test.
+    const std::vector<sf::Vector2f>& getBodyPoints() const { return m_body; }
+    bool bodyTouches(sf::Vector2f position, float radius) const;
+    void setSegmentTexture(const sf::Texture& texture);
 
     // Parasite: a wound that keeps working after the shot has gone.
     void applyBleed(float damagePerSecond, float seconds);
@@ -79,6 +112,7 @@ public:
 private:
     void move(float deltaTime, sf::Vector2f toPlayer, float distance);
     void applyHitFlash();
+    void updateBody(float deltaTime);
 
     int                       m_id;
     EnemyType                 m_type;
@@ -109,4 +143,22 @@ private:
     bool         m_aware;            // does it currently know where the sub is
     float        m_wanderAngle;      // the heading it drifts along when it does not
     bool         m_scripted;        // false once it was hatched rather than sent
+
+    // --- the deep creatures ---
+    bool         m_latched = false;   // Leech
+    float        m_biteTimer = 0.0f;
+    float        m_surfaced = 0.0f;   // Burrow: 0 buried, 1 fully up
+    bool         m_up = false;
+    float        m_auraTimer = 0.0f;  // Beacon, on whatever it is helping
+    float        m_blinkTimer = 0.0f; // Blink
+    float        m_blinkTell = 0.0f;
+    sf::Vector2f m_heading{ 1.0f, 0.0f }; // Serpent: turned rather than snapped
+
+    // Serpent: where the head has been, densely, and the ring positions picked
+    // off it. Kept as history rather than as springs because a chain of
+    // springs stretches when the head turns hard and the body then cuts a
+    // corner it never swam round.
+    std::vector<sf::Vector2f> m_history;
+    std::vector<sf::Vector2f> m_body;
+    std::unique_ptr<sf::Sprite> m_segment;
 };

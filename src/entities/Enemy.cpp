@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace
 {
@@ -155,6 +156,73 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
             break;
         }
 
+        case EnemyBehaviour::Bulwark:
+        {
+            // Straight at you, but it can only turn so fast, and the shield
+            // goes where it is pointing. Getting behind it is not a trick, it
+            // is the intended answer, and the turn rate is what makes it one.
+            const float turn = config::SerpentTurn * 0.42f * deltaTime;
+            const sf::Angle wanted = direction.angle();
+            const sf::Angle have = m_heading.angle();
+            const float error = sf::degrees(std::fmod(
+                (wanted - have).asDegrees() + 540.0f, 360.0f) - 180.0f).asDegrees();
+
+            m_heading = m_heading.rotatedBy(
+                sf::degrees(std::clamp(error, -turn, turn)));
+            m_position += m_heading * speed * deltaTime;
+            break;
+        }
+
+        case EnemyBehaviour::Leech:
+        {
+            // Sprints, then coasts, then sprints again, and it does not care
+            // about anything except closing the last few metres.
+            m_burstTimer -= deltaTime;
+            if (m_burstTimer <= 0.0f)
+            {
+                m_bursting = !m_bursting;
+                m_burstTimer = m_bursting ? 0.85f : 0.30f;
+            }
+
+            m_position += direction * speed * (m_bursting ? 1.0f : 0.35f) * deltaTime;
+            break;
+        }
+
+        case EnemyBehaviour::Burrow:
+            // Under the floor it tracks you at full speed, because nothing can
+            // stop it down there. Up, it is committed to where it came up.
+            m_position += direction * speed * (m_up ? 0.55f : 1.0f) * deltaTime;
+            break;
+
+        case EnemyBehaviour::Beacon:
+            // It is not trying to reach you. It drifts in because whatever it
+            // is lighting up wants to be near you, and it goes where they go.
+            m_position += direction * speed * deltaTime;
+            break;
+
+        case EnemyBehaviour::Blink:
+            // Between steps it barely moves. All of its distance is covered by
+            // arriving somewhere rather than by swimming there.
+            m_position += direction * speed * deltaTime;
+            break;
+
+        case EnemyBehaviour::Serpent:
+        {
+            // A long turning circle, so the body it is towing sweeps the water
+            // behind it. A worm that could turn on the spot would have no body
+            // worth avoiding.
+            const float turn = config::SerpentTurn * deltaTime;
+            const sf::Angle wanted = direction.angle();
+            const sf::Angle have = m_heading.angle();
+            const float error = sf::degrees(std::fmod(
+                (wanted - have).asDegrees() + 540.0f, 360.0f) - 180.0f).asDegrees();
+
+            m_heading = m_heading.rotatedBy(
+                sf::degrees(std::clamp(error, -turn, turn)));
+            m_position += m_heading * speed * deltaTime;
+            break;
+        }
+
         case EnemyBehaviour::Brood:
         case EnemyBehaviour::Drift:
             // Creeps forward and does not care where you are. It is a hazard
@@ -214,10 +282,99 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
         return;
     }
 
+    // The ones that burrow, blink or hold a shield run their own clock before
+    // anything else: what they do this frame depends on where they are in it.
+    switch (m_stats->behaviour)
+    {
+        case EnemyBehaviour::Burrow:
+        {
+            m_burstTimer -= deltaTime;
+            if (m_burstTimer <= 0.0f)
+            {
+                m_up = !m_up;
+                m_burstTimer = m_up ? m_stats->burstOn : m_stats->burstOff;
+
+                // Coming up, it comes up beside you rather than under you.
+                // Under you is not a fight, it is a mugging.
+                if (m_up && distance > 1.0f)
+                {
+                    const sf::Angle where = sf::degrees(rng::range(0.0f, 360.0f));
+                    m_position = playerPosition
+                                 + sf::Vector2f(config::RevenantSurfaceDistance, where);
+                }
+            }
+
+            const float target = m_up ? 1.0f : 0.0f;
+            m_surfaced += std::clamp(target - m_surfaced,
+                                     -config::RevenantFade * deltaTime,
+                                     config::RevenantFade * deltaTime);
+            break;
+        }
+
+        case EnemyBehaviour::Blink:
+        {
+            if (m_blinkTell > 0.0f)
+            {
+                m_blinkTell -= deltaTime;
+                if (m_blinkTell <= 0.0f && m_aware)
+                {
+                    // Somewhere it likes, on a side it was not on. Landing in
+                    // rock is left to confine, which drags it back into water.
+                    const sf::Angle where = sf::degrees(rng::range(0.0f, 360.0f));
+                    const float reach = m_stats->preferredDistance
+                                        + rng::range(-config::BlinkSpread * 0.35f,
+                                                     config::BlinkSpread * 0.35f);
+
+                    m_position = playerPosition + sf::Vector2f(std::max(90.0f, reach), where);
+                    m_fireTimer = std::min(m_fireTimer, 0.15f);
+                }
+            }
+            else
+            {
+                m_blinkTimer -= deltaTime;
+                if (m_blinkTimer <= 0.0f)
+                {
+                    m_blinkTimer = config::BlinkInterval;
+                    m_blinkTell = config::BlinkTell;
+                }
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    if (m_auraTimer > 0.0f)
+        m_auraTimer -= deltaTime;
+
+    // Attached, it has nowhere to swim to. The hull carries it, and Game puts
+    // it where the hull is.
+    if (m_latched)
+    {
+        m_sprite.setRotation(m_aimDirection.angle());
+        m_sprite.setPosition(m_position);
+        m_playerDistance = distance;
+
+        if (m_hitFlashTimer > 0.0f)
+            m_hitFlashTimer = std::max(m_hitFlashTimer - deltaTime, 0.0f);
+
+        applyHitFlash();
+        return;
+    }
+
     if (distance > 0.0f)
     {
         m_aimDirection = toPlayer / distance;
         move(deltaTime, toPlayer, distance);
+
+        // A shield is only a shield if it is pointing somewhere, so these two
+        // face where they are actually swimming rather than at the player.
+        if (m_stats->behaviour == EnemyBehaviour::Bulwark
+            || m_stats->behaviour == EnemyBehaviour::Serpent)
+        {
+            m_aimDirection = m_heading;
+        }
 
         // Ring firers have no facing worth showing, so they just rotate.
         if (m_stats->behaviour == EnemyBehaviour::Drift)
@@ -259,6 +416,7 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition)
         }
     }
 
+    updateBody(deltaTime);
     applyHitFlash();
 }
 
@@ -316,6 +474,158 @@ std::vector<sf::Vector2f> Enemy::takeShots()
     return shots;
 }
 
+// ---------------------------------------------------------------------------
+//  Below the campaign
+//  Six rules rather than six sets of bigger numbers. Each one is answered by
+//  doing something other than pointing at the creature and holding the button.
+// ---------------------------------------------------------------------------
+
+bool Enemy::deflects(sf::Vector2f from) const
+{
+    if (m_stats->behaviour != EnemyBehaviour::Bulwark || !isAlive())
+        return false;
+
+    const sf::Vector2f offset = from - m_position;
+    if (offset.lengthSquared() <= 0.0001f)
+        return false;
+
+    // The shield is where it is looking. Anything arriving from inside that
+    // wedge is turned away; anything from behind it lands as normal, which is
+    // the whole of the fight.
+    const float cosine = offset.normalized().dot(m_aimDirection);
+    return cosine >= std::cos(config::BulwarkArc * 3.14159265f / 180.0f);
+}
+
+bool Enemy::isVulnerable() const
+{
+    // Half surfaced is still surfaced: the window has to be generous enough to
+    // be worth reacting to rather than a frame-perfect punish.
+    return m_stats->behaviour != EnemyBehaviour::Burrow || m_surfaced > 0.35f;
+}
+
+void Enemy::latchTo(sf::Vector2f hull)
+{
+    // Called both to take hold and every frame afterwards: attached, it rides
+    // the hull rather than swimming, so its position is simply the sub's.
+    m_position = hull;
+
+    if (m_latched)
+        return;
+
+    m_latched = true;
+    m_biteTimer = config::LeechInterval;
+}
+
+void Enemy::shakeOff(sf::Vector2f away)
+{
+    if (!m_latched)
+        return;
+
+    m_latched = false;
+    m_position += away * config::LeechThrow;
+
+    // It will not come straight back: the throw also puts it on its back foot
+    // by resetting the burst it closes with.
+    m_burstTimer = 0.6f;
+    m_bursting = false;
+}
+
+bool Enemy::wantsBite(float deltaTime)
+{
+    if (!m_latched || !isAlive())
+        return false;
+
+    m_biteTimer -= deltaTime;
+    if (m_biteTimer > 0.0f)
+        return false;
+
+    m_biteTimer = config::LeechInterval;
+    return true;
+}
+
+float Enemy::getBlinkTell() const
+{
+    if (m_stats->behaviour != EnemyBehaviour::Blink || m_blinkTell <= 0.0f)
+        return 0.0f;
+
+    return std::clamp(1.0f - m_blinkTell / config::BlinkTell, 0.0f, 1.0f);
+}
+
+void Enemy::setSegmentTexture(const sf::Texture& texture)
+{
+    m_segment = std::make_unique<sf::Sprite>(texture);
+    m_segment->setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
+
+    const float scale = config::SerpentSegmentRadius * 2.0f
+                        / std::max(1.0f, static_cast<float>(texture.getSize().x));
+    m_segment->setScale({ scale, scale });
+}
+
+bool Enemy::bodyTouches(sf::Vector2f position, float radius) const
+{
+    const float reach = config::SerpentSegmentRadius + radius;
+
+    for (const sf::Vector2f& point : m_body)
+    {
+        if ((position - point).lengthSquared() <= reach * reach)
+            return true;
+    }
+
+    return false;
+}
+
+void Enemy::updateBody(float deltaTime)
+{
+    (void)deltaTime;
+
+    if (m_stats->behaviour != EnemyBehaviour::Serpent)
+        return;
+
+    // A dense record of where the head has actually been, then the rings
+    // picked off it at fixed spacing. Springs were tried first and the body
+    // cut every corner the head swam round, which made the thing look like a
+    // chain of balls rather than an animal.
+    if (m_history.empty() || (m_history.front() - m_position).lengthSquared() > 16.0f)
+        m_history.insert(m_history.begin(), m_position);
+
+    const std::size_t needed = static_cast<std::size_t>(
+        config::SerpentSegments * config::SerpentSpacing / 4.0f + 40.0f);
+
+    if (m_history.size() > needed)
+        m_history.resize(needed);
+
+    m_body.clear();
+
+    float wanted = config::SerpentSpacing;
+    float walked = 0.0f;
+
+    for (std::size_t i = 1; i < m_history.size() && m_body.size() < static_cast<std::size_t>(config::SerpentSegments); ++i)
+    {
+        const sf::Vector2f step = m_history[i] - m_history[i - 1];
+        const float length = step.length();
+        if (length <= 0.0001f)
+            continue;
+
+        while (walked + length >= wanted
+               && m_body.size() < static_cast<std::size_t>(config::SerpentSegments))
+        {
+            const float t = (wanted - walked) / length;
+            m_body.push_back(m_history[i - 1] + step * t);
+            wanted += config::SerpentSpacing;
+        }
+
+        walked += length;
+    }
+
+    // Still growing: anything that has not been laid down yet stacks up behind
+    // the head rather than not existing, so a freshly spawned worm is a worm.
+    while (m_body.size() < static_cast<std::size_t>(config::SerpentSegments))
+    {
+        const sf::Vector2f last = m_body.empty() ? m_position : m_body.back();
+        m_body.push_back(last - m_heading * config::SerpentSpacing);
+    }
+}
+
 void Enemy::confine(const Arena& arena, float deltaTime)
 {
     // Dragged by whatever the water is doing here, exactly as the sub is. A
@@ -365,6 +675,14 @@ void Enemy::applyHitFlash()
     if (m_stats->stealth && strength <= 0.0f && m_playerDistance > config::StealthRevealRange)
         tint.a = config::StealthAlpha;
 
+    // A burrower dissolves into the floor rather than blinking out of it, so
+    // that coming up reads as coming up and the window is visibly opening.
+    if (m_stats->behaviour == EnemyBehaviour::Burrow)
+    {
+        tint.a = static_cast<std::uint8_t>(
+            static_cast<float>(tint.a) * (0.12f + 0.88f * m_surfaced));
+    }
+
     m_sprite.setColor(tint);
 }
 
@@ -378,6 +696,13 @@ void Enemy::applyBleed(float damagePerSecond, float seconds)
 
 void Enemy::takeDamage(int amount)
 {
+    // A herald does not heal what it is standing over, it makes it harder to
+    // hurt in the first place. Rounded up, so nothing ever becomes immune to a
+    // small weapon.
+    if (m_auraTimer > 0.0f)
+        amount = std::max(1, static_cast<int>(std::lround(
+                                 static_cast<float>(amount) * (1.0f - config::HeraldArmour))));
+
     m_health -= amount;
     m_hitFlashTimer = config::EnemyHitFlashDuration;
 }
@@ -407,5 +732,25 @@ float Enemy::getHealthFraction() const
 
 void Enemy::draw(sf::RenderTarget& target) const
 {
+    // The body goes down before the head, tail first, so the rings overlap the
+    // way a body actually does and the head sits on top of its own neck.
+    if (m_segment)
+    {
+        const sf::Color tint = m_sprite.getColor();
+
+        for (std::size_t i = m_body.size(); i-- > 0;)
+        {
+            sf::Sprite ring = *m_segment;
+            ring.setPosition(m_body[i]);
+
+            // Tapering to the tail, so it ends rather than stopping.
+            const float taper = 1.0f - 0.45f * static_cast<float>(i)
+                                           / static_cast<float>(config::SerpentSegments);
+            ring.setScale(m_segment->getScale() * taper);
+            ring.setColor(tint);
+            target.draw(ring);
+        }
+    }
+
     target.draw(m_sprite);
 }

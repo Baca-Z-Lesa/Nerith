@@ -1233,6 +1233,20 @@ void Game::performDash()
     effects::thrusterBubbles(m_effects, m_player.getPosition(), -m_player.getAimDirection());
     m_audio.play(Sfx::Impact, 0.6f);
 
+    // The one thing that gets a siphon off. It is deliberately the dash rather
+    // than a button of its own: you have to spend the escape you were saving.
+    for (Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive() || !enemy.isLatched())
+            continue;
+
+        const sf::Vector2f away = -m_player.getAimDirection();
+        enemy.shakeOff(away);
+        effects::impact(m_effects, m_player.getPosition(), away);
+        addHitRing(m_player.getPosition(), config::PlayerRadius * 3.0f,
+                   config::BlockDodgeColor);
+    }
+
     // Pressure Burst turns the dash itself into a weapon.
     if (m_playerStats.has(Trait::PressureBurst))
     {
@@ -1693,6 +1707,19 @@ float Game::noticeRange() const
     // empty-handed - which is the trade the level is about.
     const float towing = m_carrying >= 0 ? config::CargoNoticeBonus : 1.0f;
 
+    // And a herald standing over you is a lamp you do not own. Running dark
+    // simply stops working until it is dead, which is the whole reason it is
+    // in the water.
+    const float heraldSquared = config::HeraldRadius * config::HeraldRadius;
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (enemy.isAlive() && enemy.getType() == EnemyType::Herald
+            && (enemy.getPosition() - m_player.getPosition()).lengthSquared() <= heraldSquared)
+        {
+            return config::NoticeLit * towing;
+        }
+    }
+
     if (m_lampOn || m_noiseTimer > 0.0f)
         return config::NoticeLit * towing;
 
@@ -2006,6 +2033,12 @@ void Game::spawnEnemy(EnemyType type)
 {
     m_enemies.emplace_back(type, m_assets.forEnemy(type), pickSpawnPosition(),
                            m_level.getScaling());
+
+    // The worm tows a body, and the body is a different sprite. Handed over
+    // here rather than looked up inside Enemy, so the creature never has to
+    // know where the assets live.
+    if (type == EnemyType::Coilworm)
+        m_enemies.back().setSegmentTexture(m_assets.boss(config::SerpentSegmentPath));
 }
 
 void Game::updateProjectiles(float deltaTime)
@@ -2126,6 +2159,44 @@ void Game::updateEnemies(float deltaTime)
         const bool close = (enemy.getPosition() - m_player.getPosition()).lengthSquared()
                            < noticeSquared;
         enemy.setAware(close);
+    }
+
+    // A herald is worth killing first, and this is why: everything alive
+    // inside its reach gets harder to kill and quicker to arrive. Done in its
+    // own pass because a creature has to be bolstered before it moves, not
+    // after it has already been walked over.
+    const float heraldSquared = config::HeraldRadius * config::HeraldRadius;
+
+    for (const Enemy& herald : m_enemies)
+    {
+        if (!herald.isAlive() || herald.getType() != EnemyType::Herald)
+            continue;
+
+        for (Enemy& other : m_enemies)
+        {
+            if (!other.isAlive() || other.getId() == herald.getId())
+                continue;
+
+            if ((other.getPosition() - herald.getPosition()).lengthSquared() <= heraldSquared)
+                other.bolster(0.4f);
+        }
+    }
+
+    // Anything hanging off the hull rides it, and takes a mouthful on its own
+    // clock. A dash is what gets it off, which is handled where the dash is.
+    for (Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive() || !enemy.isLatched())
+            continue;
+
+        enemy.latchTo(m_player.getPosition());
+
+        if (enemy.wantsBite(deltaTime))
+        {
+            hurtPlayer(config::LeechDrain + m_level.getScaling().bonusDamage);
+            addHitRing(m_player.getPosition(), config::PlayerRadius * 1.8f,
+                       config::HudBossColor);
+        }
     }
 
 
@@ -2491,9 +2562,28 @@ void Game::handleCollisions()
                 if (!enemy.isAlive() || shot.getIgnore() == enemy.getId())
                     continue;
 
+                // Under the floor, nothing reaches it, and the shot carries on
+                // rather than being eaten - a buried revenant is not cover for
+                // whatever is standing behind it.
+                if (!enemy.isVulnerable())
+                    continue;
+
                 const float reach = shot.getRadius() + enemy.getRadius();
                 if ((enemy.getPosition() - shot.getPosition()).lengthSquared() > reach * reach)
                     continue;
+
+                // A shield that only faces one way. The shot dies on it and
+                // says so: a hit that silently does nothing reads as a bug
+                // rather than as a rule.
+                if (enemy.deflects(shot.getPosition()))
+                {
+                    effects::impact(m_effects, shot.getPosition(), -shot.getDirection());
+                    m_audio.play(Sfx::Impact, 0.6f);
+                    addHitRing(shot.getPosition(), config::JetRingRadius * 0.8f,
+                               config::BlockArmourColor);
+                    spent = true;
+                    break;
+                }
 
                 int damage = shot.getDamage();
                 if (enemy.isBleeding())
@@ -2675,14 +2765,40 @@ void Game::handleCollisions()
 
     // Contact damage. The invulnerability window is what stops a pile-up from
     // draining the whole bar in a single second.
-    for (const Enemy& enemy : m_enemies)
+    for (Enemy& enemy : m_enemies)
     {
-        if (!enemy.isAlive())
+        if (!enemy.isAlive() || !enemy.isVulnerable())
             continue;
 
         const float reach = enemy.getRadius() + config::PlayerRadius;
-        if ((enemy.getPosition() - m_player.getPosition()).lengthSquared() > reach * reach)
+        const bool touching =
+            (enemy.getPosition() - m_player.getPosition()).lengthSquared() <= reach * reach;
+
+        // The worm is mostly body, and the body is the weapon. Only the head
+        // can be shot, but every ring of it can hit you.
+        if (!touching && enemy.bodyTouches(m_player.getPosition(), config::PlayerRadius))
+        {
+            hurtPlayer(enemy.getContactDamage());
             continue;
+        }
+
+        if (!touching)
+            continue;
+
+        // A siphon does not bite you once, it takes hold. Latching is not a
+        // hit, so it does not break the streak by arriving - it breaks it on
+        // every mouthful after that, which is worse.
+        if (enemy.getType() == EnemyType::Siphon && !enemy.isLatched())
+        {
+            enemy.latchTo(m_player.getPosition());
+            m_audio.play(Sfx::Hatch, 1.4f);
+            addHitRing(m_player.getPosition(), config::PlayerRadius * 2.6f,
+                       config::HudBossColor);
+            continue;
+        }
+
+        if (enemy.isLatched())
+            continue; // it is feeding, and feeding is handled on its own clock
 
         hurtPlayer(enemy.getContactDamage());
     }
@@ -3372,6 +3488,47 @@ void Game::render()
     {
         m_boss->draw(m_window);
         drawBossTell();
+    }
+
+    // What the deep creatures are about to do, over the water rather than on
+    // them: a herald's reach, and the moment before a rift is somewhere else.
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive())
+            continue;
+
+        if (enemy.getType() == EnemyType::Herald)
+        {
+            const float pulse = 0.94f + 0.06f * std::sin(m_stateTimer * 2.2f);
+            const float radius = config::HeraldRadius * pulse;
+
+            m_sonarRing.setRadius(radius);
+            m_sonarRing.setOrigin({ radius, radius });
+            m_sonarRing.setPosition(enemy.getPosition());
+            m_sonarRing.setOutlineThickness(2.5f);
+            m_sonarRing.setOutlineColor(config::HeraldAuraColor);
+            m_sonarRing.setFillColor(sf::Color(config::HeraldAuraColor.r,
+                                               config::HeraldAuraColor.g,
+                                               config::HeraldAuraColor.b, 12));
+            m_window.draw(m_sonarRing);
+            m_sonarRing.setFillColor(sf::Color::Transparent);
+        }
+
+        const float tell = enemy.getBlinkTell();
+        if (tell > 0.0f)
+        {
+            const float radius = enemy.getRadius() * (3.2f - 2.2f * tell);
+
+            sf::Color edge = config::BlinkColor;
+            edge.a = static_cast<std::uint8_t>(80.0f + 160.0f * tell);
+
+            m_sonarRing.setRadius(radius);
+            m_sonarRing.setOrigin({ radius, radius });
+            m_sonarRing.setPosition(enemy.getPosition());
+            m_sonarRing.setOutlineThickness(2.0f + 3.0f * tell);
+            m_sonarRing.setOutlineColor(edge);
+            m_window.draw(m_sonarRing);
+        }
     }
 
     for (const Enemy& enemy : m_enemies)

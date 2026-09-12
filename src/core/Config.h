@@ -273,6 +273,44 @@ namespace config
         { EnemyBehaviour::Chase, "assets/textures/enemy_angler.png", nullptr,
           0.8f, 17.0f, 205.0f, 6, 2, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, true },
+
+        // ---------------- BELOW THE CAMPAIGN ----------------
+        // Everything from here has a rule rather than a bigger number, and
+        // every one of those rules breaks a habit the shallow water taught.
+
+        // Warden: the shield only faces forward. Shooting it head on does
+        // nothing at all, so the answer is to get behind it - and it is slow
+        // enough to get behind, and hits hard enough that failing to is fatal.
+        { EnemyBehaviour::Bulwark, "assets/textures/enemy_warden.png", nullptr,
+          0.95f, 38.0f, 74.0f, 44, 4, 9, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+
+        // Siphon: it does not want to kill you, it wants to hold on. Once it
+        // is attached it drains, and it keeps breaking the streak, so it has
+        // to come off before anything else gets dealt with.
+        { EnemyBehaviour::Leech, "assets/textures/enemy_siphon.png", "assets/textures/shot_siphon.png",
+          0.7f, 14.0f, 340.0f, 11, 2, 6, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+
+        // Revenant: untouchable while it is under the floor, and it is under
+        // the floor most of the time. The fight is entirely about the few
+        // seconds it is up.
+        { EnemyBehaviour::Burrow, "assets/textures/enemy_revenant.png", nullptr,
+          0.85f, 25.0f, 168.0f, 30, 4, 10, 0.0f, 0.0f, 0, 0.0f, 1.30f, 2.40f },
+
+        // Herald: it has nothing to bite with and it is the most dangerous
+        // thing in the water. It hardens everything near it and it keeps you
+        // lit, so running dark stops working until it is dead.
+        { EnemyBehaviour::Beacon, "assets/textures/enemy_herald.png", nullptr,
+          0.9f, 27.0f, 58.0f, 40, 1, 13, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+
+        // Rift: distance is not a defence against it. It steps through the
+        // water to a range it likes and empties a fan into you on arrival.
+        { EnemyBehaviour::Blink, "assets/textures/enemy_rift.png", "assets/textures/shot_rift.png",
+          0.8f, 21.0f, 46.0f, 24, 3, 11, 300.0f, 1.60f, 7, 54.0f, 0.0f, 0.0f },
+
+        // Coilworm: the head is only how it steers. The body laid along where
+        // it has already been is the weapon, and only the head can be hurt.
+        { EnemyBehaviour::Serpent, "assets/textures/enemy_coilworm.png", nullptr,
+          0.8f, 23.0f, 196.0f, 38, 3, 14, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
     } };
 
     inline constexpr const EnemyStats& enemyStats(EnemyType type)
@@ -290,6 +328,45 @@ namespace config
     inline constexpr float LanceCreepFactor = 0.14f;  // speed while it winds up
     inline constexpr float StealthRevealRange = 300.0f; // inside this the angler is visible
     inline constexpr std::uint8_t StealthAlpha = 26;    // how faint it is outside that
+    // --- What the deep creatures do that the shallow ones do not ---
+    // Warden: a shot inside this many degrees either side of where it faces is
+    // turned away entirely. Wide enough that backing off does not work,
+    // narrow enough that going round it is a real answer.
+    inline constexpr float BulwarkArc = 78.0f;
+
+    // Siphon: how near it has to be to take hold, what it takes per bite, and
+    // how hard a dash throws it off.
+    inline constexpr float LeechRange = 34.0f;
+    inline constexpr float LeechInterval = 0.9f;
+    inline constexpr int   LeechDrain = 1;
+    inline constexpr float LeechThrow = 190.0f;
+
+    // Revenant: burstOn is how long it stays up, burstOff how long it is under.
+    // Buried it cannot be hit or touched; it comes up this far from the sub.
+    inline constexpr float RevenantSurfaceDistance = 150.0f;
+    inline constexpr float RevenantFade = 3.0f;
+
+    // Herald: everything alive inside this takes less and moves more, and the
+    // sub inside it is lit whether its own lamp is on or not.
+    inline constexpr float HeraldRadius = 620.0f;
+    inline constexpr float HeraldSpeedBonus = 0.45f;
+    inline constexpr float HeraldArmour = 0.40f;
+    inline constexpr sf::Color HeraldAuraColor{ 120, 208, 240, 30 };
+
+    // Rift: it holds still, announces, and then it is somewhere else.
+    inline constexpr float BlinkInterval = 2.20f;
+    inline constexpr float BlinkTell = 0.55f;
+    inline constexpr float BlinkSpread = 240.0f;
+    inline constexpr sf::Color BlinkColor{ 192, 124, 255 };
+
+    // Coilworm: how much body it tows, how far apart the rings sit, and how
+    // wide one of them is.
+    inline constexpr int   SerpentSegments = 9;
+    inline constexpr float SerpentSpacing = 26.0f;
+    inline constexpr float SerpentSegmentRadius = 17.0f;
+    inline constexpr const char* SerpentSegmentPath = "assets/textures/enemy_coil_seg.png";
+    inline constexpr float SerpentTurn = 150.0f;   // degrees a second the head may swing
+
     inline constexpr float EnemyHitFlashDuration = 0.12f;
     inline constexpr float EnemyHitFlashPunch = 0.20f;
     inline constexpr sf::Color EnemyHitFlashTint{ 255, 170, 150 };

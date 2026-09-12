@@ -145,26 +145,26 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
       { {} }, true },
 
     // ---------------- DEPTH 4: THE ABYSS ----------------
-    { "THE ABYSS", "YOU WILL NOT SEE THEM UNTIL THEY ARE HERE.",
+    { "THE ABYSS", "SHOOTING THE BIG ONE IN THE FACE WILL NOT WORK.",
       ObjectiveKind::ClearRoster, 0, 0.90f, 11, { 1.55f, 1.20f, 1 },
       { { { EnemyType::Angler, 5 }, { EnemyType::Lurker, 7 },
-          { EnemyType::Angler, 5 }, { EnemyType::Darter, 6 } } }, false },
+          { EnemyType::Warden, 3 }, { EnemyType::Darter, 6 } } }, false },
 
-    { "PRESSURE", "HOLD. NOTHING IS COMING TO HELP.",
+    { "PRESSURE", "SOMETHING DOWN HERE FEEDS RATHER THAN KILLS.",
       ObjectiveKind::SurviveTime, 80, 0.70f, 12, { 1.60f, 1.22f, 1 },
-      { { { EnemyType::Angler, 3 }, { EnemyType::Husk, 3 },
-          { EnemyType::Weaver, 3 }, { EnemyType::Lancer, 3 },
+      { { { EnemyType::Angler, 3 }, { EnemyType::Siphon, 5 },
+          { EnemyType::Weaver, 3 }, { EnemyType::Revenant, 3 },
           { EnemyType::Hulk, 2 } } }, false },
 
-    { "THE SHOAL", "SEVEN NESTS IN THE DARK. GO AND FIND THEM.",
+    { "THE SHOAL", "SOMETHING IS HOLDING A LIGHT UP FOR THEM.",
       ObjectiveKind::DestroyNests, 7, 0.85f, 12, { 1.65f, 1.24f, 1 },
       { { { EnemyType::Angler, 4 }, { EnemyType::Darter, 8 },
-          { EnemyType::Lancer, 5 } } }, false },
+          { EnemyType::Herald, 3 }, { EnemyType::Lancer, 5 } } }, false },
 
     { "EVERYTHING", "ALL OF IT. AT ONCE. IN THE DARK.",
       ObjectiveKind::KillCount, 55, 0.65f, 14, { 1.75f, 1.26f, 1 },
-      { { { EnemyType::Angler, 4 }, { EnemyType::Weaver, 4 },
-          { EnemyType::Husk, 4 }, { EnemyType::Lancer, 4 },
+      { { { EnemyType::Rift, 4 }, { EnemyType::Weaver, 4 },
+          { EnemyType::Coilworm, 3 }, { EnemyType::Warden, 3 },
           { EnemyType::Hulk, 3 }, { EnemyType::Brooder, 2 } } }, false },
 
     // The floor of the trench. Everything the campaign has taught, asked for

@@ -78,14 +78,45 @@ LevelDef levelFor(int number)
             break;
     }
 
+    // Past the campaign the deep creatures stop being a guest appearance and
+    // become the water. They ramp in one at a time so that a long run keeps
+    // introducing something rather than only multiplying what is there, and
+    // the shallow roster thins out underneath them.
     const int wave = 4 + beyond / 2;
-    def.script = { {
-        { EnemyType::Darter, std::min(9, wave) },
-        { EnemyType::Spitter, std::min(7, 2 + beyond / 3) },
-        { EnemyType::Hulk, std::min(5, 1 + beyond / 4) },
-        { EnemyType::Lurker, std::min(9, wave) },
-        { EnemyType::Bloom, std::min(4, 1 + beyond / 5) },
-    } };
+    const int deep = 1 + beyond / 3;
+
+    if (beyond < 4)
+    {
+        def.script = { {
+            { EnemyType::Darter, std::min(9, wave) },
+            { EnemyType::Warden, std::min(4, deep) },
+            { EnemyType::Spitter, std::min(7, 2 + beyond / 3) },
+            { EnemyType::Lurker, std::min(9, wave) },
+            { EnemyType::Siphon, std::min(6, deep + 1) },
+        } };
+    }
+    else if (beyond < 9)
+    {
+        def.script = { {
+            { EnemyType::Revenant, std::min(5, deep) },
+            { EnemyType::Siphon, std::min(7, deep + 2) },
+            { EnemyType::Herald, std::min(3, 1 + beyond / 6) },
+            { EnemyType::Darter, std::min(9, wave) },
+            { EnemyType::Warden, std::min(4, deep) },
+            { EnemyType::Weaver, std::min(5, 1 + beyond / 4) },
+        } };
+    }
+    else
+    {
+        def.script = { {
+            { EnemyType::Rift, std::min(6, deep) },
+            { EnemyType::Coilworm, std::min(5, deep - 1) },
+            { EnemyType::Herald, std::min(4, 1 + beyond / 6) },
+            { EnemyType::Warden, std::min(6, deep) },
+            { EnemyType::Revenant, std::min(6, deep) },
+            { EnemyType::Siphon, std::min(8, deep + 2) },
+        } };
+    }
 
     return def;
 }

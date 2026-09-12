@@ -17,6 +17,15 @@ enum class EnemyType
     Weaver,    // circles you at range and rakes the water with fans
     Husk,      // slow and harmless right up until it dies on top of you
     Angler,    // invisible outside your lamp, then it is already there
+
+    // Below the campaign. Each of these has a rule none of the ones above do,
+    // which is why they are worth their own type rather than bigger numbers.
+    Warden,    // armoured in front only: it has to be fought from behind
+    Siphon,    // latches onto the hull and drains until it is shaken off
+    Revenant,  // buried and untouchable until it surfaces beside you
+    Herald,    // never attacks; it lights you up and hardens everything near it
+    Rift,      // does not swim to you, it arrives, and then it fires
+    Coilworm,  // the head steers, the body behind it is what hurts
     Count
 };
 
@@ -33,6 +42,12 @@ enum class EnemyBehaviour
     Orbit,    // circles at a fixed range rather than closing
     Lance,    // telegraphs, locks a heading, then commits to it
     Brood,    // creeps in and hatches more of something else
+    Bulwark,  // walks you down behind a shield that only faces one way
+    Leech,    // closes fast, then holds on
+    Burrow,   // under the floor, up, strike, under again
+    Beacon,   // drifts, does nothing, and makes everything else worse
+    Blink,    // vanishes and reappears nearer
+    Serpent,  // a head towing a body that is itself the weapon
 };
 
 // Difficulty multipliers stamped onto a creature the moment it spawns, so a
