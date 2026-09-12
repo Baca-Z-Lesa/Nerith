@@ -373,6 +373,16 @@ namespace config
     // narrow enough that going round it is a real answer.
     inline constexpr float BulwarkArc = 78.0f;
 
+    // --- What a beating does to the sub ---
+    // A hull bar that only counts down says nothing about what the damage did.
+    // Crossing each of these fractions knocks out the next system, least
+    // crippling first, and none of it comes back until the dive is over.
+    inline constexpr std::array<float, 4> HullBreakAt{ { 0.72f, 0.52f, 0.32f, 0.16f } };
+    inline constexpr float BrokenEngineSpeed = 0.66f;
+    inline constexpr float BrokenGunDamage = 0.62f;
+    inline constexpr float BrokenGunRate = 1.45f;   // multiplies the gap between shots
+    inline constexpr sf::Color HullBrokenColor{ 226, 96, 78 };
+
     // Siphon: how near it has to be to take hold, what it takes per bite, and
     // how hard a dash throws it off.
     inline constexpr float LeechRange = 34.0f;

@@ -179,8 +179,9 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
     {
         // Multiplying by deltaTime is what makes the speed framerate-independent:
         // the player always covers this many pixels per second of real time.
+        const float engine = isBroken(Hull::Engine) ? config::BrokenEngineSpeed : 1.0f;
         const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency()
-                            * m_burden;
+                            * m_burden * engine;
         m_position += movement * speed * deltaTime;
     }
 
@@ -238,6 +239,11 @@ bool Player::tryFire()
     if (isDesperate())
         m_fireTimer *= config::SecondWindFireRate;
 
+    // A cracked gun cycles slowly. Together with the damage it loses, this is
+    // what makes the third threshold the one you actually feel.
+    if (isBroken(Hull::Gun))
+        m_fireTimer *= config::BrokenGunRate;
+
     return true;
 }
 
@@ -251,8 +257,42 @@ bool Player::tryFireTorpedo()
     return true;
 }
 
+bool Player::isBroken(Hull part) const
+{
+    return (m_broken & (1u << static_cast<unsigned int>(part))) != 0u;
+}
+
+bool Player::breakNextPart()
+{
+    // A fixed order, least crippling first. Random would be less repetitive
+    // and far worse: the player has to be able to predict what the next hit
+    // costs, or the escalation is just noise.
+    for (unsigned int i = 0; i < static_cast<unsigned int>(Hull::Count); ++i)
+    {
+        const unsigned int bit = 1u << i;
+        if ((m_broken & bit) == 0u)
+        {
+            m_broken |= bit;
+            return true;
+        }
+    }
+
+    return false; // nothing left to lose
+}
+
+void Player::repairHull()
+{
+    m_broken = 0;
+}
+
 bool Player::tryDash()
 {
+    // A dead engine is a dead engine. The dash is the one thing the player
+    // reaches for when things go wrong, so losing it is the last and worst of
+    // the four rather than the first.
+    if (isBroken(Hull::Engine))
+        return false;
+
     if (!m_stats->has(Trait::Dash) || m_dashCooldown > 0.0f || m_dashTimer > 0.0f)
         return false;
 
@@ -335,6 +375,7 @@ void Player::reset()
     m_dashTimer = 0.0f;
     m_dashCooldown = 0.0f;
     m_burden = 1.0f;
+    m_broken = 0;
     m_shieldTimer = 0.0f;
     m_shieldCharges = getMaxShieldCharges();
     m_moving = false;

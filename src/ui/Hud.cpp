@@ -96,10 +96,35 @@ void Hud::drawSystems(sf::RenderTarget& target, const LevelInfo& level)
         target.draw(m_small);
     }
 
+    // What this dive has already cost, named rather than counted. Four short
+    // words under the hull is the difference between "I am on low health" and
+    // "I have no torpedoes and no dash".
+    if (level.broken != 0u)
+    {
+        static const char* const names[] = { "SONAR", "TUBE", "GUN", "ENGINE" };
+
+        y += level.maxShieldCharges > 0 ? 18.0f : 0.0f;
+
+        float x = config::HudMargin;
+        for (unsigned int i = 0; i < 4; ++i)
+        {
+            if ((level.broken & (1u << i)) == 0u)
+                continue;
+
+            m_text.clear();
+            pixelfont::append(m_text, names[i], { x, y }, 1.3f, config::HullBrokenColor);
+            target.draw(m_text);
+
+            x += pixelfont::measure(names[i], 1.3f) + 10.0f;
+        }
+
+        y += 16.0f;
+    }
+
     if (!level.hasDash)
         return;
 
-    if (level.maxShieldCharges > 0)
+    if (level.maxShieldCharges > 0 && level.broken == 0u)
         y += 18.0f;
 
     m_bar.setSize({ 70.0f, 4.0f });
