@@ -15,6 +15,7 @@ public:
     virtual void onEnemyKilled(EnemyType) {}
     virtual void onBossDefeated() {}
     virtual void onNestDestroyed() {}
+    virtual void onCargoDelivered() {}
     virtual void update(float) {}
 
     virtual bool isComplete() const = 0;
@@ -102,6 +103,26 @@ public:
 private:
     int m_total;
     int m_destroyed;
+};
+
+// Haul the salvage back. The pods are dropped at the far ends of the basin and
+// the mouth is where the dive started, so the whole level is spent crossing
+// water you have already crossed, slowly, lit up, with your hands full. Every
+// other level type is answered by fighting well; this one is answered by
+// deciding when to fight at all.
+class HaulCargoObjective : public Objective
+{
+public:
+    explicit HaulCargoObjective(int total);
+
+    void onCargoDelivered() override;
+    bool isComplete() const override;
+    float getProgress() const override;
+    std::string getLabel() const override;
+
+private:
+    int m_total;
+    int m_delivered;
 };
 
 // Boss levels. Nothing else spawns and nothing else counts.

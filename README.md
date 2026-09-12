@@ -53,7 +53,7 @@ of a wall has to come around it. Boss levels open into one hall instead. A
 minimap in the corner is the only reason any of it is navigable, and arrows at
 the screen edge point at what is hunting you off it.
 
-There are three ways to play a level. Most are fought: hold what ground you can
+There are four kinds of dive. Most are fought: hold what ground you can
 and kill what arrives. A hunt is not — the nests are cemented to rock out at
 the reef, never all in sight at once, hatching until they are burned out, so you
 have to cross the basin and crossing it costs. And any of them can be run dark:
@@ -62,12 +62,28 @@ you blind too. A creature that has lost the sub wanders and holds its fire
 entirely. Firing gives you away for a couple of seconds either way, so going
 quiet is a way to move rather than a way to shoot for free.
 
+A haul is the odd one out: the salvage pods are dropped in the far rooms
+and the mouth is where the dive started, so the whole level is spent crossing
+water you have already crossed — slowly, lit up, with your hands full. A pod
+costs you speed and can be heard half again as far, only one can be towed at a
+time, and anything that lands a hit makes you let go of it exactly where you
+are standing. Every other level type is answered by fighting well. This one is
+answered by deciding when to fight at all.
+
 A hit that never lands is worth as much noise as one that does. A shield
 popping, a dash timed into a shot, armour soaking a blow, the vent pulling you
 out of a death: each has its own colour and ring, its own weight of hit stop,
 and a dodge drops the world into slow motion for a moment. Taking real damage
 resets the streak, so the counter on the HUD is a live claim rather than a
-score, and the kill sound climbs in pitch while it holds.
+score, and the kill sound climbs in pitch while it holds. It is worth
+something, too: every kill on the run pays five per cent more salvage, up to
+double, and the first hit that lands takes all of it back at once.
+
+Anything that can really hurt you announces itself first. A ring closes on the
+creature and arrives tight and bright exactly as the blow does, a charge draws
+the line it is about to take, and if it is winding up off the edge of the frame
+the threat arrow takes the same colour and swells with it. Blocking is meant to
+be a read rather than a guess.
 
 The music is three loops of the same length over the same root, played together
 and faded independently. The bed is always on; the pulse follows how many

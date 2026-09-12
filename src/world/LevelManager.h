@@ -31,6 +31,10 @@ public:
 
     void notifyEnemyKilled(EnemyType type);
     void notifyNestDestroyed();
+    void notifyCargoDelivered();
+
+    // How many pods this level scatters, zero on anything that is not a haul.
+    int  getCargoCount() const;
     void notifyBossDefeated();
 
     // How many nests this level hides, and whether it hides any at all.

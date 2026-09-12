@@ -80,6 +80,10 @@ void LevelManager::start(int number)
             m_objective = std::make_unique<DestroyNestsObjective>(m_def.objectiveAmount);
             break;
 
+        case ObjectiveKind::HaulCargo:
+            m_objective = std::make_unique<HaulCargoObjective>(m_def.objectiveAmount);
+            break;
+
         case ObjectiveKind::DefeatBoss:
         {
             auto boss = std::make_unique<DefeatBossObjective>();
@@ -148,6 +152,17 @@ void LevelManager::notifyNestDestroyed()
 int LevelManager::getNestCount() const
 {
     return m_def.objective == ObjectiveKind::DestroyNests ? std::max(1, m_def.objectiveAmount) : 0;
+}
+
+void LevelManager::notifyCargoDelivered()
+{
+    if (m_objective)
+        m_objective->onCargoDelivered();
+}
+
+int LevelManager::getCargoCount() const
+{
+    return m_def.objective == ObjectiveKind::HaulCargo ? std::max(1, m_def.objectiveAmount) : 0;
 }
 
 void LevelManager::notifyBossDefeated()

@@ -12,6 +12,7 @@ enum class ObjectiveKind
     KillCount,   // hit a quota while the level keeps sending more
     SurviveTime, // last out a clock
     DestroyNests, // find every nest in the basin and burn it out
+    HaulCargo,    // drag salvage pods back to the mouth while it hunts you
     DefeatBoss,  // one encounter, nothing else spawns
 };
 
@@ -30,7 +31,7 @@ struct LevelDef
     const char* title;
     const char* brief; // one line on the intro banner
     ObjectiveKind objective;
-    int objectiveAmount;    // kills, or seconds for SurviveTime; ignored otherwise
+    int objectiveAmount;    // kills, seconds for SurviveTime, pods for HaulCargo
     float spawnInterval;    // seconds between releases
     std::size_t maxAlive;
     EnemyScaling scaling;   // also scales boss health on boss levels
@@ -89,8 +90,10 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
       { {} }, true },
 
     // ---------------- DEPTH 2: THE SHELF ----------------
-    { "THE SHELF", "SOMETHING SLOW AND ARMOURED DOWN HERE.",
-      ObjectiveKind::ClearRoster, 0, 1.05f, 9, { 1.10f, 1.05f, 0 },
+    // The first haul. Two pods, a short basin, and the thing it teaches is
+    // that you cannot fight your way through a room with your hands full.
+    { "DEAD DROP", "TWO PODS OUT THERE. SOMETHING ARMOURED IS IN THE WAY.",
+      ObjectiveKind::HaulCargo, 2, 1.05f, 9, { 1.10f, 1.05f, 0 },
       { { { EnemyType::Lurker, 6 }, { EnemyType::Hulk, 3 },
           { EnemyType::Darter, 5 }, { EnemyType::Hulk, 2 } } }, false },
 
@@ -130,8 +133,9 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
       { { { EnemyType::Bloom, 4 }, { EnemyType::Weaver, 4 },
           { EnemyType::Bloom, 3 } } }, false },
 
-    { "NO QUARTER", "FORTY OF THEM. GO.",
-      ObjectiveKind::KillCount, 40, 0.75f, 12, { 1.45f, 1.18f, 1 },
+    // The same idea at depth, with four of them and nothing that stops coming.
+    { "SALVAGE RUN", "FOUR PODS. EVERYTHING DOWN HERE KNOWS YOU ARE LOADED.",
+      ObjectiveKind::HaulCargo, 4, 0.75f, 12, { 1.45f, 1.18f, 1 },
       { { { EnemyType::Darter, 5 }, { EnemyType::Husk, 4 },
           { EnemyType::Lancer, 4 }, { EnemyType::Spitter, 4 },
           { EnemyType::Weaver, 3 } } }, false },

@@ -85,6 +85,7 @@ Assets::Assets()
         want(config::EnemyTable[i].shotPath);
 
     want(config::NestTexturePath);
+    want(config::CargoTexturePath);
 }
 
 const sf::Texture& Assets::shotFor(EnemyType type) const

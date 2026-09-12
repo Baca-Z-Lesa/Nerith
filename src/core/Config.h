@@ -429,6 +429,24 @@ namespace config
     // A nest is a tap that does not move. Killing one is worth crossing the
     // basin for; leaving one is a level that never ends.
     inline constexpr const char* NestTexturePath = "assets/textures/nest.png";
+    inline constexpr const char* CargoTexturePath = "assets/textures/cargo.png";
+
+    // --- Hauling ---
+    // A pod is dropped at the far end of the basin and has to be dragged back
+    // to the mouth. Carrying one costs speed and lights you up, and a landed
+    // hit makes you let go of it - which is what makes the run back the level
+    // rather than the walk out.
+    inline constexpr float CargoRadius = 30.0f;
+    inline constexpr float CargoScale = 1.0f;
+    inline constexpr float CargoDropInset = 120.0f;  // how far off the wall a pod lies
+    inline constexpr float CargoBurden = 0.62f;      // what the sub moves at, carrying
+    inline constexpr float CargoNoticeBonus = 1.55f; // how much further it can be heard
+    inline constexpr float CargoSalvage = 24;        // paid per pod delivered
+    inline constexpr float CargoBob = 2.4f;          // how it rides behind the sub
+    inline constexpr float CargoPickupRange = 46.0f;
+    inline constexpr float CargoDropRange = 130.0f;  // how near the mouth counts as home
+    inline constexpr sf::Color CargoMarkColor{ 255, 196, 96 };
+    inline constexpr sf::Color CargoHomeColor{ 132, 240, 190 };
     inline constexpr int   NestHealth = 34;
     inline constexpr float NestRadius = 44.0f;
     inline constexpr float NestHatchInterval = 4.6f;

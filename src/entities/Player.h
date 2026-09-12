@@ -64,6 +64,12 @@ public:
     sf::Vector2f getMuzzlePosition() const;
     sf::Vector2f getSternPosition() const;
 
+    // What the sub is dragging, as a multiplier on its speed. One when empty.
+    // Kept here rather than in Game so that every thing that reads the speed -
+    // the thruster trail, the dash, the urgency bonus - sees the same number.
+    void setBurden(float factor) { m_burden = factor; }
+    float getBurden() const { return m_burden; }
+
     int  getHealth() const { return m_health; }
     int  getMaxHealth() const;
     int  getShieldCharges() const { return m_shieldCharges; }
@@ -94,6 +100,7 @@ private:
     float m_fireTimer;
     float m_torpedoTimer;
     float m_dashTimer;
+    float m_burden = 1.0f;
     float m_dashCooldown;
     float m_shieldTimer;
 

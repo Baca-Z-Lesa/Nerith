@@ -67,6 +67,7 @@ $Materials = @{
     'coral_b.png' = 'plant'
     'kelp.png'    = 'plant'
     'nest.png'    = 'shell'
+    'cargo.png'   = 'hardware'
 
     # --- projectiles and motes ---
     'shot_spitter.png'    = 'glow'
@@ -88,7 +89,8 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_particle.ps1', 'make_world.ps1',
                       'make_enemies.ps1', 'make_enemies2.ps1', 'make_bestiary.ps1',
                       'make_creatures.ps1', 'make_bosses.ps1',
-                      'make_boss4.ps1', 'make_shots.ps1', 'make_nest.ps1', 'make_ship.ps1')) {
+                      'make_boss4.ps1', 'make_shots.ps1', 'make_nest.ps1',
+                      'make_cargo.ps1', 'make_ship.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }
@@ -96,8 +98,22 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
 if (-not (Test-Path $FlatDir)) { New-Item -ItemType Directory -Force -Path $FlatDir | Out-Null }
 
 Write-Host "Lighting it"
-$seed = 1
 $missing = @()
+
+# The grain seed is taken from the sprite's own name rather than from a running
+# counter. With a counter, adding one new texture reshuffles the noise on every
+# sprite that sorts after it, which turns a one-file change into a thirty-seven
+# file diff and makes it impossible to see what actually moved.
+function Seed-For($name) {
+    # Kept well inside Int64 the whole way: PowerShell promotes an overflowing
+    # product to Double rather than wrapping, and a Double seed is a cast error
+    # a hundred lines later.
+    $h = 17
+    foreach ($ch in $name.ToCharArray()) {
+        $h = ($h * 31 + [int]$ch) % 2147483647
+    }
+    return [uint32]$h
+}
 
 foreach ($file in (Get-ChildItem "$TexDir\*.png" | Sort-Object Name)) {
     $name = $file.Name
@@ -111,8 +127,7 @@ foreach ($file in (Get-ChildItem "$TexDir\*.png" | Sort-Object Name)) {
     # drawing script to try a new number would be slow and pointless.
     Copy-Item $file.FullName "$FlatDir\$name" -Force
 
-    $seed++
-    $material = New-Material -Kind $Materials[$name] -Seed ([uint32]$seed)
+    $material = New-Material -Kind $Materials[$name] -Seed (Seed-For $name)
 
     [Relief]::Apply("$FlatDir\$name", $file.FullName, $material)
 

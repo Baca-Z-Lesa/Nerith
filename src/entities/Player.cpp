@@ -179,7 +179,8 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
     {
         // Multiplying by deltaTime is what makes the speed framerate-independent:
         // the player always covers this many pixels per second of real time.
-        const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency();
+        const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency()
+                            * m_burden;
         m_position += movement * speed * deltaTime;
     }
 
@@ -333,6 +334,7 @@ void Player::reset()
     m_torpedoTimer = 0.0f;
     m_dashTimer = 0.0f;
     m_dashCooldown = 0.0f;
+    m_burden = 1.0f;
     m_shieldTimer = 0.0f;
     m_shieldCharges = getMaxShieldCharges();
     m_moving = false;

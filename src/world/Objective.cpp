@@ -93,6 +93,34 @@ bool DestroyNestsObjective::wantsSpawning() const
     return !isComplete();
 }
 
+// --- haul ---------------------------------------------------------------
+
+HaulCargoObjective::HaulCargoObjective(int total)
+    : m_total(std::max(1, total))
+    , m_delivered(0)
+{
+}
+
+void HaulCargoObjective::onCargoDelivered()
+{
+    ++m_delivered;
+}
+
+bool HaulCargoObjective::isComplete() const
+{
+    return m_delivered >= m_total;
+}
+
+float HaulCargoObjective::getProgress() const
+{
+    return std::clamp(static_cast<float>(m_delivered) / static_cast<float>(m_total), 0.0f, 1.0f);
+}
+
+std::string HaulCargoObjective::getLabel() const
+{
+    return "HAULED " + std::to_string(m_delivered) + "/" + std::to_string(m_total);
+}
+
 // --- survive ------------------------------------------------------------
 
 SurviveTimeObjective::SurviveTimeObjective(float seconds)

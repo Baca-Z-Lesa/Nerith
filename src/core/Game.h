@@ -113,6 +113,19 @@ private:
     // until it is killed, it does not move, and it is not in sight from the
     // middle of the basin - which is the point of it. A level built round
     // these is a level you have to go through rather than stand in.
+    // A salvage pod. It sits where it was dropped until something swims into
+    // it, then it is towed behind the stern - slower, louder, and let go of the
+    // moment anything lands a hit. Delivering one means reaching the mouth the
+    // dive started at, which is usually the far side of the basin.
+    struct Cargo
+    {
+        sf::Sprite   sprite;
+        sf::Vector2f position;
+        bool         carried;
+        bool         delivered;
+        float        bob;
+    };
+
     struct Nest
     {
         sf::Sprite   sprite;
@@ -161,6 +174,11 @@ private:
     void placeVents();
     void updateVents(float deltaTime);
     void drawVents();
+
+    void placeCargo();
+    void updateCargo(float deltaTime);
+    void drawCargo();
+    void dropCargo();
 
     void placeNests();
     void updateNests(float deltaTime);
@@ -295,6 +313,7 @@ private:
     std::vector<Mine>       m_mines;
     std::vector<Vent>       m_vents;
     std::vector<Nest>       m_nests;
+    std::vector<Cargo>      m_cargo;
     std::vector<HitRing>    m_hitRings;
     std::optional<Boss>     m_boss;
 
@@ -342,6 +361,7 @@ private:
     int       m_streak;      // kills since the last time something touched you
     int       m_bestStreak;
     int       m_blocks;      // hits that did not land, for the summary
+    int       m_carrying;    // which pod is under tow, or -1
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
 
     int   m_optionRow;    // which line of the options screen is selected

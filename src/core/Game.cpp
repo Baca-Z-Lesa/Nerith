@@ -91,6 +91,7 @@ Game::Game()
     , m_streak(0)
     , m_bestStreak(0)
     , m_blocks(0)
+    , m_carrying(-1)
     , m_sirenTimer(0.0f)
     , m_optionRow(0)
     , m_creditsScroll(0.0f)
@@ -464,6 +465,7 @@ void Game::beginLevel(int number)
     m_hitRings.clear();
     placeVents();
     placeNests();
+    placeCargo();
     m_callTimer = rng::range(6.0f, config::CreatureCallMax);
     m_boss.reset();
     m_lastSpawnAngle = rng::range(0.0f, 360.0f);
@@ -1451,6 +1453,165 @@ void Game::placeNests()
     }
 }
 
+void Game::placeCargo()
+{
+    m_cargo.clear();
+    m_carrying = -1;
+
+    const int wanted = m_level.getCargoCount();
+    if (wanted <= 0)
+        return;
+
+    // Furthest rooms first, same as the nests: a haul that starts next to the
+    // mouth is a walk, and the whole point of the level is the distance.
+    std::vector<sf::Vector2f> spots;
+    for (const Arena::Chamber& chamber : m_arena.getChambers())
+        spots.push_back(chamber.centre);
+
+    const sf::Vector2f start = m_arena.getStart();
+    std::sort(spots.begin(), spots.end(), [start](sf::Vector2f a, sf::Vector2f b) {
+        return (a - start).lengthSquared() > (b - start).lengthSquared();
+    });
+
+    for (int i = 0; i < wanted; ++i)
+    {
+        const sf::Vector2f room = spots.empty()
+                                      ? WorldCentre
+                                      : spots[static_cast<std::size_t>(i) % spots.size()];
+
+        const sf::Vector2f at = m_arena.clampInside(
+            room + sf::Vector2f(rng::range(0.0f, config::CargoDropInset),
+                                sf::degrees(rng::range(0.0f, 360.0f))),
+            config::CargoRadius);
+
+        Cargo pod{ sf::Sprite(m_assets.boss(config::CargoTexturePath)), at, false, false,
+                   rng::range(0.0f, 6.28f) };
+
+        pod.sprite.setOrigin(sf::Vector2f(pod.sprite.getTexture().getSize()) / 2.0f);
+        pod.sprite.setScale({ config::CargoScale, config::CargoScale });
+        pod.sprite.setPosition(pod.position);
+
+        m_cargo.push_back(std::move(pod));
+    }
+}
+
+void Game::dropCargo()
+{
+    // Let go where you are, not where you were going. A pod dropped halfway
+    // home is the whole cost of being hit on a haul, and it has to be visibly
+    // that: it stays exactly where it fell.
+    if (m_carrying < 0)
+        return;
+
+    Cargo& pod = m_cargo[static_cast<std::size_t>(m_carrying)];
+    pod.carried = false;
+    pod.position = m_arena.clampInside(m_player.getPosition(), config::CargoRadius);
+    pod.sprite.setPosition(pod.position);
+
+    m_carrying = -1;
+    m_player.setBurden(1.0f);
+
+    m_audio.play(Sfx::PartBreak, 0.7f);
+    addHitRing(pod.position, config::CargoRadius * 2.2f, config::CargoMarkColor);
+}
+
+void Game::updateCargo(float deltaTime)
+{
+    if (m_cargo.empty())
+        return;
+
+    const sf::Vector2f me = m_player.getPosition();
+    const sf::Vector2f home = m_arena.getStart();
+
+    for (std::size_t i = 0; i < m_cargo.size(); ++i)
+    {
+        Cargo& pod = m_cargo[i];
+        if (pod.delivered)
+            continue;
+
+        pod.bob += deltaTime * 2.2f;
+
+        if (pod.carried)
+        {
+            // Towed behind the stern rather than carried inside the hull, so
+            // the thing you are risking everything for is on the screen the
+            // whole way back.
+            const sf::Vector2f behind = m_player.getSternPosition();
+            pod.position += (behind - pod.position)
+                            * std::min(1.0f, config::CargoBob * deltaTime * 4.0f);
+            pod.position = m_arena.clampInside(pod.position, config::CargoRadius);
+            pod.sprite.setPosition(pod.position);
+            pod.sprite.setRotation(sf::degrees(std::sin(pod.bob) * 9.0f));
+
+            if ((pod.position - home).length() <= config::CargoDropRange)
+            {
+                pod.delivered = true;
+                pod.carried = false;
+                m_carrying = -1;
+                m_player.setBurden(1.0f);
+
+                m_level.notifyCargoDelivered();
+                awardSalvage(static_cast<int>(config::CargoSalvage));
+
+                bigMoment(home, config::CargoHomeColor, config::ShakeTorpedo * 0.7f, 0.0f);
+                m_audio.play(Sfx::LevelClear, 0.8f);
+            }
+
+            continue;
+        }
+
+        pod.sprite.setPosition(pod.position);
+        pod.sprite.setRotation(sf::degrees(std::sin(pod.bob * 0.4f) * 3.0f));
+
+        // Picked up by swimming into it, and only one at a time: a sub towing
+        // four drums is not a decision, it is an errand.
+        if (m_carrying < 0 && m_player.isAlive()
+            && (pod.position - me).length() <= config::CargoPickupRange)
+        {
+            pod.carried = true;
+            m_carrying = static_cast<int>(i);
+            m_player.setBurden(config::CargoBurden);
+
+            m_audio.play(Sfx::Hatch, 0.8f);
+            addHitRing(pod.position, config::CargoRadius * 2.6f, config::CargoHomeColor);
+        }
+    }
+}
+
+void Game::drawCargo()
+{
+    if (m_cargo.empty())
+        return;
+
+    // The mouth, marked, and only while there is something to bring back to it.
+    // A ring painted on the floor for the whole level would stop meaning
+    // anything by the second minute.
+    if (m_carrying >= 0)
+    {
+        const sf::Vector2f home = m_arena.getStart();
+        const float pulse = 0.86f + 0.14f * std::sin(m_stateTimer * 3.4f);
+        const float radius = config::CargoDropRange * pulse;
+
+        sf::Color edge = config::CargoHomeColor;
+        edge.a = 130;
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(home);
+        m_sonarRing.setOutlineThickness(3.0f);
+        m_sonarRing.setOutlineColor(edge);
+        m_window.draw(m_sonarRing);
+    }
+
+    for (const Cargo& pod : m_cargo)
+    {
+        if (pod.delivered)
+            continue;
+
+        m_window.draw(pod.sprite);
+    }
+}
+
 void Game::updateNests(float deltaTime)
 {
     for (Nest& nest : m_nests)
@@ -1527,10 +1688,15 @@ float Game::noticeRange() const
 {
     // Firing gives you away whether the lamp is on or not, which is what stops
     // running dark from being a way to shoot everything for free.
-    if (m_lampOn || m_noiseTimer > 0.0f)
-        return config::NoticeLit;
+    // A pod under tow is a beacon strapped to the stern. Running dark with one
+    // is still quieter than running lit, but it is nothing like running dark
+    // empty-handed - which is the trade the level is about.
+    const float towing = m_carrying >= 0 ? config::CargoNoticeBonus : 1.0f;
 
-    return config::NoticeDark;
+    if (m_lampOn || m_noiseTimer > 0.0f)
+        return config::NoticeLit * towing;
+
+    return config::NoticeDark * towing;
 }
 
 void Game::placeVents()
@@ -2210,6 +2376,10 @@ void Game::hurtPlayer(int amount)
     // it: it is a record of not having been touched.
     m_streak = 0;
 
+    // And so does your grip. Being bitten halfway home is what a haul costs,
+    // and it has to cost the distance rather than a number.
+    dropCargo();
+
     effects::playerHurt(m_effects, m_player.getPosition());
     m_audio.play(Sfx::PlayerHurt, result.ventSaved ? 1.3f : 1.0f);
 
@@ -2743,6 +2913,20 @@ void Game::drawMinimap()
             pip(nest.position, 4.0f, config::HudSalvageColor);
     }
 
+    // A haul is navigation, so the map has to carry it: where the pods still
+    // are, and where home is. Without this the level is a search rather than a
+    // decision about which way to run.
+    if (!m_cargo.empty())
+    {
+        pip(m_arena.getStart(), 5.0f, config::CargoHomeColor);
+
+        for (const Cargo& pod : m_cargo)
+        {
+            if (!pod.delivered && !pod.carried)
+                pip(pod.position, 4.0f, config::CargoMarkColor);
+        }
+    }
+
     if (m_boss && m_boss->isAlive())
         pip(m_boss->getPosition(), 5.0f, config::HudBossColor);
 
@@ -3097,6 +3281,7 @@ void Game::update(float deltaTime)
                 updateOrbits(deltaTime);
                 updateVents(deltaTime);
                 updateNests(deltaTime);
+                updateCargo(deltaTime);
                 updateSonar(deltaTime);
 
                 handleCollisions();
@@ -3178,6 +3363,7 @@ void Game::render()
     // Under everything alive: a vent is a hole in the floor, not an object.
     drawVents();
     drawNests();
+    drawCargo();
 
     for (const Mine& mine : m_mines)
         m_window.draw(mine.sprite);

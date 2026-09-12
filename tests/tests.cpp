@@ -133,6 +133,16 @@ namespace
                     check(def.objectiveAmount <= 9,
                           (where + " does not hide more nests than fit round the basin").c_str());
                     break;
+                case ObjectiveKind::HaulCargo:
+                    check(def.objectiveAmount > 0,
+                          (where + " drops at least one pod").c_str());
+                    check(def.objectiveAmount <= config::ChamberCount,
+                          (where + " does not drop more pods than there are rooms").c_str());
+                    check(def.spawnInterval > 0.0f,
+                          (where + " keeps hunting you while you haul").c_str());
+                    check(scripted > 0,
+                          (where + " has something in the water to haul past").c_str());
+                    break;
                 case ObjectiveKind::DefeatBoss:
                     check(def.isBoss, (where + " is flagged as a boss level").c_str());
                     break;
