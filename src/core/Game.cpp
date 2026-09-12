@@ -1283,6 +1283,31 @@ void Game::spawnSplit(sf::Vector2f at, sf::Vector2f incoming, int fromEnemyId)
     }
 }
 
+Sfx Game::deathVoice(EnemyType type)
+{
+    switch (config::voiceOf(type))
+    {
+        case config::CreatureVoice::Shell:   return Sfx::DieShell;
+        case config::CreatureVoice::Bladder: return Sfx::DieBladder;
+        case config::CreatureVoice::Wet:     return Sfx::DieWet;
+        case config::CreatureVoice::Void:    return Sfx::DieVoid;
+        default:                             return Sfx::DieSoft;
+    }
+}
+
+Sfx Game::hitVoice(EnemyType type)
+{
+    // Three, not five: a hit is over in a tenth of a second, and the ear only
+    // has time to ask whether it landed on meat, on shell, or on something
+    // that should not be down here.
+    switch (config::voiceOf(type))
+    {
+        case config::CreatureVoice::Shell: return Sfx::HitShell;
+        case config::CreatureVoice::Void:  return Sfx::HitVoid;
+        default:                           return Sfx::HitSoft;
+    }
+}
+
 void Game::awardSalvage(int base)
 {
     if (base <= 0)
@@ -2333,7 +2358,7 @@ void Game::killEnemy(Enemy& enemy)
     const float pitch = std::min(config::StreakPitchMax,
                                  1.0f + config::StreakPitchStep
                                             * static_cast<float>(m_streak));
-    m_audio.play(Sfx::EnemyDie, pitch);
+    m_audio.play(deathVoice(enemy.getType()), pitch);
 
     if (m_streak == config::StreakNotable || m_streak == config::StreakLoud)
         addFlash(config::HudPipFullEdge, 0.30f);
@@ -2617,7 +2642,7 @@ void Game::handleCollisions()
                 }
 
                 effects::impact(m_effects, shot.getPosition(), shot.getDirection());
-                m_audio.play(Sfx::Impact, crit ? 1.5f : 1.0f);
+                m_audio.play(hitVoice(enemy.getType()), crit ? 1.5f : 1.0f);
                 addHitRing(shot.getPosition(),
                            crit ? config::CritRingRadius
                                 : (torpedo ? blastRadius : config::JetRingRadius),

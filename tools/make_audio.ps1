@@ -183,6 +183,81 @@ public static class Synth
         return b;
     }
 
+    // Every creature used to die with the same noise, which made a basin full
+    // of different animals sound like one animal being killed repeatedly. One
+    // shape of death sound, parameterised, and a small table decides which
+    // creature gets which. The parameters are the animal: what its body is
+    // made of, how much air is in it, and how far it falls as it goes.
+    public static float[] DeathVoice(float len, double startHz, double endHz,
+                                     float tone, float noiseMix, float cutoff,
+                                     float rasp, float crackle)
+    {
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, cutoff);
+
+        double phase = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float k = t / len;
+
+            // The pitch slide is the fall. A body with air in it slides a long
+            // way; a shell barely slides at all, it just stops.
+            double freq = startHz + (endHz - startHz) * k;
+            phase += 2 * Math.PI * freq / Rate;
+
+            // Rasp is the body arguing on the way down: a slow tremolo that a
+            // smooth-skinned thing does not have and a chitinous one does.
+            float wobble = 1f + rasp * (float)Math.Sin(2 * Math.PI * 38.0 * t);
+
+            float env = Decay(t, len, 2.2f);
+            float body = (float)Math.Sin(phase) * tone * wobble + noise[i] * noiseMix;
+
+            // Crackle is the shell going, a handful of hard ticks rather than
+            // a texture, so it reads as breaking instead of as static.
+            if (crackle > 0f && rng.NextDouble() < crackle * (1.0 - k))
+                body += (float)(rng.NextDouble() * 2.0 - 1.0) * 0.9f;
+
+            b[i] = body * env * 0.62f;
+        }
+        Edges(b, 0.004f);
+        return b;
+    }
+
+    // What a shot landing on it sounds like, which is the same question asked
+    // of a much shorter sound: is this meat, shell, or something that should
+    // not be here.
+    public static float[] HitVoice(float len, double hz, float tone,
+                                   float noiseMix, float cutoff, float ring)
+    {
+        int n = Count(len);
+        float[] b = new float[n];
+        float[] noise = new float[n];
+        for (int i = 0; i < n; i++) noise[i] = Noise();
+        LowPass(noise, cutoff);
+
+        double phase = 0.0;
+        double phase2 = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            phase += 2 * Math.PI * hz / Rate;
+            phase2 += 2 * Math.PI * hz * 2.71 / Rate;
+
+            float env = Decay(t, len, 3.4f) * Math.Min(1f, t / 0.0015f);
+            float body = (float)Math.Sin(phase) * tone
+                         + (float)Math.Sin(phase2) * ring
+                         + noise[i] * noiseMix;
+
+            b[i] = body * env * 0.58f;
+        }
+        Edges(b, 0.002f);
+        return b;
+    }
+
     public static float[] PlayerHurt()
     {
         float len = 0.36f;
@@ -578,6 +653,18 @@ $jobs = @(
     @("jet_fire.wav",        [Synth]::JetFire()),
     @("impact.wav",          [Synth]::Impact()),
     @("enemy_die.wav",       [Synth]::EnemyDie()),
+
+    # One death per kind of body. The numbers are the animal: how much air is
+    # in it, what its shell is made of, and how far it falls on the way out.
+    @("die_soft.wav",        [Synth]::DeathVoice(0.44, 240.0, 52.0, 0.55, 0.55, 1100.0, 0.0, 0.0)),
+    @("die_shell.wav",       [Synth]::DeathVoice(0.30, 170.0, 120.0, 0.22, 0.60, 4200.0, 0.10, 0.06)),
+    @("die_bladder.wav",     [Synth]::DeathVoice(0.72, 300.0, 38.0, 0.30, 0.85, 2000.0, 0.0, 0.0)),
+    @("die_wet.wav",         [Synth]::DeathVoice(0.38, 620.0, 150.0, 0.62, 0.42, 2600.0, 0.55, 0.0)),
+    @("die_void.wav",        [Synth]::DeathVoice(0.66, 90.0, 760.0, 0.72, 0.18, 5200.0, 0.22, 0.0)),
+
+    @("hit_soft.wav",        [Synth]::HitVoice(0.10, 190.0, 0.50, 0.55, 1400.0, 0.0)),
+    @("hit_shell.wav",       [Synth]::HitVoice(0.08, 420.0, 0.30, 0.45, 5200.0, 0.32)),
+    @("hit_void.wav",        [Synth]::HitVoice(0.16, 880.0, 0.55, 0.10, 6000.0, 0.40)),
     @("player_hurt.wav",     [Synth]::PlayerHurt()),
     @("boss_part_break.wav", [Synth]::PartBreak()),
     @("level_clear.wav",     [Synth]::LevelClear()),

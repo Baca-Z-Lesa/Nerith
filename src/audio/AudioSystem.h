@@ -25,6 +25,18 @@ enum class Sfx
     BossDeath,
     Charge,
     Siren,         // the hull alarm, when there is almost none of it left
+
+    // A basin full of different animals used to sound like one animal being
+    // killed over and over. One voice per kind of body instead: what it is
+    // made of, how much air is in it, and how far it falls on the way out.
+    DieSoft,
+    DieShell,
+    DieBladder,
+    DieWet,
+    DieVoid,
+    HitSoft,
+    HitShell,
+    HitVoid,
     Count
 };
 

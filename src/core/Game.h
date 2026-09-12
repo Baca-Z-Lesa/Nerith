@@ -254,6 +254,12 @@ private:
 
     const config::DifficultyDef& difficulty() const;
 
+    // What a creature sounds like when it is hit and when it stops. A basin
+    // full of different animals used to sound like one animal being killed
+    // over and over.
+    static Sfx deathVoice(EnemyType type);
+    static Sfx hitVoice(EnemyType type);
+
     void areaDamage(sf::Vector2f centre, float radius, int damage);
     void addHitRing(sf::Vector2f at, float radius, sf::Color colour);
     void updateHitRings(float deltaTime);

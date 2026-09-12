@@ -313,6 +313,45 @@ namespace config
           0.8f, 23.0f, 196.0f, 38, 3, 14, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
     } };
 
+    // What a creature is made of, for the ear rather than the eye. Kept as its
+    // own table rather than a field on EnemyStats because it is answering a
+    // different question from every other number in there, and because the
+    // same five voices cover seventeen animals.
+    enum class CreatureVoice
+    {
+        Soft,    // meat, and enough air in it to fall a long way
+        Shell,   // plate and chitin: it does not slide, it stops
+        Bladder, // gas going out of something that was mostly gas
+        Wet,     // a chittering squeal that argues on the way down
+        Void,    // whatever the rift is, it does not end the way flesh does
+    };
+
+    // Order must match EnemyType.
+    inline constexpr std::array<CreatureVoice, EnemyTypeCount> EnemyVoices{ {
+        CreatureVoice::Soft,    // Lurker
+        CreatureVoice::Wet,     // Darter
+        CreatureVoice::Shell,   // Hulk
+        CreatureVoice::Wet,     // Spitter
+        CreatureVoice::Bladder, // Bloom
+        CreatureVoice::Soft,    // Spawnling
+        CreatureVoice::Bladder, // Brooder
+        CreatureVoice::Shell,   // Lancer
+        CreatureVoice::Wet,     // Weaver
+        CreatureVoice::Bladder, // Husk
+        CreatureVoice::Wet,     // Angler
+        CreatureVoice::Shell,   // Warden
+        CreatureVoice::Soft,    // Siphon
+        CreatureVoice::Soft,    // Revenant
+        CreatureVoice::Bladder, // Herald
+        CreatureVoice::Void,    // Rift
+        CreatureVoice::Shell,   // Coilworm
+    } };
+
+    inline constexpr CreatureVoice voiceOf(EnemyType type)
+    {
+        return EnemyVoices[static_cast<std::size_t>(type)];
+    }
+
     inline constexpr const EnemyStats& enemyStats(EnemyType type)
     {
         return EnemyTable[static_cast<std::size_t>(type)];

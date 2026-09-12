@@ -27,6 +27,14 @@ namespace
             case Sfx::BossDeath:  return "assets/audio/boss_death.wav";
             case Sfx::Charge:     return "assets/audio/charge.wav";
             case Sfx::Siren:      return "assets/audio/siren.wav";
+            case Sfx::DieSoft:    return "assets/audio/die_soft.wav";
+            case Sfx::DieShell:   return "assets/audio/die_shell.wav";
+            case Sfx::DieBladder: return "assets/audio/die_bladder.wav";
+            case Sfx::DieWet:     return "assets/audio/die_wet.wav";
+            case Sfx::DieVoid:    return "assets/audio/die_void.wav";
+            case Sfx::HitSoft:    return "assets/audio/hit_soft.wav";
+            case Sfx::HitShell:   return "assets/audio/hit_shell.wav";
+            case Sfx::HitVoid:    return "assets/audio/hit_void.wav";
             default:              return "assets/audio/impact.wav";
         }
     }
@@ -50,6 +58,14 @@ namespace
             case Sfx::BossDeath:  return config::VolumeBossDeath;
             case Sfx::Charge:     return config::VolumeCharge;
             case Sfx::Siren:      return config::VolumeSiren;
+            case Sfx::DieSoft:
+            case Sfx::DieShell:
+            case Sfx::DieBladder:
+            case Sfx::DieWet:
+            case Sfx::DieVoid:    return config::VolumeEnemyDie;
+            case Sfx::HitSoft:
+            case Sfx::HitShell:
+            case Sfx::HitVoid:    return config::VolumeImpact;
             default:              return 60.0f;
         }
     }
