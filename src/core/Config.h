@@ -471,6 +471,55 @@ namespace config
     // and a spear grows along the line it is about to take. Blocking used to
     // be a coin toss because nothing said a blow was coming; this is what
     // turns it into something you can read and answer.
+    // --- What each creature does that is not a shot ---
+    // One special per creature every so often, alternating between its two, on
+    // a clock that tightens with every act. These are the moves that move the
+    // fight rather than fill the water: they are worth telegraphing and they
+    // are worth being afraid of.
+    inline constexpr float BossSpecialInterval = 7.4f;
+    inline constexpr float BossSpecialFirst = 4.0f;   // the first one comes sooner
+
+    // Every act the creature presses harder: this much off every gap between
+    // anything it does, compounding, and again on top of its rage.
+    inline constexpr float BossActPressure = 0.16f;
+
+    inline constexpr float GrabDuration = 1.5f;   // how long it holds you
+    inline constexpr float GrabBiteInterval = 0.42f;
+    inline constexpr int   GrabBite = 2;
+    inline constexpr float GrabReach = 132.0f;
+
+    inline constexpr float SweepRadius = 460.0f;
+    inline constexpr float SweepArc = 110.0f;     // degrees either side of its heading
+    inline constexpr int   SweepDamage = 5;
+    inline constexpr float SweepPush = 620.0f;
+
+    inline constexpr int   SeedCount = 4;
+    inline constexpr int   SeedHealth = 14;
+    inline constexpr float SeedSpread = 330.0f;
+
+    inline constexpr float TidePush = 940.0f;
+    inline constexpr float TideRadius = 900.0f;
+
+    inline constexpr float SiltDuration = 4.5f;
+    inline constexpr float SiltLamp = 0.30f;      // what the lamp is cut to
+
+    inline constexpr float EruptWarning = 1.05f;  // how long the floor bulges first
+    inline constexpr float EruptRadius = 190.0f;
+    inline constexpr int   EruptDamage = 9;
+
+    inline constexpr float WellDuration = 2.4f;
+    inline constexpr float WellPull = 340.0f;
+
+    inline constexpr float HurlSpeed = 720.0f;
+    inline constexpr int   HurlDamage = 8;
+    inline constexpr float HurlRadius = 26.0f;
+
+    inline constexpr sf::Color GrabColor{ 255, 84, 72 };
+    inline constexpr sf::Color SweepColor{ 150, 214, 255 };
+    inline constexpr sf::Color TideColor{ 120, 200, 232 };
+    inline constexpr sf::Color WellColor{ 196, 128, 255 };
+    inline constexpr sf::Color EruptColor{ 224, 186, 118 };
+
     inline constexpr float BossTellTime = 0.62f;
     inline constexpr float BossTellRing = 3.1f;   // ring radius, in body radii, at the start
     inline constexpr float BossTellReach = 2.4f;  // how far ahead a lunge draws its line

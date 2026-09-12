@@ -330,6 +330,284 @@ void Game::drawBossTell()
     m_window.draw(spear);
 }
 
+void Game::applyBossMove(const BossMove& move)
+{
+    const sf::Vector2f me = m_player.getPosition();
+
+    switch (move.kind)
+    {
+        case BossSpecial::Grab:
+            // Armed rather than applied: the bite only lands if the lunge it
+            // was announced with actually connects, which is checked where
+            // contact is checked.
+            //
+            // And only against a sub that can get out of it. A hold with no
+            // answer is not a move, it is a sentence, and the dash is the
+            // answer - so no dash, no hold.
+            if (m_playerStats.has(Trait::Dash))
+                m_grabArmed = config::BossWindTime + config::BossStrikeTime;
+            break;
+
+        case BossSpecial::Sweep:
+        {
+            // An arc off its flank. Being behind it is safe, being anywhere in
+            // front of it is not, and it throws you rather than only hurting.
+            const sf::Vector2f offset = me - move.at;
+            const float distance = offset.length();
+
+            addHitRing(move.at, config::SweepRadius, config::SweepColor);
+            addShake(config::ShakeBossPart);
+            m_audio.play(Sfx::Vent, 0.85f);
+
+            if (distance > config::SweepRadius || distance <= 1.0f)
+                break;
+
+            const sf::Vector2f direction = offset / distance;
+            const float cosine = direction.dot(move.direction);
+            if (cosine < std::cos(config::SweepArc * 3.14159265f / 180.0f))
+                break;
+
+            m_pushTo = direction * config::SweepPush;
+            m_pushTime = 0.30f;
+            hurtPlayer(config::SweepDamage);
+            break;
+        }
+
+        case BossSpecial::Seed:
+        {
+            // It plants. What it plants is not the fight, it is the clock: the
+            // longer the pods are left the more of the room is theirs.
+            for (int i = 0; i < config::SeedCount; ++i)
+            {
+                const sf::Vector2f at = m_arena.clampInside(
+                    move.at + sf::Vector2f(rng::range(120.0f, config::SeedSpread),
+                                           sf::degrees(rng::range(0.0f, 360.0f))),
+                    config::NestRadius);
+
+                Nest pod{ sf::Sprite(m_assets.boss(config::NestTexturePath)), at,
+                          config::SeedHealth, config::SeedHealth,
+                          rng::range(1.4f, 2.6f), 0.0f, true };
+
+                pod.sprite.setOrigin(sf::Vector2f(pod.sprite.getTexture().getSize()) / 2.0f);
+                pod.sprite.setPosition(at);
+                pod.sprite.setScale({ 0.6f, 0.6f });
+                pod.sprite.setRotation(sf::degrees(rng::range(0.0f, 360.0f)));
+
+                m_nests.push_back(std::move(pod));
+                addHitRing(at, config::NestRadius * 1.6f, config::HudSalvageColor);
+            }
+
+            m_audio.play(Sfx::Hatch, 0.7f);
+            break;
+        }
+
+        case BossSpecial::Tide:
+        {
+            // It pushes the whole room away from itself, hostile water
+            // included, and then fills the space that opens up.
+            const sf::Vector2f offset = me - move.at;
+            const float distance = offset.length();
+
+            addHitRing(move.at, config::TideRadius, config::TideColor);
+            addShake(config::ShakeTorpedo);
+            m_audio.play(Sfx::BossPhase, 0.8f);
+
+            if (distance > 1.0f && distance < config::TideRadius)
+            {
+                const float fall = 1.0f - distance / config::TideRadius;
+                m_pushTo = offset / distance * config::TidePush * fall;
+                m_pushTime = 0.35f;
+            }
+
+            for (Projectile& shot : m_enemyShots)
+            {
+                const sf::Vector2f away = shot.getPosition() - move.at;
+                if (away.lengthSquared() < config::TideRadius * config::TideRadius)
+                    shot.kill();
+            }
+            break;
+        }
+
+        case BossSpecial::Silt:
+            // Blind. The lamp is the only reason the basin is navigable, and
+            // for the next few seconds most of it is gone.
+            m_siltTimer = config::SiltDuration;
+            m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
+                            (m_lampOn ? 1.0f : config::LampDarkFactor) * config::SiltLamp);
+            addFlash(config::EruptColor, 0.5f);
+            m_audio.play(Sfx::Vent, 0.7f);
+            break;
+
+        case BossSpecial::Erupt:
+            // Straight up through the floor where you are standing. The floor
+            // bulges first, and the bulge is where it is going to be, not where
+            // you were: standing still is the mistake.
+            m_eruptAt = move.at;
+            m_eruptTimer = config::EruptWarning;
+            m_audio.play(Sfx::Charge, 0.7f);
+            break;
+
+        case BossSpecial::Well:
+            m_wellAt = move.at;
+            m_wellTimer = config::WellDuration;
+            addHitRing(move.at, config::WellPull * 2.0f, config::WellColor);
+            m_audio.play(Sfx::BossPhase, 1.2f);
+            break;
+
+        case BossSpecial::Hurl:
+        {
+            // It tears a piece of the floor out and throws it. Heavy, slow
+            // enough to read, and it does not care what is between the two of
+            // you.
+            const sf::Vector2f direction = (me - move.at).lengthSquared() > 1.0f
+                                               ? (me - move.at).normalized()
+                                               : move.direction;
+
+            const config::ProjectileStats rock{ config::HurlSpeed, config::HurlRadius, 1.6f };
+
+            m_pendingEnemyShots.emplace_back(m_assets.boss(config::SerpentSegmentPath),
+                                             move.at + direction * 90.0f, direction, rock,
+                                             config::HurlDamage
+                                                 + m_level.getScaling().bonusDamage);
+
+            addShake(config::ShakeBossPart);
+            m_audio.play(Sfx::PartBreak, 0.8f);
+            break;
+        }
+    }
+}
+
+void Game::updateBossMoves(float deltaTime)
+{
+    // Being thrown, or pulled. Both override steering entirely for the short
+    // time they last, which is exactly what makes them feel like something
+    // happening to you rather than a number changing.
+    if (m_pushTime > 0.0f)
+    {
+        m_pushTime -= deltaTime;
+        m_player.setPosition(m_arena.clampInside(
+            m_player.getPosition() + m_pushTo * deltaTime, config::PlayerRadius));
+    }
+
+    if (m_wellTimer > 0.0f)
+    {
+        m_wellTimer -= deltaTime;
+
+        const sf::Vector2f offset = m_wellAt - m_player.getPosition();
+        const float distance = offset.length();
+
+        if (distance > 40.0f)
+        {
+            m_player.setPosition(m_arena.clampInside(
+                m_player.getPosition() + offset / distance * config::WellPull * deltaTime,
+                config::PlayerRadius));
+        }
+    }
+
+    if (m_grabArmed > 0.0f)
+        m_grabArmed -= deltaTime;
+
+    // In its mouth. Nothing you press moves the sub, it bites on a clock, and
+    // the dash is the only way out - the same key that gets a siphon off, for
+    // the same reason.
+    if (m_grabTimer > 0.0f)
+    {
+        m_grabTimer -= deltaTime;
+        m_grabBite -= deltaTime;
+
+        if (m_boss)
+        {
+            m_player.setPosition(m_arena.clampInside(m_boss->getPosition(),
+                                                     config::PlayerRadius));
+        }
+
+        if (m_grabBite <= 0.0f)
+        {
+            m_grabBite = config::GrabBiteInterval;
+            hurtPlayer(config::GrabBite + m_level.getScaling().bonusDamage);
+            addShake(config::ShakeBossPart);
+        }
+
+        if (m_grabTimer <= 0.0f)
+            addFlash(config::GrabColor, 0.3f);
+    }
+
+    if (m_siltTimer > 0.0f)
+    {
+        m_siltTimer -= deltaTime;
+        if (m_siltTimer <= 0.0f)
+            m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
+                            m_lampOn ? 1.0f : config::LampDarkFactor);
+    }
+
+    if (m_eruptTimer > 0.0f)
+    {
+        m_eruptTimer -= deltaTime;
+        if (m_eruptTimer <= 0.0f)
+        {
+            effects::ventBurst(m_effects, m_eruptAt, config::EruptRadius * 0.7f);
+            addHitRing(m_eruptAt, config::EruptRadius, config::EruptColor);
+            addShake(config::ShakeDeath * 0.7f);
+            addHitStop(config::HitStopBossPart);
+            m_audio.play(Sfx::BossRoar, 0.9f);
+
+            if ((m_player.getPosition() - m_eruptAt).length() <= config::EruptRadius)
+                hurtPlayer(config::EruptDamage);
+
+            areaDamage(m_eruptAt, config::EruptRadius, config::EruptDamage);
+        }
+    }
+}
+
+void Game::drawBossMoves()
+{
+    // The floor about to open. Drawn as a ring that tightens, the same
+    // language every other warning in the game uses.
+    if (m_eruptTimer > 0.0f)
+    {
+        const float progress = 1.0f - m_eruptTimer / config::EruptWarning;
+        const float radius = config::EruptRadius * (1.6f - 0.6f * progress);
+
+        sf::Color edge = config::EruptColor;
+        edge.a = static_cast<std::uint8_t>(90.0f + 160.0f * progress);
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(m_eruptAt);
+        m_sonarRing.setOutlineThickness(3.0f + 4.0f * progress);
+        m_sonarRing.setOutlineColor(edge);
+        m_window.draw(m_sonarRing);
+    }
+
+    if (m_wellTimer > 0.0f)
+    {
+        const float pulse = std::fmod(m_wellTimer * 1.6f, 1.0f);
+        const float radius = config::WellPull * 2.0f * pulse;
+
+        sf::Color edge = config::WellColor;
+        edge.a = static_cast<std::uint8_t>(200.0f * (1.0f - pulse));
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(m_wellAt);
+        m_sonarRing.setOutlineThickness(3.0f);
+        m_sonarRing.setOutlineColor(edge);
+        m_window.draw(m_sonarRing);
+    }
+
+    if (m_grabTimer > 0.0f)
+    {
+        const float radius = config::GrabReach * (0.7f + 0.3f * std::sin(m_stateTimer * 24.0f));
+
+        m_sonarRing.setRadius(radius);
+        m_sonarRing.setOrigin({ radius, radius });
+        m_sonarRing.setPosition(m_player.getPosition());
+        m_sonarRing.setOutlineThickness(4.0f);
+        m_sonarRing.setOutlineColor(config::GrabColor);
+        m_window.draw(m_sonarRing);
+    }
+}
+
 void Game::onBossActChanged(int act)
 {
     // The fight turning is the single loudest thing in the game. It has to be
@@ -481,6 +759,13 @@ void Game::beginLevel(int number)
     m_harpoonPull = 0.0f;
     m_modeTimer = 0.0f;
     m_fireSlot = 0;
+
+    m_pushTime = 0.0f;
+    m_wellTimer = 0.0f;
+    m_eruptTimer = 0.0f;
+    m_siltTimer = 0.0f;
+    m_grabArmed = 0.0f;
+    m_grabTimer = 0.0f;
     m_callTimer = rng::range(6.0f, config::CreatureCallMax);
     m_boss.reset();
     m_lastSpawnAngle = rng::range(0.0f, 360.0f);
@@ -1574,6 +1859,15 @@ void Game::performDash()
 
     effects::thrusterBubbles(m_effects, m_player.getPosition(), -m_player.getAimDirection());
     m_audio.play(Sfx::Impact, 0.6f);
+
+    // And the one thing that gets you out of a mouth. Same key, same reason.
+    if (m_grabTimer > 0.0f)
+    {
+        m_grabTimer = 0.0f;
+        addFlash(config::BlockDodgeColor, 0.5f);
+        addHitRing(m_player.getPosition(), config::GrabReach, config::BlockDodgeColor);
+        m_audio.play(Sfx::PartBreak, 1.3f);
+    }
 
     // The one thing that gets a siphon off. It is deliberately the dash rather
     // than a button of its own: you have to spend the escape you were saving.
@@ -2684,6 +2978,11 @@ void Game::updateBoss(float deltaTime)
     // A creature that calls for help. The summons arrive at the edge of the
     // basin like anything else does, and they are not part of the level's
     // roster, so they cannot be farmed by standing in a boss fight.
+    for (const BossMove& move : m_boss->takeMoves())
+        applyBossMove(move);
+
+    updateBossMoves(deltaTime);
+
     for (const EnemyType type : m_boss->takeSummons())
     {
         m_enemies.emplace_back(type, m_assets.forEnemy(type), pickSpawnPosition(),
@@ -3224,8 +3523,26 @@ void Game::handleCollisions()
         hurtPlayer(enemy.getContactDamage());
     }
 
-    if (m_boss && m_boss->isVulnerable() && m_boss->touches(m_player.getPosition(), config::PlayerRadius))
-        hurtPlayer(m_boss->getContactDamage());
+    if (m_boss && m_boss->isVulnerable()
+        && m_boss->touches(m_player.getPosition(), config::PlayerRadius))
+    {
+        // A lunge that was announced as a grab and actually connects takes
+        // hold instead of biting once. Everything else is an ordinary maul.
+        if (m_grabArmed > 0.0f && m_grabTimer <= 0.0f)
+        {
+            m_grabArmed = 0.0f;
+            m_grabTimer = config::GrabDuration;
+            m_grabBite = config::GrabBiteInterval * 0.5f;
+
+            bigMoment(m_player.getPosition(), config::GrabColor,
+                      config::ShakeDeath, config::SlowMotionBossAct);
+            m_audio.play(Sfx::BossRoar, 1.2f);
+        }
+        else if (m_grabTimer <= 0.0f)
+        {
+            hurtPlayer(m_boss->getContactDamage());
+        }
+    }
 }
 
 void Game::flushPendingShots()
@@ -3949,7 +4266,11 @@ void Game::update(float deltaTime)
                 deltaTime *= m_slowScale;
 
                 m_tally.seconds += deltaTime;
-                m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
+                // Held in a mouth, nothing the player presses moves the sub.
+                // updateBossMoves is what carries it, and the dash is the only
+                // way out.
+                if (m_grabTimer <= 0.0f)
+                    m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
                 handleShooting(deltaTime);
                 emitThrusterTrail(deltaTime);
 
@@ -4063,6 +4384,7 @@ void Game::render()
     {
         m_boss->draw(m_window);
         drawBossTell();
+        drawBossMoves();
     }
 
     // What the deep creatures are about to do, over the water rather than on

@@ -34,6 +34,7 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     , m_confineCentre(position)
     , m_phase(Phase::Stalk)
     , m_phaseTimer(config::BossStalkTime)
+    , m_specialTimer(config::BossSpecialFirst)
     , m_attackTimer(1.0f)
     , m_time(0.0f)
     , m_bellPulse(0.0f)
@@ -305,8 +306,7 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
             m_attackTimer -= deltaTime;
             if (m_attackTimer <= 0.0f)
             {
-                m_attackTimer = m_def->attackCooldown
-                                * (m_enraged ? m_def->rage.cooldownScale : 1.0f);
+                m_attackTimer = m_def->attackCooldown * aggression();
 
                 const sf::Vector2f muzzle = head + m_heading * m_def->headRadius;
                 const sf::Vector2f aim = direction.rotatedBy(sf::degrees(aimError()));
@@ -336,6 +336,7 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
                 m_phase = Phase::Wind;
                 m_phaseTimer = config::BossWindTime;
                 beginTell(config::BossWindTime, direction, true);
+
             }
             break;
         }
@@ -362,7 +363,7 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
             if (m_phaseTimer <= 0.0f)
             {
                 m_phase = Phase::Recover;
-                m_phaseTimer = config::BossRecoverTime;
+                m_phaseTimer = config::BossRecoverTime * aggression();
             }
             break;
 
@@ -372,7 +373,8 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
             if (m_phaseTimer <= 0.0f)
             {
                 m_phase = Phase::Stalk;
-                m_phaseTimer = config::BossStalkTime * (m_enraged ? 0.55f : 1.0f);
+                m_phaseTimer = config::BossStalkTime * aggression()
+                               * (m_enraged ? 0.55f : 1.0f);
                 m_strafe = -m_strafe;
             }
             break;
@@ -412,7 +414,8 @@ void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
         if (m_attackTimer <= 0.0f)
         {
             m_rhythmOpen = false;
-            m_attackTimer = m_def->attackCooldown * (getCoreFraction() < 0.4f ? 0.65f : 1.0f);
+            m_attackTimer = m_def->attackCooldown * aggression()
+                            * (getCoreFraction() < 0.4f ? 0.65f : 1.0f);
         }
         return;
     }
@@ -645,7 +648,7 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
     if (m_attackTimer > 0.0f)
         return;
 
-    m_attackTimer = m_def->attackCooldown * (m_enraged ? m_def->rage.cooldownScale : 1.0f);
+    m_attackTimer = m_def->attackCooldown * aggression();
 
     // One arm per living lamp, so putting a lamp out genuinely thins the
     // spiral rather than only shortening a bar. Blind it completely and it is
@@ -659,6 +662,100 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
         const float spoke = 360.0f * static_cast<float>(i) / static_cast<float>(arms);
         const sf::Angle angle = sf::degrees(m_spiralAngle + spoke + aimError());
         m_pending.push_back({ head + unit(angle) * (m_def->headRadius * 0.55f), unit(angle) });
+    }
+}
+
+std::vector<BossMove> Boss::takeMoves()
+{
+    std::vector<BossMove> out;
+    out.swap(m_moves);
+    return out;
+}
+
+float Boss::aggression() const
+{
+    // Compounding rather than additive: the difference between act two and act
+    // three has to be felt, not measured. Rage stacks on top of it, so a
+    // cornered enraged creature is genuinely relentless.
+    float pressure = 1.0f;
+    for (int i = 0; i < m_act; ++i)
+        pressure *= 1.0f - config::BossActPressure;
+
+    if (m_enraged)
+        pressure *= m_def->rage.cooldownScale;
+
+    return std::max(0.35f, pressure);
+}
+
+void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
+{
+    // Nothing while it is under the silt or running: a special is a commitment
+    // and a creature that is not present cannot commit to anything.
+    if (m_phase == Phase::Submerged || m_phase == Phase::Rising || m_phase == Phase::Flee)
+        return;
+
+    m_specialTimer -= deltaTime;
+    if (m_specialTimer > 0.0f)
+        return;
+
+    m_specialTimer = config::BossSpecialInterval * aggression();
+
+    const sf::Vector2f head = m_segments[0].position;
+    const sf::Vector2f toPlayer = safeNormal(player - head, m_heading);
+
+    // Two moves each, alternating, so neither becomes the thing the player
+    // waits for and the other becomes a surprise.
+    const bool second = (m_specialTurn++ % 2) != 0;
+
+    switch (m_def->mind)
+    {
+        case BossMind::Prowler:
+            if (second)
+            {
+                // The tail. It does not need to be looking at you.
+                m_moves.push_back({ BossSpecial::Sweep, head, m_heading, 0.0f });
+            }
+            else
+            {
+                // The lunge that follows is the grab. Announced as a charge,
+                // because being caught by something you did not see coming is
+                // not a fight, it is a punishment.
+                m_strikeTarget = head + toPlayer * 2.2f;
+                m_phase = Phase::Wind;
+                m_phaseTimer = config::BossWindTime;
+                beginTell(config::BossWindTime, toPlayer, true);
+                m_moves.push_back({ BossSpecial::Grab, head, toPlayer, 1.0f });
+            }
+            break;
+
+        case BossMind::Drifter:
+            m_moves.push_back(second
+                                  ? BossMove{ BossSpecial::Tide, head, toPlayer, 0.0f }
+                                  : BossMove{ BossSpecial::Seed, head, toPlayer, 0.0f });
+            beginTell(config::BossTellTime, toPlayer, false);
+            break;
+
+        case BossMind::Burrower:
+            if (second)
+            {
+                m_moves.push_back({ BossSpecial::Silt, head, m_heading, 0.0f });
+            }
+            else
+            {
+                // Straight up through the floor under you. The warning is the
+                // floor itself, and it is generous, because the alternative is
+                // an unavoidable hit.
+                m_moves.push_back({ BossSpecial::Erupt, player, toPlayer, 0.0f });
+            }
+            beginTell(config::BossTellTime, toPlayer, false);
+            break;
+
+        case BossMind::Spiral:
+            m_moves.push_back(second
+                                  ? BossMove{ BossSpecial::Hurl, head, toPlayer, 0.0f }
+                                  : BossMove{ BossSpecial::Well, head, toPlayer, 0.0f });
+            beginTell(config::BossTellTime, toPlayer, false);
+            break;
     }
 }
 
@@ -740,6 +837,10 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
         case BossMind::Burrower: thinkBurrower(deltaTime, playerPosition); break;
         case BossMind::Spiral:   thinkSpiral(deltaTime, playerPosition); break;
     }
+
+    // After the mind, not before: a special can override the phase the mind
+    // just chose, and it has to be the one that wins.
+    considerSpecial(deltaTime, playerPosition);
 
     followChain();
     placeParts(deltaTime);

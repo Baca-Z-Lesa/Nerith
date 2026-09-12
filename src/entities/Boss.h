@@ -20,6 +20,31 @@ struct BossShot
     sf::Vector2f direction;
 };
 
+// The one thing each creature does that is not a shot. Every one of these
+// changes where the fight happens rather than only how much of it is in the
+// air, and none of them can be answered by strafing a little harder.
+enum class BossSpecial
+{
+    Grab,    // it has you in its mouth. Dash, or be shaken apart.
+    Sweep,   // an arc of water that throws you off it
+    Seed,    // it plants, and what it plants hatches
+    Tide,    // it pushes the whole room away from itself
+    Silt,    // it blinds you and goes back under
+    Erupt,   // it comes up through the floor exactly where you are standing
+    Well,    // it pulls, and the pulling does not stop
+    Hurl,    // it tears something out of the floor and throws it
+};
+
+// What a special wants doing, drained by the caller the same way the shots
+// are. The boss never touches the world itself: it asks.
+struct BossMove
+{
+    BossSpecial kind;
+    sf::Vector2f at;
+    sf::Vector2f direction;
+    float value = 0.0f;
+};
+
 // One animal. Its body is a head towing segments, or a bell trailing tentacles;
 // its parts are eyes, fins, tentacles, plating and organs that all sit on that
 // body. Breaking a part does not just remove a health bar, it takes something
@@ -51,6 +76,14 @@ public:
     void splashNeighbours(std::size_t partIndex, int damage);
 
     std::vector<BossShot> takeShots();
+
+    // Everything the creature wants doing to the world this frame that is not
+    // a shot. Drained, like the shots and the summons.
+    std::vector<BossMove> takeMoves();
+
+    // How hard it is currently pressing: one at full health, rising with each
+    // act and again when it is enraged. Multiplies every gap between attacks.
+    float aggression() const;
 
     // Creatures the boss wants brought in, drained the same way its shots are.
     // A creature that calls for help is a different fight from one that does
@@ -139,6 +172,7 @@ private:
     };
 
     void beginTell(float seconds, sf::Vector2f aim, bool lunge);
+    void considerSpecial(float deltaTime, sf::Vector2f player);
 
     void refreshVitals();
     void steer(float deltaTime, sf::Vector2f target, float turnScale);
@@ -176,6 +210,9 @@ private:
     std::vector<Part>    m_parts;
     Vitals               m_vitals;
     std::vector<BossShot>  m_pending; // filled by the think code, drained by takeShots
+    std::vector<BossMove>  m_moves;
+    float                  m_specialTimer;
+    int                    m_specialTurn = 0; // alternates between its two moves
     std::vector<EnemyType> m_summons;
 
     sf::Vector2f m_heading;

@@ -245,6 +245,12 @@ private:
 
     void onBossActChanged(int act);
 
+    // The moves that are not shots. The creature asks; this is where the
+    // world actually does it.
+    void applyBossMove(const BossMove& move);
+    void updateBossMoves(float deltaTime);
+    void drawBossMoves();
+
     // The ring that closes on a creature about to commit, and the line it is
     // about to take. Drawn here rather than in Boss for the same reason the hit
     // rings are: the creature is the thing, this is the game telling you about
@@ -398,6 +404,20 @@ private:
     float     m_flash;       // 1 at the moment, fading to 0
     sf::Color m_flashColour;
     int       m_bossAct;     // the act the boss was in last frame
+
+    // Everything a boss special leaves behind for a few seconds. Held here
+    // rather than in Boss because every one of them is about the world and the
+    // sub rather than about the creature.
+    sf::Vector2f m_pushTo;
+    float        m_pushTime = 0.0f;
+    sf::Vector2f m_wellAt;
+    float        m_wellTimer = 0.0f;
+    sf::Vector2f m_eruptAt;
+    float        m_eruptTimer = 0.0f;
+    float        m_siltTimer = 0.0f;
+    float        m_grabArmed = 0.0f;  // a lunge that will grab if it connects
+    float        m_grabTimer = 0.0f;  // seconds it has you for
+    float        m_grabBite = 0.0f;
     bool      m_bossTelling; // whether it was already announcing an attack
     int       m_streak;      // kills since the last time something touched you
     int       m_bestStreak;
