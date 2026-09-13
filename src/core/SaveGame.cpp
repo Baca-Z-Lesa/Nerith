@@ -92,6 +92,12 @@ SaveGame SaveGame::load()
             stream >> data.shake;
         else if (key == "flashes")
             stream >> data.flashes;
+        else if (key == "fps")
+        {
+            int flag = 0;
+            stream >> flag;
+            data.showFps = flag != 0;
+        }
         else if (key == "camera")
             stream >> data.cameraTight;
         else if (key == "keys")
@@ -185,6 +191,7 @@ void SaveGame::save() const
     file << "shake " << shake << '\n';
     file << "flashes " << flashes << '\n';
     file << "camera " << cameraTight << '\n';
+    file << "fps " << (showFps ? 1 : 0) << '\n';
 
     // Only written once something has actually been rebound, so a save made
     // with the defaults keeps working if the defaults ever change.

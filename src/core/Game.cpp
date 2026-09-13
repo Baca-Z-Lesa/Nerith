@@ -3913,6 +3913,7 @@ void Game::run()
         processEvents();
         sampleInput();
 
+        m_lastFrame = frame;
         m_accumulator += frame * simTimeScale();
 
         int steps = 0;
@@ -4495,6 +4496,7 @@ namespace
         Shake,
         Flashes,
         Camera,
+        Fps,
         Bind,       // one key, named by the row's action
         Defaults,
     };
@@ -4523,6 +4525,7 @@ namespace
         { "FULLSCREEN",   Opt::Fullscreen },
         { "VSYNC",        Opt::VSync },
         { "FRAME CAP",    Opt::FrameCap },
+        { "SHOW FPS",     Opt::Fps },
         { "BRIGHTNESS",   Opt::Brightness },
 
         { "COMFORT",      Opt::Header },
@@ -4594,6 +4597,7 @@ std::string Game::optionValue(int row) const
         case Opt::Shake:      return meter(m_save.shake);
         case Opt::Flashes:    return meter(m_save.flashes);
         case Opt::Camera:     return meter(m_save.cameraTight);
+        case Opt::Fps:        return m_save.showFps ? "ON" : "OFF";
         case Opt::Defaults:   return "ENTER";
 
         case Opt::Bind:
@@ -4636,6 +4640,7 @@ void Game::stepOption(int row, int delta)
 
         case Opt::Muted: m_save.muted = delta > 0; break;
         case Opt::VSync: m_save.vsync = delta > 0; break;
+        case Opt::Fps:   m_save.showFps = delta > 0; break;
 
         case Opt::Fullscreen:
             if ((delta > 0) != m_fullscreen)
@@ -5694,8 +5699,41 @@ void Game::render(float alpha)
     if (m_paused)
         drawPauseOverlay();
 
+    drawFrameRate();
     drawBrightness();
     m_window.display();
+}
+
+void Game::drawFrameRate()
+{
+    // Averaged over half a second rather than taken from one frame: an
+    // instantaneous figure jitters by twenty either way and tells nobody
+    // anything. Off by default, because a number in the corner of a horror
+    // game is a number in the corner of a horror game.
+    if (!m_save.showFps)
+        return;
+
+    ++m_fpsFrames;
+    m_fpsWindow += m_lastFrame;
+
+    if (m_fpsWindow >= 0.5f)
+    {
+        m_fpsShown = static_cast<float>(m_fpsFrames) / m_fpsWindow;
+        m_fpsFrames = 0;
+        m_fpsWindow = 0.0f;
+    }
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    const std::string line = std::to_string(static_cast<int>(std::lround(m_fpsShown))) + " FPS";
+
+    m_window.setView(m_ui);
+    pixelfont::append(text, line,
+                      { static_cast<float>(config::WindowWidth)
+                            - pixelfont::measure(line, 1.4f) - config::HudMargin,
+                        static_cast<float>(config::WindowHeight) - 22.0f },
+                      1.4f, config::HudDimTextColor);
+
+    m_window.draw(text);
 }
 
 void Game::drawBrightness()

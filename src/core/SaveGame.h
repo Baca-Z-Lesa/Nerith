@@ -54,6 +54,7 @@ struct SaveGame
 
     // --- Feel ---
     int  cameraTight = 5;      // 0..10, how hard the view follows the sub
+    bool showFps = false;      // the frame counter, off unless asked for
 
     // What each action is bound to, as SFML scancode numbers in the order of
     // the Action enum. Empty means nothing has been rebound and the defaults

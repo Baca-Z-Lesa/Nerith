@@ -34,7 +34,11 @@ Grab `dist/Nerith.zip` (or build it, below), unzip it anywhere, run
 | `M` | mute |
 | `F11` | fullscreen |
 
-The title screen has the same list, plus options for difficulty and volume.
+Every key on that list can be rebound. Options also carries difficulty, how hard
+the camera follows, the two volumes, fullscreen, vsync, a frame cap, brightness,
+and separate sliders for screen shake and flashes - how much of each, not
+whether, because somebody who cannot take a shaking frame should not have to
+give up the hit feedback to stop it.
 
 ## How it is put together
 
@@ -60,6 +64,19 @@ bitten out of the walls, biting into the passages too but never far enough to
 seal one. It all resolves into one signed distance field, so rock is solid,
 corners are real cover and a creature on the other side of a wall has to come
 around it.
+
+The lamp is a beam rather than a bubble, thrown along the aim with a short halo
+close in. That is what makes the darkness cost something: looking where you are
+going and looking where you are shooting are two different decisions. A fifth of
+passages run one way, so a route you took easily is not the route back, and the
+map in the corner starts dark and fills in as you swim or ping - it is a record
+of where you have been, not a survey handed to you at the mouth.
+
+The water has an acoustic shape too. Sounds play where they happen, a real
+low-pass takes the top off anything with rock in the way, and an open cavern
+hands a sound back to you a fraction of a second later. Nothing in the HUD tells
+you where a creature is: the frame darkens on the side one is closing from and a
+call tightens as it nears, and that is all.
 
 Coming around it is a graph and a grid. The rooms and their passages are a
 graph, walked once at generation time so every pair of rooms knows its next
@@ -88,9 +105,20 @@ The dressing gets the same treatment from the other end: the seabed scatters
 nearly three thousand props over a field far wider than the window, and each is
 a sprite and a shadow, so only the ones near the view are drawn at all.
 
-Boss levels open into one hall instead. A minimap in the corner is the only
-reason any of it is navigable, and arrows at the screen edge point at what is
-hunting you off it.
+Boss levels open into one hall instead.
+
+Nine kinds of creature, and one that no level puts there. There used to be
+seventeen, and half of them were the same animal with different numbers - three
+ways for something to appear beside you, two burst-chargers on the same state
+machine, two things that held a range and threw a fan. A list that long reads as
+variety on the logbook page and as one animal in the water. What was worth
+keeping out of the ones that went was folded into whichever survivor was already
+nearest. The rule for adding a tenth is that it has to need an answer none of
+these need.
+
+The tenth is the Stalker, and nothing spawns it. Leave three creatures alive
+below the shallows and one of them follows you down, and keeps following, and
+gets worse every dive it survives.
 
 There are four kinds of dive. Most are fought: hold what ground you can
 and kill what arrives. A hunt is not — the nests are cemented to rock out at
@@ -170,6 +198,17 @@ untouchable under the floor, one that holds a light up for the rest so that
 running dark stops working, one that arrives instead of swimming, and one whose
 body is the weapon and whose head is only how it steers. The logbook on the
 title screen is where they hold still long enough to be looked at.
+
+The fight runs on a fixed step of a hundred and twenty a second and the frame
+just draws what is between the last two of them. That is not only tidiness: with
+a variable step the orbit shield ate one orb per FRAME, so its defence was worth
+two and a half times more at 144 than at 60; every cooldown threw away the part
+of a frame it had already run past, so the fire rate the player buys was
+quantised to whatever the machine was doing; and a creature that lost you
+wandered further on a slow machine than on a fast one. Input is sampled once a
+frame, as late as the loop can manage, and the pacer waits at the TOP of the
+loop rather than after the swap - so the spare time is spent before the keyboard
+is read instead of after the picture is already on the screen.
 
 ## Building it
 

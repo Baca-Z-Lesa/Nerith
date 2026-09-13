@@ -391,6 +391,9 @@ private:
 
     // A wash over the finished frame, so a dark monitor is a setting rather
     // than a reason not to play.
+    // The frame counter, when it is asked for. Averaged over half a second,
+    // because an instantaneous figure jitters by twenty either way.
+    void drawFrameRate();
     void drawBrightness();
 
     // The three flat screens hanging off the title: what the controls are, what
@@ -457,6 +460,10 @@ private:
     // How long a frame is allowed to take, in seconds. Zero means the pacer
     // stands aside, which is what vsync and an uncapped setting both want.
     float            m_frameBudget = 1.0f / 144.0f;
+    float            m_lastFrame = 0.0f;
+    float            m_fpsWindow = 0.0f;
+    float            m_fpsShown = 0.0f;
+    int              m_fpsFrames = 0;
 
     // What is left over from the last frame, waiting for a whole step to fit
     // in it. Divided by the step, it is also how far between two steps the
