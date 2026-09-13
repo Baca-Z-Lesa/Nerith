@@ -1612,55 +1612,112 @@ void Arena::buildGround()
 void Arena::buildWallShading()
 {
     const sf::Color shade = config::WallShadeColor;
-    const sf::Color shadeClear(shade.r, shade.g, shade.b, 0);
     const sf::Color rim = config::WallRimLight;
-    const sf::Color rimClear(rim.r, rim.g, rim.b, 0);
 
-    // There is only a wall here if there is rock just beyond it. A rim point
-    // with more water on the other side is a doorway, and shading one would
-    // paint a wall across the middle of open water - which is what a corridor
-    // mouth used to get.
-    // Far enough out that the sliver where two overlapping mouthfuls meet is
-    // not mistaken for a wall. A passage cut from hundreds of them has a great
-    // many such slivers, and each one drawn would be a white line across open
-    // water.
-    const auto isEdge = [this](sf::Vector2f at, sf::Vector2f out) {
-        return depthAt(at + out * 26.0f) > 0.0f;
+    // How much of a wall a rim point is, from nothing to all of it.
+    //
+    // This used to be a yes or a no, and it only asked one question: is there
+    // rock a little way beyond? On a basin cut from a thousand overlapping
+    // mouthfuls that is not enough. The rim of one mouthful buried deep inside
+    // its neighbour still has rock somewhere out past it, so it answered yes,
+    // and the shading was drawn along a rim that is nowhere near the wall you
+    // can see - a bright line hanging in open water with nothing under it.
+    //
+    // So it asks two things now, and answers with a fraction rather than a
+    // verdict. Is this point actually ON the surface of the union, or is it
+    // buried in water some other chamber opened? And is what lies beyond it
+    // rock, or is it the doorway into the next room? The fraction is what
+    // stops a run of shading beginning and ending on a hard edge, which is
+    // what a yes-or-no test produces every time the answer flips.
+    const auto wallness = [this](sf::Vector2f at, sf::Vector2f out) {
+        const float surface = depthAt(at);
+
+        // Buried. Something else opened this water and this rim is imaginary.
+        if (surface < -config::WallEdgeDepth)
+            return 0.0f;
+
+        const float beyond = depthAt(at + out * config::WallEdgeProbe);
+
+        // A doorway: more water out there, so this is not an edge at all.
+        if (beyond <= 0.0f)
+            return 0.0f;
+
+        const float onSurface = std::clamp(1.0f + surface / config::WallEdgeDepth, 0.0f, 1.0f);
+        const float solid = std::clamp(beyond / config::WallEdgeProbe, 0.0f, 1.0f);
+
+        return onSurface * solid;
     };
 
     // Sand in the shadow of the rock, fading back to open floor, and then a
     // bright line right on the waterline. Together they are what says this is
     // as far as you go, without anything having to look like a fence.
-    const auto band = [&](sf::Vector2f p0, sf::Vector2f p1, sf::Vector2f in0, sf::Vector2f in1) {
-        appendRingQuad(m_shade,
-                       p0 - in0 * config::WallShadeWidth, p1 - in1 * config::WallShadeWidth,
-                       p0, p1, shadeClear, shade);
+    //
+    // Built by hand rather than through appendRingQuad because the two ends of
+    // a quad need different strengths - that is the whole point of carrying a
+    // fraction this far.
+    const auto strip = [this](sf::Vector2f p0, sf::Vector2f p1,
+                              sf::Vector2f in0, sf::Vector2f in1,
+                              float width, sf::Color colour, float w0, float w1) {
+        const auto tint = [&colour](float amount) {
+            return sf::Color(colour.r, colour.g, colour.b,
+                             static_cast<std::uint8_t>(static_cast<float>(colour.a)
+                                                       * std::clamp(amount, 0.0f, 1.0f)));
+        };
 
-        appendRingQuad(m_shade,
-                       p0 - in0 * config::WallRimWidth, p1 - in1 * config::WallRimWidth,
-                       p0, p1, rimClear, rim);
+        const sf::Color clear(colour.r, colour.g, colour.b, 0);
+
+        const sf::Vector2f a = p0 - in0 * width;
+        const sf::Vector2f b = p1 - in1 * width;
+
+        m_shade.append(sf::Vertex{ a, clear });
+        m_shade.append(sf::Vertex{ p0, tint(w0) });
+        m_shade.append(sf::Vertex{ p1, tint(w1) });
+
+        m_shade.append(sf::Vertex{ a, clear });
+        m_shade.append(sf::Vertex{ p1, tint(w1) });
+        m_shade.append(sf::Vertex{ b, clear });
     };
 
     for (const Chamber& chamber : m_chambers)
     {
         const std::size_t steps = segmentsFor(chamber.radius);
 
+        // The shadow reaches inward from the rim, and a passage mouthful is
+        // seventy pixels across while the shadow wants seventy eight - so on
+        // anything small it walked past the middle and out the far side, and
+        // the quad turned inside out. That is the comb of black spikes that
+        // used to hang off every narrow wall.
+        const float reach = std::min(config::WallShadeWidth, chamber.radius * 0.5f);
+
+        // The weight at each rim point, worked out once and shared by the two
+        // segments that meet there - so neighbouring strips always agree about
+        // the corner between them and there is no seam down it.
+        std::vector<float> weight(steps + 1, 0.0f);
+
+        for (std::size_t i = 0; i <= steps; ++i)
+        {
+            const sf::Vector2f d = sf::Vector2f(1.0f, segmentAngle(i % steps, steps));
+            weight[i] = wallness(chamber.centre + d * edgeRadius(chamber, d), d);
+        }
+
         for (std::size_t i = 0; i < steps; ++i)
         {
+            if (weight[i] <= 0.0f && weight[i + 1] <= 0.0f)
+                continue;
+
             const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i, steps));
             const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1, steps));
 
             const sf::Vector2f p0 = chamber.centre + d0 * edgeRadius(chamber, d0);
             const sf::Vector2f p1 = chamber.centre + d1 * edgeRadius(chamber, d1);
 
-            if (!isEdge((p0 + p1) * 0.5f, (d0 + d1) * 0.5f))
-                continue;
-
-            band(p0, p1, d0, d1);
+            strip(p0, p1, d0, d1, reach, shade, weight[i], weight[i + 1]);
+            strip(p0, p1, d0, d1, std::min(reach, config::WallRimWidth), rim,
+                  weight[i], weight[i + 1]);
         }
     }
 
-    // Columns last, so they sit on the floor they are standing on: a contact
+    // Columns last
     // shadow, the shaft, then a smaller face offset up and left, lit from the
     // same corner every sprite in the game is lit from.
     for (const Pillar& pillar : m_pillars)
@@ -1691,7 +1748,7 @@ void Arena::buildWallShading()
                            pillar.centre + d1 * pillar.radius,
                            pillar.centre + d0 * (pillar.radius + 30.0f),
                            pillar.centre + d1 * (pillar.radius + 30.0f),
-                           shade, shadeClear);
+                           shade, sf::Color(shade.r, shade.g, shade.b, 0));
         }
 
         for (std::size_t i = 0; i < steps; ++i)
@@ -1830,6 +1887,11 @@ void Arena::drawGround(sf::RenderTarget& target) const
     // The swirl is not parked: a pit is turning, so it is cut again every
     // frame and would only be uploaded again every frame anyway.
     target.draw(m_swirl);
+}
+
+float Arena::getLampReach() const
+{
+    return (m_theme->lightRadius + m_lampBonus) * m_lampFactor;
 }
 
 void Arena::buildLightPool()

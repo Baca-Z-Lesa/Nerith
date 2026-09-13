@@ -199,6 +199,10 @@ private:
     void rememberPositions();
     void presentEntities(float alpha);
 
+    // How much of the lamp reaches a point. The same shape the beam is drawn
+    // as, so what is lit and what looks lit are the same thing.
+    float lightAt(sf::Vector2f where) const;
+
     void createWindow(bool fullscreen);
     void toggleFullscreen();
     void applyLetterboxView();

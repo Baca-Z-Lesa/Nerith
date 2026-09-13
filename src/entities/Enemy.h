@@ -32,6 +32,11 @@ public:
     // between two steps rather than snapping onto one of them.
     void remember();
     void present(float alpha);
+
+    // How much light is falling on it, 0 for the pitch black and 1 for the
+    // middle of the beam. The darkness is drawn over the water; without this
+    // it is not drawn over anything IN the water.
+    void setLit(float amount) { m_lit = amount; }
     void draw(sf::RenderTarget& target) const;
 
     void takeDamage(int amount);
@@ -145,6 +150,7 @@ private:
     // surfacing, a level start. Interpolating across one of those would draw
     // the creature flying through rock to get there.
     bool         m_warped = false;
+    float        m_lit = 1.0f;
     sf::Vector2f m_aimDirection;
     int          m_health;
     int          m_maxHealth;

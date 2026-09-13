@@ -5350,12 +5350,54 @@ void Game::rememberPositions()
         torpedo.remember();
 }
 
+float Game::lightAt(sf::Vector2f where) const
+{
+    // The same shape the lamp is actually drawn as, asked about a point: a
+    // narrow beam along the aim and a short pool close in. It is worked out
+    // here rather than read back off the light mesh because the mesh is on the
+    // graphics card and this is a question the simulation wants answered.
+    const sf::Vector2f offset = where - m_player.getPosition();
+    const float distance = offset.length();
+    const float reach = m_arena.getLampReach();
+
+    if (reach <= 1.0f)
+        return config::LightFloor;
+
+    const float halo = reach * config::LampHaloFactor;
+    float amount = config::LightFloor;
+
+    // The pool, which is what lets you see something that has got behind you.
+    if (distance < halo)
+    {
+        amount = std::max(amount, config::LampHaloBrightness
+                                      * (1.0f - distance / halo));
+    }
+
+    if (distance < reach && distance > 1.0f)
+    {
+        const float facing = offset.dot(m_player.getAimDirection()) / distance;
+        const float edge = std::cos(sf::degrees(config::LampConeHalfAngle).asRadians());
+
+        if (facing > edge)
+        {
+            // Across the beam and along it, the same two falloffs the mesh has.
+            const float across = (facing - edge) / std::max(0.01f, 1.0f - edge);
+            amount = std::max(amount, std::sqrt(across) * (1.0f - distance / reach));
+        }
+    }
+
+    return std::clamp(amount, config::LightFloor, 1.0f);
+}
+
 void Game::presentEntities(float alpha)
 {
     m_player.present(alpha);
 
     for (Enemy& enemy : m_enemies)
+    {
         enemy.present(alpha);
+        enemy.setLit(lightAt(enemy.getPosition()));
+    }
 
     for (Projectile& shot : m_playerShots)
         shot.present(alpha);

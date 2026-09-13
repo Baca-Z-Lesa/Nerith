@@ -682,6 +682,18 @@ void Enemy::applyHitFlash()
             static_cast<float>(tint.a) * (0.12f + 0.88f * m_surfaced));
     }
 
+    // And then however much light is actually falling on it. The darkness was
+    // painted over the water but not over the things in it, so a creature
+    // three rooms away in the pitch black was as bright and as legible as one
+    // in the beam - which is most of the reason running dark never felt like
+    // anything. Multiplied into the tint rather than replacing it, so a hit
+    // flash still reads on something barely lit.
+    const float lit = std::clamp(m_lit, 0.0f, 1.0f);
+
+    tint.r = static_cast<std::uint8_t>(static_cast<float>(tint.r) * lit);
+    tint.g = static_cast<std::uint8_t>(static_cast<float>(tint.g) * lit);
+    tint.b = static_cast<std::uint8_t>(static_cast<float>(tint.b) * lit);
+
     m_sprite.setColor(tint);
 }
 

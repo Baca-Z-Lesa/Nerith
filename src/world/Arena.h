@@ -42,6 +42,10 @@ public:
     // and the factor is what running dark turns down.
     void setLamp(float bonus, float factor);
 
+    // How far the beam currently throws, for anything that needs to know what
+    // is lit without reading the mesh back off the graphics card.
+    float getLampReach() const;
+
     void update(float deltaTime);
 
     // The rock, the lip along its edge and the floor inside it. Drawn under

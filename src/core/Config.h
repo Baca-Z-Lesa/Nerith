@@ -165,6 +165,13 @@ namespace config
     inline constexpr float WallShelf = 130.0f;    // the dark mass behind the cut
     inline constexpr sf::Color RockDeepColor{ 22, 26, 34 }; // pillar shafts only
     inline constexpr float WallRimWidth = 7.0f;
+
+    // How far under the surface a rim point may be and still count as wall,
+    // and how far past it the rock is looked for. The first is what stops a
+    // buried mouthful drawing a line across open water; the second is what
+    // tells a wall from a doorway.
+    inline constexpr float WallEdgeDepth = 13.0f;
+    inline constexpr float WallEdgeProbe = 30.0f;
     inline constexpr sf::Color WallRimLight{ 190, 216, 228, 132 };
 
     // And the sand right under the rock sits in its shadow, fading back to open
@@ -240,8 +247,13 @@ namespace config
     // closing from behind is unanswerable rather than frightening.
     inline constexpr float LampConeHalfAngle = 42.0f;   // degrees either side
     inline constexpr float LampConeEdgeFade = 1.35f;    // higher is a softer edge
-    inline constexpr float LampHaloFactor = 0.34f;      // of the beam reach
-    inline constexpr float LampHaloBrightness = 0.62f;  // of the theme light
+    inline constexpr float LampHaloFactor = 0.22f;      // of the beam reach
+    inline constexpr float LampHaloBrightness = 0.40f;  // of the theme light
+
+    // How much light there is where there is none. Not zero: a creature that
+    // is literally invisible is not frightening, it is unfair - what the dark
+    // should take away is detail, not existence.
+    inline constexpr float LightFloor = 0.13f;
 
     inline constexpr float CameraOvershoot = 0.55f;
     // How quickly the view catches up with the sub. At five it took about a
