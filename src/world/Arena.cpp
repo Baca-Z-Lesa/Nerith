@@ -550,6 +550,12 @@ void Arena::buildRoutes()
 //  own cell and swims that way.
 // ---------------------------------------------------------------------------
 
+bool Arena::isNavOpen(int index) const
+{
+    return index >= 0 && index < static_cast<int>(m_navOpen.size())
+           && m_navOpen[static_cast<std::size_t>(index)] != 0u;
+}
+
 void Arena::buildNavGrid()
 {
     const sf::Vector2f span = m_boundsMax - m_boundsMin;

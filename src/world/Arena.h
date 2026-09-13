@@ -189,6 +189,16 @@ public:
 
     const std::vector<Room>& getRooms() const { return m_rooms; }
 
+    // The grid the routing already runs on, exposed so the map in the corner
+    // can be drawn out of the same cells rather than out of a second idea of
+    // where the water is. Seventy pixels a cell is about three and a half on
+    // the minimap, which is the right grain for a pixel font.
+    int  getNavWidth() const { return m_navWidth; }
+    int  getNavHeight() const { return m_navHeight; }
+    int  navCellAt(sf::Vector2f position) const { return cellIndex(position); }
+    sf::Vector2f navCellCentre(int index) const { return cellCentre(index); }
+    bool isNavOpen(int index) const;
+
 private:
     // Where a chamber's rim actually is in a given direction. Both the field
     // and the drawing go through here, so what is seen and what is collided

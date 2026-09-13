@@ -342,10 +342,12 @@ private:
     // the thing.
     void drawBossTell();
 
-    // Small triangles at the edge of the screen for whatever is hunting from
-    // outside it. The basin is far larger than the view, so without these a
-    // creature can cross the whole arena and bite before it is ever seen.
-    void drawThreatArrows();
+    // How close the nearest thing you cannot see is, and roughly which way.
+    // This replaced a row of triangles riding the frame edge: the arrows were
+    // a readout fighting the darkness the rest of the game is built on, and
+    // they told the player more than the lamp ever would.
+    void updateThreatCue(float deltaTime);
+    void drawThreatVignette();
 
     // The basin drawn small in the corner. With a generated map there is no
     // longer a shape the player can hold in their head, and a hunt across one
@@ -354,7 +356,32 @@ private:
 
     // Cuts the minimap water for the basin as it now stands. Called when the
     // basin is, because that is the only time it changes.
+    // Where a point in the basin lands on the little map in the corner.
+    // Fitted rather than stretched, so the basin keeps its proportions and
+    // what the player sees on it matches what they see out of the window.
+    struct MapFrame
+    {
+        sf::Vector2f corner;
+        sf::Vector2f box;
+        sf::Vector2f origin;
+        sf::Vector2f low;
+        float        scale = 0.0f;
+        bool         usable = false;
+
+        sf::Vector2f place(sf::Vector2f world) const
+        {
+            return origin + (world - low) * scale;
+        }
+    };
+
+    static MapFrame mapFrameFor(sf::Vector2f low, sf::Vector2f high);
+
     void buildMinimap();
+
+    // Uncovers the map around a point. Called continuously from where the sub
+    // is, and in one go at the sonar range whenever a ping goes out.
+    void revealMap(sf::Vector2f centre, float radius);
+    bool mapSeen(sf::Vector2f at) const;
     void drawPauseOverlay();
 
     // The three flat screens hanging off the title: what the controls are, what
@@ -417,6 +444,12 @@ private:
     // cargo mouth and the herald aura never actually moved.
     float            m_presentTime = 0.0f;
     sf::Vector2f     m_prevCameraCentre;
+
+    // What is out there, as one number and one direction rather than a list.
+    float            m_threatPressure = 0.0f;
+    sf::Vector2f     m_threatBearing{ 0.0f, -1.0f };
+    float            m_threatCueTimer = 0.0f;
+    bool             m_threatBoss = false;
     bool             m_fullscreen;
 
     // Declared before anything holding a sprite: sprites only borrow their
@@ -558,6 +591,15 @@ private:
     // shapes drawn small, and it does not move for the whole dive - building
     // it inside the draw was forty thousand vertices and a fresh allocation
     // on every frame, for a picture that was already correct.
+    // Which cells have been uncovered, and where each one begins in the mesh
+    // so it can be lit six vertices at a time rather than by rebuilding the
+    // whole basin every step the sub takes.
+    static constexpr std::uint32_t NoCell = 0xFFFFFFFFu;
+
+    std::vector<std::uint8_t>  m_mapSeen;
+    std::vector<std::uint32_t> m_mapVertex;
+
+    MapFrame           m_mapFrame;
     sf::VertexArray    m_mapWater;
     sf::VertexBuffer   m_mapWaterCard;
     bool               m_mapOnCard = false;

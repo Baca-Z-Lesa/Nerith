@@ -2781,6 +2781,12 @@ void Game::updateSonar(float deltaTime)
     if (m_sonarTimer <= 0.0f)
     {
         m_sonarTimer = config::SonarInterval;
+
+        // A ping is also a survey. It is the only thing that puts water on
+        // the map that the sub has not personally swum through, which is
+        // most of what the sonar is worth once the basin is a maze.
+        revealMap(m_player.getPosition(),
+                  m_playerStats.get(Stat::SonarRange, config::SonarBaseRange));
         m_sonarSweep = config::SonarSweepTime;
     }
 }
@@ -3918,197 +3924,286 @@ void Game::run()
     }
 }
 
-void Game::drawThreatArrows()
+void Game::updateThreatCue(float deltaTime)
 {
-    // Screen space, so the arrows ride the edge of the frame no matter where
-    // the camera is. A creature outside the frame gets a triangle on the border
-    // pointing at it, sized by how close it is.
+    // The arrows this replaced were a crutch fighting the darkness: the whole
+    // game is about not being able to see, and then a row of triangles told
+    // you exactly where everything was. What survives is the part that was
+    // actually doing work - knowing something is close and roughly which way -
+    // without it being a readout.
     const sf::Vector2f half{ config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };
 
-    // Whether a creature is on screen is a question about the frame; where its
-    // arrow sits is a question about the frame minus the HUD, which is why the
-    // two rectangles are not the same one.
-    const sf::Vector2f inner{ half.x, half.y };
-    const float left = config::ThreatArrowMargin;
-    const float right = static_cast<float>(config::WindowWidth) - config::ThreatArrowMargin;
-    const float top = config::ThreatArrowTopInset;
-    const float bottom = static_cast<float>(config::WindowHeight) - config::ThreatArrowMargin;
+    float nearest = config::ThreatCueRange;
+    sf::Vector2f bearing{ 0.0f, 0.0f };
+    bool boss = false;
 
-    struct Threat { float distance; sf::Vector2f offset; bool boss; };
-    std::vector<Threat> threats;
-
-    const auto consider = [&](sf::Vector2f position, bool boss) {
+    const auto consider = [&](sf::Vector2f position, bool isBoss) {
         const sf::Vector2f offset = position - m_cameraCentre;
 
-        // Already on screen, or so far out that pointing at it is just clutter.
-        if (std::abs(offset.x) < inner.x && std::abs(offset.y) < inner.y)
+        // Only what cannot be seen. Something on the frame is already telling
+        // the player where it is by being there.
+        if (std::abs(offset.x) < half.x && std::abs(offset.y) < half.y)
             return;
 
         const float distance = offset.length();
-        if (distance > config::ThreatArrowRange)
+        if (distance > config::ThreatCueRange)
             return;
 
-        threats.push_back({ distance, offset, boss });
+        // Weighted by how close, so a wall of distant things does not point
+        // the same way as one that is nearly on you.
+        const float weight = 1.0f - distance / config::ThreatCueRange;
+        bearing += offset / std::max(1.0f, distance) * weight * weight;
+
+        if (distance < nearest)
+        {
+            nearest = distance;
+            boss = isBoss;
+        }
     };
 
-    for (const Enemy& enemy : m_enemies)
+    if (m_state == State::Fighting && !m_paused && !m_showUpgrades)
     {
-        if (enemy.isAlive())
-            consider(enemy.getPosition(), false);
-    }
-
-    if (m_boss && m_boss->isAlive())
-        consider(m_boss->getPosition(), true);
-
-    // Nearest first, then capped: ten arrows is a warning, thirty is wallpaper.
-    std::sort(threats.begin(), threats.end(),
-              [](const Threat& a, const Threat& b) { return a.distance < b.distance; });
-    if (threats.size() > config::MaxThreatArrows)
-        threats.resize(config::MaxThreatArrows);
-
-    sf::VertexArray arrows(sf::PrimitiveType::Triangles);
-
-    for (const Threat& threat : threats)
-    {
-        // Where the line out to the creature leaves the placement rectangle.
-        const sf::Vector2f direction = threat.offset.normalized();
-        const float limitX = direction.x > 0.0f ? right - half.x : half.x - left;
-        const float limitY = direction.y > 0.0f ? bottom - half.y : half.y - top;
-        const float toSide = limitX / std::max(std::abs(direction.x), 0.0001f);
-        const float toTop = limitY / std::max(std::abs(direction.y), 0.0001f);
-        const sf::Vector2f tip = half + direction * std::min(toSide, toTop);
-
-        const sf::Vector2f side{ -direction.y, direction.x };
-        float size = threat.boss ? 15.0f : 10.0f;
-
-        // Close threats are solid, distant ones barely there, so the edge of the
-        // screen reads as a proximity meter rather than a list.
-        const float nearness = 1.0f - threat.distance / config::ThreatArrowRange;
-        sf::Color colour = threat.boss ? config::HudBossColor : config::HudPipFullEdge;
-        colour.a = static_cast<std::uint8_t>(60.0f + 175.0f * nearness * nearness);
-
-        // A creature winding up off the edge of the frame would otherwise
-        // announce itself to nobody. The arrow takes the tell colour and swells
-        // with it, so the warning arrives even when the creature has not.
-        if (threat.boss && m_boss && m_boss->isTelling())
+        for (const Enemy& enemy : m_enemies)
         {
-            const float tell = m_boss->getTell();
-            colour = m_boss->isTellLunge() ? config::BossTellLungeColor
-                                           : config::BossTellColor;
-            colour.a = static_cast<std::uint8_t>(120.0f + 135.0f * tell);
-            size *= 1.0f + 0.9f * tell;
+            if (enemy.isAlive())
+                consider(enemy.getPosition(), false);
         }
 
-        arrows.append(sf::Vertex{ tip + direction * size * 0.9f, colour });
-        arrows.append(sf::Vertex{ tip - direction * size * 0.7f + side * size * 0.7f, colour });
-        arrows.append(sf::Vertex{ tip - direction * size * 0.7f - side * size * 0.7f, colour });
+        if (m_boss && m_boss->isAlive())
+            consider(m_boss->getPosition(), true);
     }
 
-    if (arrows.getVertexCount() > 0)
-        m_window.draw(arrows);
+    const float wanted = nearest >= config::ThreatCueRange
+                             ? 0.0f
+                             : 1.0f - nearest / config::ThreatCueRange;
+
+    // Eased rather than switched. Pressure that appears on the frame a
+    // creature crosses the line reads as a bug; pressure that swells reads as
+    // the water getting closer.
+    const float step = config::ThreatCueFade * deltaTime;
+    m_threatPressure += std::clamp(wanted - m_threatPressure, -step, step);
+
+    if (bearing.lengthSquared() > 0.0001f)
+        m_threatBearing = bearing.normalized();
+
+    m_threatBoss = boss;
+
+    // And a tick, getting closer together as it does. Nothing says direction -
+    // the edge of the frame does that - this only says how long you have.
+    if (m_threatPressure <= config::ThreatCueFloor)
+    {
+        m_threatCueTimer = 0.0f;
+        return;
+    }
+
+    m_threatCueTimer -= deltaTime;
+    if (m_threatCueTimer > 0.0f)
+        return;
+
+    m_threatCueTimer = config::ThreatCueSlow
+                       + (config::ThreatCueFast - config::ThreatCueSlow) * m_threatPressure;
+
+    m_audio.play(boss ? Sfx::CreatureCallA : Sfx::CreatureCallB,
+                 config::ThreatCueVolume * m_threatPressure);
 }
 
-// Where a point in the basin lands on the little map in the corner. Fitted
-// rather than stretched, so the basin keeps its proportions and the player can
-// match what they see on it to what they see out of the window.
-namespace
+void Game::drawThreatVignette()
 {
-    struct MapFrame
+    if (m_threatPressure <= config::ThreatCueFloor)
+        return;
+
+    // A wash pulled in from the edge of the frame, heaviest on the side the
+    // thing is on. Drawn in screen space, so it is the window closing in
+    // rather than anything in the water.
+    const sf::Vector2f half{ config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };
+    const float depth = config::ThreatVignetteDepth;
+
+    const sf::Color base = m_threatBoss ? config::HudBossColor : config::ThreatCueColor;
+
+    sf::VertexArray wash(sf::PrimitiveType::Triangles);
+
+    // Four bands, each faded by how much of the bearing points its way, so the
+    // frame darkens unevenly and the heavy side is the answer.
+    const sf::Vector2f faces[4] = { { -1.0f, 0.0f }, { 1.0f, 0.0f },
+                                    { 0.0f, -1.0f }, { 0.0f, 1.0f } };
+
+    for (const sf::Vector2f& face : faces)
     {
-        sf::Vector2f corner;
-        sf::Vector2f box;
-        sf::Vector2f origin;
-        sf::Vector2f low;
-        float        scale = 0.0f;
-        bool         usable = false;
+        const float facing = std::max(0.0f, m_threatBearing.dot(face));
+        const float weight = (0.22f + 0.78f * facing) * m_threatPressure;
 
-        sf::Vector2f place(sf::Vector2f world) const
-        {
-            return origin + (world - low) * scale;
-        }
-    };
+        sf::Color edge = base;
+        edge.a = static_cast<std::uint8_t>(std::clamp(
+            static_cast<float>(base.a) * weight, 0.0f, 255.0f));
 
-    MapFrame mapFrameFor(sf::Vector2f low, sf::Vector2f high)
-    {
-        MapFrame frame;
+        const sf::Color clear(base.r, base.g, base.b, 0);
 
-        const sf::Vector2f span = high - low;
-        if (span.x <= 1.0f || span.y <= 1.0f)
-            return frame;
+        // The band runs the length of its own side of the frame and reaches
+        // inward by depth.
+        const sf::Vector2f centre = half + sf::Vector2f{ face.x * half.x, face.y * half.y };
+        const sf::Vector2f along{ -face.y, face.x };
 
-        frame.box = { config::MinimapWidth, config::MinimapHeight };
-        frame.scale = std::min(frame.box.x / span.x, frame.box.y / span.y);
-        frame.corner = { static_cast<float>(config::WindowWidth) - frame.box.x
-                             - config::MinimapMargin,
-                         static_cast<float>(config::WindowHeight) - frame.box.y
-                             - config::MinimapMargin };
-        frame.origin = frame.corner + (frame.box - span * frame.scale) / 2.0f;
-        frame.low = low;
-        frame.usable = true;
+        const sf::Vector2f reach = along * (face.x != 0.0f ? half.y : half.x);
+        const sf::Vector2f inward = -face * depth;
 
-        return frame;
+        const sf::Vector2f a = centre - reach;
+        const sf::Vector2f b = centre + reach;
+        const sf::Vector2f c = b + inward;
+        const sf::Vector2f d = a + inward;
+
+        wash.append(sf::Vertex{ a, edge });
+        wash.append(sf::Vertex{ b, edge });
+        wash.append(sf::Vertex{ c, clear });
+        wash.append(sf::Vertex{ a, edge });
+        wash.append(sf::Vertex{ c, clear });
+        wash.append(sf::Vertex{ d, clear });
     }
+
+    m_window.draw(wash);
+}
+
+Game::MapFrame Game::mapFrameFor(sf::Vector2f low, sf::Vector2f high)
+{
+    MapFrame frame;
+
+    const sf::Vector2f span = high - low;
+    if (span.x <= 1.0f || span.y <= 1.0f)
+        return frame;
+
+    frame.box = { config::MinimapWidth, config::MinimapHeight };
+    frame.scale = std::min(frame.box.x / span.x, frame.box.y / span.y);
+    frame.corner = { static_cast<float>(config::WindowWidth) - frame.box.x
+                         - config::MinimapMargin,
+                     static_cast<float>(config::WindowHeight) - frame.box.y
+                         - config::MinimapMargin };
+    frame.origin = frame.corner + (frame.box - span * frame.scale) / 2.0f;
+    frame.low = low;
+    frame.usable = true;
+
+    return frame;
 }
 
 void Game::buildMinimap()
 {
     m_mapWater.clear();
+    m_mapSeen.clear();
+    m_mapVertex.clear();
     m_mapOnCard = false;
+    m_mapFrame = mapFrameFor(m_arena.getBoundsMin(), m_arena.getBoundsMax());
 
-    const MapFrame frame = mapFrameFor(m_arena.getBoundsMin(), m_arena.getBoundsMax());
-    if (!frame.usable)
+    if (!m_mapFrame.usable)
         return;
 
-    // The water, in the same two passes the world uses: every shape, small.
-    // A basin is a thousand of them, so this is forty thousand vertices - once
-    // a dive rather than once a frame, because none of it moves afterwards.
-    const auto disc = [this](sf::Vector2f centre, float radius, sf::Color colour) {
-        for (int i = 0; i < 14; ++i)
-        {
-            const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / 14.0f);
-            const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / 14.0f);
+    // Out of the same cells the routing runs on, rather than out of a second
+    // idea of where the water is. One quad each, which is what lets the map be
+    // uncovered a piece at a time: a room is one enormous lobe and could only
+    // ever be revealed whole, and a separate masking mesh would be a second
+    // geometry that has to be kept exactly on top of the first one forever.
+    const int cells = m_arena.getNavWidth() * m_arena.getNavHeight();
+    if (cells <= 0)
+        return;
 
-            m_mapWater.append(sf::Vertex{ centre, colour });
-            m_mapWater.append(sf::Vertex{ centre + sf::Vector2f(radius, a0), colour });
-            m_mapWater.append(sf::Vertex{ centre + sf::Vector2f(radius, a1), colour });
-        }
-    };
+    m_mapSeen.assign(static_cast<std::size_t>(cells), 0u);
+    m_mapVertex.assign(static_cast<std::size_t>(cells), NoCell);
 
-    for (const Arena::Chamber& chamber : m_arena.getChambers())
+    // Half a pixel over, so neighbouring cells do not leave seams between them
+    // once they are both uncovered.
+    const float half = config::NavCell * 0.5f * m_mapFrame.scale + 0.5f;
+    const sf::Color hidden(config::MinimapWater.r, config::MinimapWater.g,
+                           config::MinimapWater.b, 0);
+
+    for (int i = 0; i < cells; ++i)
     {
-        disc(frame.place(chamber.centre), std::max(2.0f, chamber.radius * frame.scale),
-             config::MinimapWater);
-    }
-
-    for (const Arena::Corridor& corridor : m_arena.getCorridors())
-    {
-        const sf::Vector2f from = frame.place(corridor.from);
-        const sf::Vector2f to = frame.place(corridor.to);
-        const sf::Vector2f span = to - from;
-
-        if (span.lengthSquared() <= 0.0001f)
+        if (!m_arena.isNavOpen(i))
             continue;
 
-        const float width = std::max(1.5f, corridor.radius * frame.scale);
-        const sf::Vector2f across = sf::Vector2f{ -span.y, span.x }.normalized() * width;
+        const sf::Vector2f at = m_mapFrame.place(m_arena.navCellCentre(i));
 
-        m_mapWater.append(sf::Vertex{ from - across, config::MinimapWater });
-        m_mapWater.append(sf::Vertex{ from + across, config::MinimapWater });
-        m_mapWater.append(sf::Vertex{ to + across, config::MinimapWater });
-        m_mapWater.append(sf::Vertex{ from - across, config::MinimapWater });
-        m_mapWater.append(sf::Vertex{ to + across, config::MinimapWater });
-        m_mapWater.append(sf::Vertex{ to - across, config::MinimapWater });
+        m_mapVertex[static_cast<std::size_t>(i)] =
+            static_cast<std::uint32_t>(m_mapWater.getVertexCount());
+
+        const sf::Vector2f a{ at.x - half, at.y - half };
+        const sf::Vector2f b{ at.x + half, at.y - half };
+        const sf::Vector2f c{ at.x + half, at.y + half };
+        const sf::Vector2f d{ at.x - half, at.y + half };
+
+        m_mapWater.append(sf::Vertex{ a, hidden });
+        m_mapWater.append(sf::Vertex{ b, hidden });
+        m_mapWater.append(sf::Vertex{ c, hidden });
+        m_mapWater.append(sf::Vertex{ a, hidden });
+        m_mapWater.append(sf::Vertex{ c, hidden });
+        m_mapWater.append(sf::Vertex{ d, hidden });
     }
 
+    // Dynamic, because from here on it is uploaded six vertices at a time as
+    // the basin is uncovered rather than once and never again.
+    m_mapWaterCard.setUsage(sf::VertexBuffer::Usage::Dynamic);
     m_mapOnCard = mesh::parkOnCard(m_mapWater, m_mapWaterCard);
+
+    // The mouth is where you started, so it is not a discovery.
+    revealMap(m_arena.getStart(), config::MapRevealRadius);
+}
+
+void Game::revealMap(sf::Vector2f centre, float radius)
+{
+    if (m_mapSeen.empty() || radius <= 0.0f)
+        return;
+
+    const int width = m_arena.getNavWidth();
+    const int height = m_arena.getNavHeight();
+
+    const int here = m_arena.navCellAt(centre);
+    if (here < 0)
+        return;
+
+    const int reach = static_cast<int>(radius / config::NavCell) + 1;
+    const int cx = here % width;
+    const int cy = here / width;
+
+    for (int y = std::max(0, cy - reach); y <= std::min(height - 1, cy + reach); ++y)
+    {
+        for (int x = std::max(0, cx - reach); x <= std::min(width - 1, cx + reach); ++x)
+        {
+            const int index = y * width + x;
+            if (m_mapSeen[static_cast<std::size_t>(index)] != 0u)
+                continue;
+
+            const std::uint32_t first = m_mapVertex[static_cast<std::size_t>(index)];
+            if (first == NoCell)
+                continue;
+
+            if ((m_arena.navCellCentre(index) - centre).length() > radius)
+                continue;
+
+            m_mapSeen[static_cast<std::size_t>(index)] = 1u;
+
+            for (std::uint32_t v = 0; v < 6u; ++v)
+                m_mapWater[first + v].color = config::MinimapWater;
+
+            // Six vertices to the card rather than the whole basin. The map is
+            // uncovered continuously while the sub moves, and re-uploading a
+            // few thousand cells for every one of them would cost more than
+            // drawing the thing did.
+            if (m_mapOnCard)
+                (void)m_mapWaterCard.update(&m_mapWater[first], 6u, first);
+        }
+    }
+}
+
+bool Game::mapSeen(sf::Vector2f at) const
+{
+    const int cell = m_arena.navCellAt(at);
+
+    return cell >= 0 && cell < static_cast<int>(m_mapSeen.size())
+           && m_mapSeen[static_cast<std::size_t>(cell)] != 0u;
 }
 
 void Game::drawMinimap()
 {
-    const MapFrame frame = mapFrameFor(m_arena.getBoundsMin(), m_arena.getBoundsMax());
-    if (!frame.usable)
+    if (!m_mapFrame.usable)
         return;
 
+    const MapFrame& frame = m_mapFrame;
     const auto toMap = [&frame](sf::Vector2f world) { return frame.place(world); };
 
     sf::RectangleShape backdrop(frame.box);
@@ -4123,7 +4218,13 @@ void Game::drawMinimap()
     else
         m_window.draw(m_mapWater);
 
+    // Only on water that has been seen. A marker floating in the dark would
+    // give away the shape of the basin a stroke at a time, which is the whole
+    // of what the fog was for.
     const auto pip = [&](sf::Vector2f world, float radius, sf::Color colour) {
+        if (!mapSeen(world))
+            return;
+
         m_sonarMark.setRadius(radius);
         m_sonarMark.setOrigin({ radius, radius });
         m_sonarMark.setPosition(toMap(world));
@@ -4133,8 +4234,8 @@ void Game::drawMinimap()
     };
 
     // What is worth knowing from across the map, and nothing else. Creatures
-    // are deliberately absent: the map tells you where to go, the threat
-    // arrows tell you what is coming.
+    // are deliberately absent: the map says where you have been, not what is
+    // in the room with you.
     for (const Vent& vent : m_vents)
         pip(vent.position, 2.5f, config::VentGlowColor);
 
@@ -4161,7 +4262,14 @@ void Game::drawMinimap()
     if (m_boss && m_boss->isAlive())
         pip(m_boss->getPosition(), 5.0f, config::HudBossColor);
 
-    pip(m_player.getPosition(), 3.5f, sf::Color::White);
+    // The sub itself always, whether the cell under it has registered yet or
+    // not: a map that cannot say where you are standing is not a map.
+    m_sonarMark.setRadius(3.5f);
+    m_sonarMark.setOrigin({ 3.5f, 3.5f });
+    m_sonarMark.setPosition(toMap(m_player.getPosition()));
+    m_sonarMark.setOutlineColor(sf::Color::White);
+    m_sonarMark.setOutlineThickness(2.0f);
+    m_window.draw(m_sonarMark);
 }
 
 void Game::drawPauseOverlay()
@@ -4582,6 +4690,7 @@ void Game::presentUpdate(float deltaTime)
     m_arena.update(deltaTime);
     m_seabed.update(deltaTime);
     updateFeel(deltaTime);
+    updateThreatCue(deltaTime);
     spawnAmbience(deltaTime);
     callFromTheDark(deltaTime);
 
@@ -4702,6 +4811,11 @@ void Game::step(float deltaTime)
 
                 updateHarpoon(deltaTime);
                 updateSonar(deltaTime);
+
+                // The map fills in behind the sub as it goes. A broken hull
+                // does not stop you seeing where you are - it stops the
+                // ping, which is handled inside updateSonar.
+                revealMap(m_player.getPosition(), config::MapRevealRadius);
 
                 handleCollisions();
                 flushPendingShots();
@@ -4994,7 +5108,7 @@ void Game::render(float alpha)
 
     if (m_state == State::Fighting && !upgradesVisible() && !m_paused)
     {
-        drawThreatArrows();
+        drawThreatVignette();
         drawMinimap();
     }
 

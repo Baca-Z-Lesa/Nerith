@@ -1102,16 +1102,29 @@ namespace config
     // The basin, small, in the corner. It shows where to go - nests, vents, the
     // boss, you - and deliberately not what is coming, which is what the threat
     // arrows are for.
+    // How far around the sub the map fills itself in. Roughly what the lamp
+    // and the hull can account for: the map is a record of where you have
+    // been rather than a survey handed to you at the mouth.
+    inline constexpr float MapRevealRadius = 420.0f;
+
     inline constexpr float MinimapWidth = 214.0f;
     inline constexpr float MinimapHeight = 142.0f;
     inline constexpr float MinimapMargin = 16.0f;
     inline constexpr sf::Color MinimapBackdrop{ 3, 9, 14, 205 };
     inline constexpr sf::Color MinimapWater{ 38, 72, 86, 210 };
 
-    inline constexpr float ThreatArrowMargin = 34.0f;
-    inline constexpr float ThreatArrowTopInset = 104.0f;
-    inline constexpr float ThreatArrowRange = 1500.0f;
-    inline constexpr std::size_t MaxThreatArrows = 10;
+    // --- What is out there ---
+    // The frame darkens on the side something is closing from, and a call
+    // comes at a rate that tightens as it gets nearer. Not a list of markers:
+    // the point is that you know it is coming, not what or exactly where.
+    inline constexpr float ThreatCueRange = 1500.0f;
+    inline constexpr float ThreatCueFloor = 0.06f;   // below this, nothing at all
+    inline constexpr float ThreatCueFade = 1.6f;     // how fast the wash swells
+    inline constexpr float ThreatCueSlow = 2.60f;    // seconds between calls, far
+    inline constexpr float ThreatCueFast = 0.55f;    // and near
+    inline constexpr float ThreatCueVolume = 0.55f;
+    inline constexpr float ThreatVignetteDepth = 190.0f;
+    inline constexpr sf::Color ThreatCueColor{ 116, 26, 34, 150 };
 
     inline constexpr float HitRingDuration = 0.26f;
     inline constexpr float JetRingRadius = 34.0f;
