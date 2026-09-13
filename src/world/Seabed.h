@@ -6,6 +6,7 @@
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
+#include <SFML/Graphics/VertexBuffer.hpp>
 #include <SFML/System/Vector2.hpp>
 
 #include <vector>
@@ -98,6 +99,12 @@ private:
     float         m_time;
 
     sf::VertexArray      m_sand;  // base gradient plus grain, one draw call
+
+    // The same mesh on the card. Sixteen thousand grains of sand is a hundred
+    // thousand vertices, and none of them move: without this they are handed
+    // to the driver again on every frame of the dive.
+    sf::VertexBuffer     m_sandCard;
+    bool                 m_sandOnCard = false;
     const DepthTheme*    m_theme;
     std::vector<Prop>    m_props; // sorted back to front
     std::vector<Critter> m_critters;

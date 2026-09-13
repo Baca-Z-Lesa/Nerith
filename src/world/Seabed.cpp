@@ -3,6 +3,7 @@
 #include "core/Assets.h"
 #include "world/Arena.h"
 #include "core/Config.h"
+#include "core/Mesh.h"
 #include "core/Random.h"
 
 #include <SFML/System/Angle.hpp>
@@ -95,6 +96,11 @@ void Seabed::buildSand()
 
         quad(position, { size, size }, speck, speck);
     }
+
+    // The floor does not move once it is painted, so it goes to the card
+    // rather than across the bus every frame. A hundred thousand vertices of
+    // grain is most of a millisecond a frame when it does not.
+    m_sandOnCard = mesh::parkOnCard(m_sand, m_sandCard);
 }
 
 void Seabed::addProp(const sf::Texture& texture, sf::Vector2f position, float scale,
@@ -396,7 +402,27 @@ void Seabed::drawNear(sf::RenderTarget& target, sf::Vector2f cameraCentre) const
 
 void Seabed::drawRock(sf::RenderTarget& target) const
 {
-    target.draw(m_sand);
+    if (m_sandOnCard)
+        target.draw(m_sandCard);
+    else
+        target.draw(m_sand);
+}
+
+namespace
+{
+    // The dressing is scattered over a five-thousand pixel field and the window
+    // looks at a fraction of it at a time. Every prop is a sprite and every
+    // sprite is a draw call, so without this the great majority of a frame's
+    // calls go on painting things nobody can see.
+    bool onScreen(const sf::RenderTarget& target, sf::Vector2f at)
+    {
+        const sf::View& view = target.getView();
+        const sf::Vector2f eye = view.getCenter();
+        const sf::Vector2f half = view.getSize() / 2.0f;
+
+        return std::abs(at.x - eye.x) <= half.x + config::PropCullMargin
+               && std::abs(at.y - eye.y) <= half.y + config::PropCullMargin;
+    }
 }
 
 void Seabed::draw(sf::RenderTarget& target) const
@@ -407,6 +433,9 @@ void Seabed::draw(sf::RenderTarget& target) const
     for (const Prop& prop : m_props)
     {
         const sf::Vector2f at = prop.sprite.getPosition();
+        if (!onScreen(target, at))
+            continue;
+
         const float radius = prop.sprite.getScale().x
                              * static_cast<float>(prop.sprite.getTexture().getSize().x) * 0.30f;
 
@@ -419,8 +448,14 @@ void Seabed::draw(sf::RenderTarget& target) const
     }
 
     for (const Prop& prop : m_props)
-        target.draw(prop.sprite);
+    {
+        if (onScreen(target, prop.sprite.getPosition()))
+            target.draw(prop.sprite);
+    }
 
     for (const Critter& critter : m_critters)
-        target.draw(critter.sprite);
+    {
+        if (onScreen(target, critter.sprite.getPosition()))
+            target.draw(critter.sprite);
+    }
 }

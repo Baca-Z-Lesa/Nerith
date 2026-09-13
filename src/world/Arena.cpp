@@ -1,6 +1,7 @@
 #include "world/Arena.h"
 
 #include "core/Config.h"
+#include "core/Mesh.h"
 #include "core/Random.h"
 
 #include <SFML/Graphics/BlendMode.hpp>
@@ -138,12 +139,7 @@ void Arena::generate(unsigned int seed, bool bossRoom)
             lobe.warp[2] = random.range(0.06f, 0.20f);
             lobe.warp[3] = random.range(0.03f, 0.12f);
 
-            // Every term pulling the same way at once, which is the worst case
-            // the field has to allow for.
-            const float swing = lobe.warp[0] + lobe.warp[1] + lobe.warp[2] + lobe.warp[3];
-            lobe.reach = size * (1.0f + config::ChamberLean * lobe.warp[0])
-                         * (1.0f + config::ChamberRipple * swing);
-
+            settleRim(lobe);
             m_chambers.push_back(lobe);
         };
 
@@ -228,10 +224,7 @@ void Arena::generate(unsigned int seed, bool bossRoom)
                 bite.warp[2] = random.range(0.04f, 0.10f);
                 bite.warp[3] = random.range(0.02f, 0.06f);
 
-                const float swing = bite.warp[0] + bite.warp[1] + bite.warp[2] + bite.warp[3];
-                bite.reach = size * (1.0f + config::ChamberLean * bite.warp[0])
-                             * (1.0f + config::ChamberRipple * swing);
-
+                settleRim(bite);
                 m_chambers.push_back(bite);
             }
 
@@ -463,9 +456,16 @@ void Arena::generate(unsigned int seed, bool bossRoom)
         }
     }
 
+    // The index first: everything below asks the field where the rock is,
+    // and until the shapes are filed each of those questions is a walk over
+    // the whole basin.
+    buildShapeIndex();
     buildRoutes();
     buildNavGrid();
-    buildGround();
+
+    // The ground is not built here. It is cut from the theme as much as from
+    // the shapes, and applyTheme always follows a generate, so building it
+    // now only means building it twice.
 }
 
 void Arena::buildRoutes()
@@ -805,6 +805,35 @@ sf::Vector2f Arena::waypointToward(sf::Vector2f from, sf::Vector2f to, float rad
     return hop >= 0 ? m_rooms[static_cast<std::size_t>(hop)].centre : to;
 }
 
+void Arena::settleRim(Chamber& chamber)
+{
+    // Every term pulling the same way at once, which is the worst case the
+    // field has to allow for.
+    const float swing = chamber.warp[0] + chamber.warp[1]
+                        + chamber.warp[2] + chamber.warp[3];
+
+    chamber.reach = chamber.radius * (1.0f + config::ChamberLean * chamber.warp[0])
+                    * (1.0f + config::ChamberRipple * swing);
+
+    // sin(n*theta + phi) * w is the imaginary part of z^n times w*e^(i*phi),
+    // so the phase and the weight of each harmonic collapse into one complex
+    // number here and never have to be looked at again. The four offsets are
+    // the ones the outline was always made of.
+    const float offsets[4] = { chamber.phase, chamber.phase * -1.7f,
+                               chamber.phase * 2.3f, chamber.phase * -3.1f };
+
+    for (int i = 0; i < 4; ++i)
+    {
+        chamber.harmonic[i][0] = chamber.warp[i] * std::cos(offsets[i]);
+        chamber.harmonic[i][1] = chamber.warp[i] * std::sin(offsets[i]);
+    }
+
+    // And the same trick for the squash, which is a cosine of one theta.
+    const float pull = config::ChamberLean * chamber.warp[0];
+    chamber.lean[0] = pull * std::cos(chamber.phase * -0.7f);
+    chamber.lean[1] = pull * std::sin(chamber.phase * -0.7f);
+}
+
 float Arena::edgeRadius(const Chamber& chamber, sf::Vector2f offset) const
 {
     // Four harmonics rather than two, with weights rolled per chamber and
@@ -812,17 +841,52 @@ float Arena::edgeRadius(const Chamber& chamber, sf::Vector2f offset) const
     // back round to where it started. Two waves gave a wobbled circle; this
     // gives an outline with bays, noses and a grain of roughness on top - the
     // difference between a shape and a wall.
-    const float theta = std::atan2(offset.y, offset.x);
+    //
+    // Written as powers of the direction rather than as angles: with the phases
+    // already folded into the weights, the whole outline is eight complex
+    // multiplications and no trigonometry at all. The same curve, and the one
+    // change that took the field from being the frame to being a rounding
+    // error in it.
+    const float span = offset.lengthSquared();
+    float ux = 1.0f;
+    float uy = 0.0f;
 
-    const float wave = std::sin(theta * 3.0f + chamber.phase) * chamber.warp[0]
-                       + std::sin(theta * 5.0f - chamber.phase * 1.7f) * chamber.warp[1]
-                       + std::sin(theta * 11.0f + chamber.phase * 2.3f) * chamber.warp[2]
-                       + std::sin(theta * 19.0f - chamber.phase * 3.1f) * chamber.warp[3];
+    if (span > 1.0e-12f)
+    {
+        const float scale = 1.0f / std::sqrt(span);
+        ux = offset.x * scale;
+        uy = offset.y * scale;
+    }
+
+    const auto times = [](float ar, float ai, float br, float bi, float& r, float& i) {
+        const float real = ar * br - ai * bi;
+        i = ar * bi + ai * br;
+        r = real;
+    };
+
+    float x2 = 0.0f, y2 = 0.0f, x3 = 0.0f, y3 = 0.0f, x4 = 0.0f, y4 = 0.0f;
+    float x5 = 0.0f, y5 = 0.0f, x8 = 0.0f, y8 = 0.0f, x11 = 0.0f, y11 = 0.0f;
+    float x16 = 0.0f, y16 = 0.0f, x19 = 0.0f, y19 = 0.0f;
+
+    times(ux, uy, ux, uy, x2, y2);
+    times(x2, y2, ux, uy, x3, y3);
+    times(x2, y2, x2, y2, x4, y4);
+    times(x4, y4, ux, uy, x5, y5);
+    times(x4, y4, x4, y4, x8, y8);
+    times(x8, y8, x3, y3, x11, y11);
+    times(x8, y8, x8, y8, x16, y16);
+    times(x16, y16, x3, y3, x19, y19);
+
+    // The imaginary part of each power against its own weight, which is the
+    // sine term it stands for.
+    const float wave = x3 * chamber.harmonic[0][1] + y3 * chamber.harmonic[0][0]
+                       + x5 * chamber.harmonic[1][1] + y5 * chamber.harmonic[1][0]
+                       + x11 * chamber.harmonic[2][1] + y11 * chamber.harmonic[2][0]
+                       + x19 * chamber.harmonic[3][1] + y19 * chamber.harmonic[3][0];
 
     // Squashed towards one side as well as rippled: a cave mouth is rarely in
-    // the middle of the room it opens into.
-    const float lean = 1.0f + config::ChamberLean
-                                 * std::cos(theta - chamber.phase * 0.7f) * chamber.warp[0];
+    // the middle of the room it opens into. The real part, this time.
+    const float lean = 1.0f + ux * chamber.lean[0] - uy * chamber.lean[1];
 
     return chamber.radius * lean * (1.0f + config::ChamberRipple * wave);
 }
@@ -851,27 +915,136 @@ sf::Vector2f Arena::currentAt(sf::Vector2f position) const
 }
 
 
-float Arena::depthAt(sf::Vector2f position) const
+void Arena::buildShapeIndex()
 {
-    // Negative inside the water, positive in rock, and the value is how far
-    // from the nearest edge. Everything about the map's shape is this number.
+    // Wide enough for every rim at full stretch rather than for the centres
+    // the bounds are measured from, and a margin past that so a query just
+    // outside the basin still lands in a real cell.
+    sf::Vector2f low{ 1.0e9f, 1.0e9f };
+    sf::Vector2f high{ -1.0e9f, -1.0e9f };
+
+    const auto cover = [&](sf::Vector2f centre, float radius) {
+        low.x = std::min(low.x, centre.x - radius);
+        low.y = std::min(low.y, centre.y - radius);
+        high.x = std::max(high.x, centre.x + radius);
+        high.y = std::max(high.y, centre.y + radius);
+    };
+
+    for (const Chamber& chamber : m_chambers)
+        cover(chamber.centre, chamber.reach + config::ShapeMarginRock);
+
+    for (const Pillar& pillar : m_pillars)
+        cover(pillar.centre, pillar.radius + config::ShapeMarginWater);
+
+    if (low.x > high.x)
+    {
+        m_gridWidth = 0;
+        m_gridHeight = 0;
+        m_chamberStart.clear();
+        m_chamberList.clear();
+        m_pillarStart.clear();
+        m_pillarList.clear();
+        return;
+    }
+
+    m_gridOrigin = low;
+    m_gridWidth = static_cast<int>((high.x - low.x) / config::ShapeCell) + 1;
+    m_gridHeight = static_cast<int>((high.y - low.y) / config::ShapeCell) + 1;
+
+    const std::size_t cells = static_cast<std::size_t>(m_gridWidth)
+                              * static_cast<std::size_t>(m_gridHeight);
+
+    // Counted, turned into offsets, then filled: two passes over the shapes
+    // and two allocations, rather than a vector per cell and a heap walk on
+    // every query.
+    const auto file = [&](std::vector<std::uint32_t>& start,
+                          std::vector<std::uint32_t>& list,
+                          const auto& shapes, auto radiusOf) {
+        start.assign(cells + 1, 0u);
+
+        const auto span = [&](sf::Vector2f centre, float radius,
+                              int& x0, int& y0, int& x1, int& y1) {
+            const sf::Vector2f from = (centre - sf::Vector2f{ radius, radius } - m_gridOrigin)
+                                      / config::ShapeCell;
+            const sf::Vector2f to = (centre + sf::Vector2f{ radius, radius } - m_gridOrigin)
+                                    / config::ShapeCell;
+
+            x0 = std::clamp(static_cast<int>(std::floor(from.x)), 0, m_gridWidth - 1);
+            y0 = std::clamp(static_cast<int>(std::floor(from.y)), 0, m_gridHeight - 1);
+            x1 = std::clamp(static_cast<int>(std::floor(to.x)), 0, m_gridWidth - 1);
+            y1 = std::clamp(static_cast<int>(std::floor(to.y)), 0, m_gridHeight - 1);
+        };
+
+        for (const auto& shape : shapes)
+        {
+            int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+            span(shape.centre, radiusOf(shape), x0, y0, x1, y1);
+
+            for (int y = y0; y <= y1; ++y)
+            {
+                for (int x = x0; x <= x1; ++x)
+                    ++start[static_cast<std::size_t>(y * m_gridWidth + x) + 1];
+            }
+        }
+
+        for (std::size_t i = 1; i < start.size(); ++i)
+            start[i] += start[i - 1];
+
+        list.assign(start.back(), 0u);
+
+        std::vector<std::uint32_t> cursor(start.begin(), start.end() - 1);
+
+        for (std::size_t index = 0; index < shapes.size(); ++index)
+        {
+            int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+            span(shapes[index].centre, radiusOf(shapes[index]), x0, y0, x1, y1);
+
+            for (int y = y0; y <= y1; ++y)
+            {
+                for (int x = x0; x <= x1; ++x)
+                {
+                    const std::size_t cell = static_cast<std::size_t>(y * m_gridWidth + x);
+                    list[cursor[cell]++] = static_cast<std::uint32_t>(index);
+                }
+            }
+        }
+    };
+
+    file(m_chamberStart, m_chamberList, m_chambers,
+         [](const Chamber& chamber) { return chamber.reach + config::ShapeMarginRock; });
+
+    file(m_pillarStart, m_pillarList, m_pillars,
+         [](const Pillar& pillar) { return pillar.radius + config::ShapeMarginWater; });
+}
+
+int Arena::gridIndex(sf::Vector2f position) const
+{
+    if (m_gridWidth <= 0 || m_gridHeight <= 0)
+        return -1;
+
+    const sf::Vector2f local = (position - m_gridOrigin) / config::ShapeCell;
+    const int x = static_cast<int>(std::floor(local.x));
+    const int y = static_cast<int>(std::floor(local.y));
+
+    if (x < 0 || y < 0 || x >= m_gridWidth || y >= m_gridHeight)
+        return -1;
+
+    return y * m_gridWidth + x;
+}
+
+float Arena::depthScan(sf::Vector2f position) const
+{
     float best = 1.0e9f;
 
     // A shape can only improve the answer if it is nearer than the best so far
     // plus its own reach, and that comparison can be made on squared distances
-    // with no square root at all. With a room now being several lobes and a
-    // passage several segments, this is the difference between the field being
-    // cheap and the field being the frame.
-    const auto tooFar = [&best](float distanceSquared, float reach) {
-        const float slack = best + reach;
-        return slack <= 0.0f || distanceSquared > slack * slack;
-    };
-
+    // with no square root at all.
     for (const Chamber& chamber : m_chambers)
     {
         const sf::Vector2f offset = position - chamber.centre;
+        const float slack = best + chamber.reach;
 
-        if (tooFar(offset.lengthSquared(), chamber.reach))
+        if (slack <= 0.0f || offset.lengthSquared() > slack * slack)
             continue;
 
         best = std::min(best, offset.length() - edgeRadius(chamber, offset));
@@ -883,10 +1056,83 @@ float Arena::depthAt(sf::Vector2f position) const
     // Pillars are cut back out of whatever the rooms opened up, so they are a
     // max rather than a min. They are kept narrower than the corridors, which
     // is what stops one ever sealing a route instead of covering it.
-    for (const Pillar& pillar : m_pillars)
-        best = std::max(best, pillar.radius - (position - pillar.centre).length());
+    return againstPillars(position, best, 0u,
+                          static_cast<std::uint32_t>(m_pillars.size()), false);
+}
+
+// A column can only matter when it reaches further than the answer already
+// found, and how far it reaches is known before any distance is worked out.
+// That test is worth making because the alternative is a square root for every
+// column in the room, and in open water almost none of them are close enough
+// to change anything.
+float Arena::againstPillars(sf::Vector2f position, float best,
+                            std::uint32_t from, std::uint32_t to, bool indexed) const
+{
+    for (std::uint32_t i = from; i < to; ++i)
+    {
+        const Pillar& pillar = m_pillars[indexed ? m_pillarList[i] : i];
+
+        const float slack = pillar.radius - best;
+        if (slack <= 0.0f)
+            continue;
+
+        const float distanceSquared = (position - pillar.centre).lengthSquared();
+        if (distanceSquared >= slack * slack)
+            continue;
+
+        best = pillar.radius - std::sqrt(distanceSquared);
+    }
 
     return best;
+}
+
+float Arena::depthAt(sf::Vector2f position) const
+{
+    // Negative inside the water, positive in rock, and the value is how far
+    // from the nearest edge. Everything about the map's shape is this number.
+    const int cell = gridIndex(position);
+    if (cell < 0)
+        return depthScan(position);
+
+    float best = 1.0e9f;
+
+    const std::uint32_t chamberEnd = m_chamberStart[static_cast<std::size_t>(cell) + 1];
+
+    for (std::uint32_t i = m_chamberStart[static_cast<std::size_t>(cell)];
+         i < chamberEnd; ++i)
+    {
+        const Chamber& chamber = m_chambers[m_chamberList[i]];
+        const sf::Vector2f offset = position - chamber.centre;
+        const float slack = best + chamber.reach;
+
+        if (slack <= 0.0f || offset.lengthSquared() > slack * slack)
+            continue;
+
+        best = std::min(best, offset.length() - edgeRadius(chamber, offset));
+    }
+
+    // Too far into the rock for this bucket to vouch for itself: a chamber
+    // filed elsewhere could be nearer than anything filed here, so ask every
+    // shape. Only points buried well inside rock get here, and a frame spends
+    // no time there.
+    if (best > config::ShapeMarginRock)
+        return depthScan(position);
+
+    // Water deeper than the margin the columns were filed with has the same
+    // problem, but only for the columns - the rim is already settled. There
+    // are a couple of hundred of those at most, and the reach test above
+    // throws out nearly all of them without a square root, so the middle of a
+    // great hall simply reads the whole list rather than falling back to the
+    // whole basin.
+    if (best < -config::ShapeMarginWater)
+    {
+        return againstPillars(position, best, 0u,
+                              static_cast<std::uint32_t>(m_pillars.size()), false);
+    }
+
+    return againstPillars(position, best,
+                          m_pillarStart[static_cast<std::size_t>(cell)],
+                          m_pillarStart[static_cast<std::size_t>(cell) + 1], true);
 }
 
 bool Arena::isOpen(sf::Vector2f position, float radius) const
@@ -1020,6 +1266,14 @@ void Arena::buildGround()
 
 
     buildWallShading();
+
+    // Everything above is cut once and then looked at for the rest of the
+    // dive, so it goes to the card now rather than across the bus every
+    // frame. All three or none: a half-parked basin would draw its floor over
+    // its own rock.
+    m_onCard = mesh::parkOnCard(m_rock, m_rockCard)
+               && mesh::parkOnCard(m_floor, m_floorCard)
+               && mesh::parkOnCard(m_shade, m_shadeCard);
 }
 
 void Arena::buildWallShading()
@@ -1186,9 +1440,21 @@ void Arena::buildSwirl()
 
 void Arena::drawGround(sf::RenderTarget& target) const
 {
-    target.draw(m_rock);
-    target.draw(m_floor);
-    target.draw(m_shade);
+    if (m_onCard)
+    {
+        target.draw(m_rockCard);
+        target.draw(m_floorCard);
+        target.draw(m_shadeCard);
+    }
+    else
+    {
+        target.draw(m_rock);
+        target.draw(m_floor);
+        target.draw(m_shade);
+    }
+
+    // The swirl is not parked: a pit is turning, so it is cut again every
+    // frame and would only be uploaded again every frame anyway.
     target.draw(m_swirl);
 }
 

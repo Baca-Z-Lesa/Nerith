@@ -69,6 +69,25 @@ and swims the way that leads somewhere. Without the grid the graph is right
 until both ends are in the same room with a pillar between them, and that case
 used to leave one creature alive and unreachable for the rest of a level.
 
+A basin cut that finely is a thousand shapes, and three things keep that from
+being what the game spends its time on. The shapes are filed into a coarse grid
+once, so asking where the rock is reads a handful of them rather than walking
+all thousand — and files each one with a margin, so the bucket's answer is
+exact rather than close, with a full sweep as the fallback for the rare query
+too deep in rock for the margin to cover. A rim is evaluated as powers of the
+direction instead of an angle, which is the same curve to a thousandth of a
+pixel with no trigonometry in it at all. And the basin, the seabed and the
+minimap are all cut once and parked on the graphics card, because a vertex
+array lives in system memory and is handed to the driver again on every frame
+it appears — half a million vertices of rock that has not moved since the level
+was built. Between them, building a dive went from about eight hundred
+milliseconds to about a hundred, and the drawing a frame does on the processor
+from thirteen milliseconds to under three.
+
+The dressing gets the same treatment from the other end: the seabed scatters
+nearly three thousand props over a field far wider than the window, and each is
+a sprite and a shadow, so only the ones near the view are drawn at all.
+
 Boss levels open into one hall instead. A minimap in the corner is the only
 reason any of it is navigable, and arrows at the screen edge point at what is
 hunting you off it.

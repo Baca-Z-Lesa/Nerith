@@ -23,6 +23,8 @@
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/VertexArray.hpp>
+#include <SFML/Graphics/VertexBuffer.hpp>
 #include <SFML/Graphics/View.hpp>
 #include <SFML/System/Clock.hpp>
 #include <SFML/Window/Keyboard.hpp>
@@ -266,6 +268,10 @@ private:
     // longer a shape the player can hold in their head, and a hunt across one
     // without a map is not tense, it is tedious.
     void drawMinimap();
+
+    // Cuts the minimap water for the basin as it now stands. Called when the
+    // basin is, because that is the only time it changes.
+    void buildMinimap();
     void drawPauseOverlay();
 
     // The three flat screens hanging off the title: what the controls are, what
@@ -445,5 +451,13 @@ private:
 
     sf::CircleShape    m_sonarRing;
     sf::CircleShape    m_sonarMark;
+
+    // The water on the minimap, cut once when the basin is. It is a thousand
+    // shapes drawn small, and it does not move for the whole dive - building
+    // it inside the draw was forty thousand vertices and a fresh allocation
+    // on every frame, for a picture that was already correct.
+    sf::VertexArray    m_mapWater;
+    sf::VertexBuffer   m_mapWaterCard;
+    bool               m_mapOnCard = false;
     sf::RectangleShape m_deathOverlay;
 };

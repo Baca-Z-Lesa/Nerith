@@ -134,6 +134,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClInclude Include="src\core\Assets.h" />
     <ClInclude Include="src\core\Config.h" />
     <ClInclude Include="src\core\Game.h" />
+    <ClInclude Include="src\core\Mesh.h" />
     <ClInclude Include="src\core\Random.h" />
     <ClInclude Include="src\core\SaveGame.h" />
     <ClInclude Include="src\effects\ParticleSystem.h" />

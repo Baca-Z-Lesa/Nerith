@@ -674,6 +674,11 @@ namespace config
 
     // A contact shadow under every prop, squashed and offset away from the key
     // light. Without it nothing on the floor looks like it is on the floor.
+    // How far past the edge of the view a prop is still drawn. Wide enough
+    // for the tallest piece of dressing plus its shadow, so nothing ever pops
+    // in at the edge of the window.
+    inline constexpr float PropCullMargin = 320.0f;
+
     inline constexpr sf::Vector2f PropShadowOffset{ 14.0f, 10.0f };
     inline constexpr float PropShadowSquash = 0.42f;
     inline constexpr sf::Color PropShadowColor{ 0, 0, 0, 92 };
@@ -735,6 +740,25 @@ namespace config
     // few thousand cells rather than a few hundred thousand.
     inline constexpr float NavCell = 70.0f;
     inline constexpr float NavClearance = 26.0f;
+
+    // The shape index that the distance field reads instead of walking every
+    // chamber in the basin. The cell is a little larger than the passages, so
+    // a query lands in a bucket holding a handful of shapes rather than one
+    // holding half a room.
+    //
+    // The margins are the interesting part: a shape is filed under every cell
+    // it could reach plus this much further, which is what lets the bucket be
+    // trusted rather than merely believed. A chamber left out of a bucket is
+    // more than ShapeMarginRock away from it, so it can only be the nearest
+    // rock if the answer is further out than that - and a query that far into
+    // rock asks every shape instead. Water needs the wider margin because a
+    // point in the middle of a great hall is a long way from anything and a
+    // column on the far side still shortens its distance; deeper than that,
+    // the columns are simply all read, since there are only ever a couple of
+    // hundred and almost none survive the reach test.
+    inline constexpr float ShapeCell = 200.0f;
+    inline constexpr float ShapeMarginRock = 170.0f;
+    inline constexpr float ShapeMarginWater = 420.0f;
 
     inline constexpr float WanderTurnRate = 55.0f; // degrees per second, either way
 

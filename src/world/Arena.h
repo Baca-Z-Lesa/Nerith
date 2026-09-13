@@ -4,6 +4,7 @@
 
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
+#include <SFML/Graphics/VertexBuffer.hpp>
 #include <SFML/System/Vector2.hpp>
 
 #include <cstdint>
@@ -117,6 +118,15 @@ public:
         // room is cut. The field uses it to skip shapes without a square root,
         // and getting it wrong shows up as holes in the floor.
         float        reach = 0.0f;
+
+        // The same outline, folded into the form the field actually wants.
+        // Each harmonic becomes one complex weight, so a rim is read off
+        // powers of the direction rather than off one atan2 and five calls to
+        // sin. It is the same curve to the last decimal place, for about a
+        // tenth of the time - and the field is asked for it a few hundred
+        // thousand times a dive, so that is most of what a dive costs.
+        float        harmonic[4][2] = {};
+        float        lean[2] = {};
     };
 
     struct Corridor { sf::Vector2f from; sf::Vector2f to; float radius; };
@@ -174,8 +184,38 @@ private:
     // with can never drift apart.
     float edgeRadius(const Chamber& chamber, sf::Vector2f offset) const;
 
+    // Works out everything about a rim that follows from its weights and its
+    // phase: how far it can reach, and the folded form the field reads.
+    static void settleRim(Chamber& chamber);
+
     void buildRoutes();
     void buildNavGrid();
+
+    // --- The shape index ---
+    // depthAt is the busiest function in the game: every collision, every
+    // clamp, every wall normal and every vertex of the basin asks it where the
+    // rock is. A basin cut from a thousand mouthfuls turned that into a walk
+    // over a thousand shapes - forty kilobytes a query - so the cost stopped
+    // being the arithmetic and became the walk itself.
+    //
+    // So the shapes are filed into a coarse grid once, and a query reads only
+    // the handful filed under its own cell. Each shape is filed under every
+    // cell its own reach can touch plus a margin, and that margin is what
+    // makes the bucket answer exact rather than merely close: a shape left out
+    // is further off than the margin, so it can only matter when the answer is
+    // further out than the margin too - and that case asks everything instead.
+    void buildShapeIndex();
+    int  gridIndex(sf::Vector2f position) const;
+
+    // Every shape, no index. The fallback, and what the index is measured
+    // against when the basin is checked.
+    float depthScan(sf::Vector2f position) const;
+
+    // The column half of the field, over a run of the index or over the whole
+    // list. Split out because the middle of a large room has to read every
+    // column, and that is a different question from where the rim is.
+    float againstPillars(sf::Vector2f position, float best,
+                         std::uint32_t from, std::uint32_t to, bool indexed) const;
 
     int  cellIndex(sf::Vector2f position) const;
     int  nearestOpenCell(sf::Vector2f position) const;
@@ -208,6 +248,17 @@ private:
     std::vector<std::vector<int>> m_links;
     std::vector<int>              m_nextHop;
 
+    // The buckets, kept as counts turned into offsets rather than as a vector
+    // of vectors: one allocation each, and a query reads one contiguous run
+    // instead of chasing a pointer per cell.
+    sf::Vector2f               m_gridOrigin;
+    int                        m_gridWidth = 0;
+    int                        m_gridHeight = 0;
+    std::vector<std::uint32_t> m_chamberStart;
+    std::vector<std::uint32_t> m_chamberList;
+    std::vector<std::uint32_t> m_pillarStart;
+    std::vector<std::uint32_t> m_pillarList;
+
     // The grid under the graph: open or not, and which neighbour is one step
     // nearer the sub. Rebuilt only when the sub has actually changed cell.
     sf::Vector2f              m_navOrigin;
@@ -227,6 +278,16 @@ private:
     sf::VertexArray m_rock;   // the shelf and the cut lip, drawn under the floor
     sf::VertexArray m_floor;
     sf::VertexArray m_shade;  // the rim light and the shadow the wall casts inward
+
+    // The same three meshes, parked on the graphics card. A vertex array is
+    // system memory, so drawing one hands the whole thing to the driver again
+    // on every frame it appears - and the basin is half a million vertices of
+    // rock that has not moved since it was cut. Uploaded once, the same
+    // triangles cost a call apiece instead of ten megabytes a frame.
+    sf::VertexBuffer m_rockCard;
+    sf::VertexBuffer m_floorCard;
+    sf::VertexBuffer m_shadeCard;
+    bool             m_onCard = false;
     sf::VertexArray m_swirl;  // the turning water in a pit, redrawn as it turns
     sf::VertexArray m_lightPool;
     sf::VertexArray m_caustics;

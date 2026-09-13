@@ -1,6 +1,7 @@
 #include "core/Game.h"
 
 #include "core/Config.h"
+#include "core/Mesh.h"
 #include "core/Random.h"
 #include "ui/PixelFont.h"
 #include "world/Bestiary.h"
@@ -714,6 +715,9 @@ void Game::beginLevel(int number)
     m_arena.generate(static_cast<unsigned int>(number), m_level.isBoss());
     m_seabed.reshape(m_arena);
 
+    // The little map is cut from the basin, so it is cut when the basin is.
+    buildMinimap();
+
     // Anything shallower than the deepest water opened so far has been beaten
     // before, and beating it again is worth a fraction of the first time.
     m_rerun = number < m_save.unlockedLevel;
@@ -777,7 +781,6 @@ void Game::beginLevel(int number)
     // A dive starts in the first chamber, wherever the walk put it.
     m_player.setPosition(m_arena.getStart());
     m_cameraCentre = m_arena.getStart();
-    m_seabed.reshape(m_arena);
 
     m_player.onLevelStart();
 
@@ -3685,76 +3688,120 @@ void Game::drawThreatArrows()
         m_window.draw(arrows);
 }
 
-void Game::drawMinimap()
+// Where a point in the basin lands on the little map in the corner. Fitted
+// rather than stretched, so the basin keeps its proportions and the player can
+// match what they see on it to what they see out of the window.
+namespace
 {
-    const sf::Vector2f low = m_arena.getBoundsMin();
-    const sf::Vector2f high = m_arena.getBoundsMax();
-    const sf::Vector2f span = high - low;
+    struct MapFrame
+    {
+        sf::Vector2f corner;
+        sf::Vector2f box;
+        sf::Vector2f origin;
+        sf::Vector2f low;
+        float        scale = 0.0f;
+        bool         usable = false;
 
-    if (span.x <= 1.0f || span.y <= 1.0f)
-        return;
-
-    // Fitted rather than stretched, so the basin keeps its proportions and the
-    // player can match what they see on it to what they see out of the window.
-    const sf::Vector2f box{ config::MinimapWidth, config::MinimapHeight };
-    const float scale = std::min(box.x / span.x, box.y / span.y);
-
-    const sf::Vector2f corner{ static_cast<float>(config::WindowWidth) - box.x
-                                   - config::MinimapMargin,
-                               static_cast<float>(config::WindowHeight) - box.y
-                                   - config::MinimapMargin };
-    const sf::Vector2f origin = corner + (box - span * scale) / 2.0f;
-
-    const auto toMap = [&](sf::Vector2f world) {
-        return origin + (world - low) * scale;
+        sf::Vector2f place(sf::Vector2f world) const
+        {
+            return origin + (world - low) * scale;
+        }
     };
 
-    sf::RectangleShape frame(box);
-    frame.setPosition(corner);
-    frame.setFillColor(config::MinimapBackdrop);
-    frame.setOutlineThickness(1.5f);
-    frame.setOutlineColor(config::NodeLockedEdge);
-    m_window.draw(frame);
+    MapFrame mapFrameFor(sf::Vector2f low, sf::Vector2f high)
+    {
+        MapFrame frame;
+
+        const sf::Vector2f span = high - low;
+        if (span.x <= 1.0f || span.y <= 1.0f)
+            return frame;
+
+        frame.box = { config::MinimapWidth, config::MinimapHeight };
+        frame.scale = std::min(frame.box.x / span.x, frame.box.y / span.y);
+        frame.corner = { static_cast<float>(config::WindowWidth) - frame.box.x
+                             - config::MinimapMargin,
+                         static_cast<float>(config::WindowHeight) - frame.box.y
+                             - config::MinimapMargin };
+        frame.origin = frame.corner + (frame.box - span * frame.scale) / 2.0f;
+        frame.low = low;
+        frame.usable = true;
+
+        return frame;
+    }
+}
+
+void Game::buildMinimap()
+{
+    m_mapWater.clear();
+    m_mapOnCard = false;
+
+    const MapFrame frame = mapFrameFor(m_arena.getBoundsMin(), m_arena.getBoundsMax());
+    if (!frame.usable)
+        return;
 
     // The water, in the same two passes the world uses: every shape, small.
-    sf::VertexArray water(sf::PrimitiveType::Triangles);
-
-    const auto disc = [&water](sf::Vector2f centre, float radius, sf::Color colour) {
+    // A basin is a thousand of them, so this is forty thousand vertices - once
+    // a dive rather than once a frame, because none of it moves afterwards.
+    const auto disc = [this](sf::Vector2f centre, float radius, sf::Color colour) {
         for (int i = 0; i < 14; ++i)
         {
             const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / 14.0f);
             const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / 14.0f);
 
-            water.append(sf::Vertex{ centre, colour });
-            water.append(sf::Vertex{ centre + sf::Vector2f(radius, a0), colour });
-            water.append(sf::Vertex{ centre + sf::Vector2f(radius, a1), colour });
+            m_mapWater.append(sf::Vertex{ centre, colour });
+            m_mapWater.append(sf::Vertex{ centre + sf::Vector2f(radius, a0), colour });
+            m_mapWater.append(sf::Vertex{ centre + sf::Vector2f(radius, a1), colour });
         }
     };
 
     for (const Arena::Chamber& chamber : m_arena.getChambers())
-        disc(toMap(chamber.centre), std::max(2.0f, chamber.radius * scale), config::MinimapWater);
+    {
+        disc(frame.place(chamber.centre), std::max(2.0f, chamber.radius * frame.scale),
+             config::MinimapWater);
+    }
 
     for (const Arena::Corridor& corridor : m_arena.getCorridors())
     {
-        const sf::Vector2f from = toMap(corridor.from);
-        const sf::Vector2f to = toMap(corridor.to);
-        const sf::Vector2f span2 = to - from;
+        const sf::Vector2f from = frame.place(corridor.from);
+        const sf::Vector2f to = frame.place(corridor.to);
+        const sf::Vector2f span = to - from;
 
-        if (span2.lengthSquared() <= 0.0001f)
+        if (span.lengthSquared() <= 0.0001f)
             continue;
 
-        const float width = std::max(1.5f, corridor.radius * scale);
-        const sf::Vector2f across = sf::Vector2f{ -span2.y, span2.x }.normalized() * width;
+        const float width = std::max(1.5f, corridor.radius * frame.scale);
+        const sf::Vector2f across = sf::Vector2f{ -span.y, span.x }.normalized() * width;
 
-        water.append(sf::Vertex{ from - across, config::MinimapWater });
-        water.append(sf::Vertex{ from + across, config::MinimapWater });
-        water.append(sf::Vertex{ to + across, config::MinimapWater });
-        water.append(sf::Vertex{ from - across, config::MinimapWater });
-        water.append(sf::Vertex{ to + across, config::MinimapWater });
-        water.append(sf::Vertex{ to - across, config::MinimapWater });
+        m_mapWater.append(sf::Vertex{ from - across, config::MinimapWater });
+        m_mapWater.append(sf::Vertex{ from + across, config::MinimapWater });
+        m_mapWater.append(sf::Vertex{ to + across, config::MinimapWater });
+        m_mapWater.append(sf::Vertex{ from - across, config::MinimapWater });
+        m_mapWater.append(sf::Vertex{ to + across, config::MinimapWater });
+        m_mapWater.append(sf::Vertex{ to - across, config::MinimapWater });
     }
 
-    m_window.draw(water);
+    m_mapOnCard = mesh::parkOnCard(m_mapWater, m_mapWaterCard);
+}
+
+void Game::drawMinimap()
+{
+    const MapFrame frame = mapFrameFor(m_arena.getBoundsMin(), m_arena.getBoundsMax());
+    if (!frame.usable)
+        return;
+
+    const auto toMap = [&frame](sf::Vector2f world) { return frame.place(world); };
+
+    sf::RectangleShape backdrop(frame.box);
+    backdrop.setPosition(frame.corner);
+    backdrop.setFillColor(config::MinimapBackdrop);
+    backdrop.setOutlineThickness(1.5f);
+    backdrop.setOutlineColor(config::NodeLockedEdge);
+    m_window.draw(backdrop);
+
+    if (m_mapOnCard)
+        m_window.draw(m_mapWaterCard);
+    else
+        m_window.draw(m_mapWater);
 
     const auto pip = [&](sf::Vector2f world, float radius, sf::Color colour) {
         m_sonarMark.setRadius(radius);
