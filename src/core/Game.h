@@ -337,6 +337,22 @@ private:
 
     // The moves that are not shots. The creature asks; this is where the
     // world actually does it.
+    // A move that takes seconds rather than a frame. The queue is what lets a
+    // boss tear the floor open a step at a time without any of the timing
+    // having to live inside the boss.
+    struct Volley
+    {
+        float        delay;
+        sf::Vector2f at;
+        sf::Vector2f direction;
+        float        speed;
+    };
+
+    std::vector<Volley> m_volleys;
+
+    void scheduleVolley(float delay, sf::Vector2f at, sf::Vector2f direction, float speed);
+    void updateVolleys(float deltaTime);
+
     void applyBossMove(const BossMove& move);
     void updateBossMoves(float deltaTime);
     void drawBossMoves();

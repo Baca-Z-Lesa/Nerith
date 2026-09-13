@@ -647,6 +647,37 @@ namespace config
     inline constexpr float BossSpecialInterval = 7.4f;
     inline constexpr float BossSpecialFirst = 4.0f;   // the first one comes sooner
 
+    // The moves a boss keeps back. From the second act on, and on a slow clock
+    // of their own, so the second half of a fight has a rhythm rather than
+    // simply more of everything.
+    inline constexpr int   BossUltraFromAct = 1;
+    inline constexpr float BossUltraInterval = 15.0f;
+
+    // A ring that falls in on the sub from every side. The gap is what makes
+    // it a route rather than a punishment.
+    inline constexpr float ClosingRadius = 620.0f;
+    inline constexpr int   ClosingOrbs = 30;
+    inline constexpr float ClosingSpeed = 168.0f;
+    inline constexpr float ClosingGap = 44.0f;        // degrees left open
+
+    // A wall that crosses the hall with one hole in it.
+    inline constexpr float CurtainWidth = 1500.0f;
+    inline constexpr int   CurtainOrbs = 22;
+    inline constexpr float CurtainSpeed = 214.0f;
+    inline constexpr float CurtainGap = 150.0f;       // pixels of hole
+
+    // The floor tearing open along a line, a step at a time.
+    inline constexpr int   FissureSteps = 9;
+    inline constexpr float FissureStride = 150.0f;
+    inline constexpr float FissureDelay = 0.16f;
+
+    // A beam swept across the hall. Slow enough to walk out of, long enough
+    // that standing still is not an option.
+    inline constexpr int   RakeSteps = 26;
+    inline constexpr float RakeArc = 190.0f;          // degrees swept
+    inline constexpr float RakeDelay = 0.07f;
+    inline constexpr float RakeSpeed = 330.0f;
+
     // Every act the creature presses harder: this much off every gap between
     // anything it does, compounding, and again on top of its rage.
     inline constexpr float BossActPressure = 0.16f;

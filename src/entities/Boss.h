@@ -33,6 +33,15 @@ enum class BossSpecial
     Erupt,   // it comes up through the floor exactly where you are standing
     Well,    // it pulls, and the pulling does not stop
     Hurl,    // it tears something out of the floor and throws it
+
+    // The second half of the fight. Every one of these takes several seconds
+    // to play out rather than landing in a frame, so the answer is a route
+    // through it rather than a dodge - which is the difference between a boss
+    // that hits harder and a boss that is a harder fight.
+    Closing, // a ring of water falls in on you from every side at once
+    Curtain, // a wall crosses the hall with one gap in it
+    Fissure, // the floor tears open in a line, and the line keeps coming
+    Rake,    // a beam sweeps the hall, and standing still is standing on it
 };
 
 // What a special wants doing, drained by the caller the same way the shots
@@ -218,6 +227,11 @@ private:
     std::vector<BossMove>  m_moves;
     float                  m_specialTimer;
     int                    m_specialTurn = 0; // alternates between its two moves
+
+    // How long until the move it has been saving is allowed out again. Its
+    // own clock rather than a share of the ordinary one, so the second half
+    // of a fight has a rhythm of its own.
+    float                  m_ultraTimer = 0.0f;
     std::vector<EnemyType> m_summons;
 
     sf::Vector2f m_heading;

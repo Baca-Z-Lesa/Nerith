@@ -695,6 +695,7 @@ void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
         return;
 
     m_specialTimer -= deltaTime;
+    m_ultraTimer = std::max(0.0f, m_ultraTimer - deltaTime);
     if (m_specialTimer > 0.0f)
         return;
 
@@ -706,6 +707,37 @@ void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
     // Two moves each, alternating, so neither becomes the thing the player
     // waits for and the other becomes a surprise.
     const bool second = (m_specialTurn++ % 2) != 0;
+
+    // Hurt badly enough, it stops repeating itself. Each mind keeps a move it
+    // has not shown you, and it only comes out in the second half of the
+    // fight - so the turn is something new rather than the same thing faster.
+    //
+    // All four take several seconds to play out rather than landing in a
+    // frame, so the answer is a route through rather than a dodge, which is
+    // the difference between a boss that hits harder and a harder boss.
+    if (m_act >= config::BossUltraFromAct && m_ultraTimer <= 0.0f)
+    {
+        m_ultraTimer = config::BossUltraInterval;
+
+        switch (m_def->mind)
+        {
+            case BossMind::Prowler:
+                m_moves.push_back({ BossSpecial::Closing, player, toPlayer, 0.0f });
+                break;
+            case BossMind::Drifter:
+                m_moves.push_back({ BossSpecial::Curtain, head, toPlayer, 0.0f });
+                break;
+            case BossMind::Burrower:
+                m_moves.push_back({ BossSpecial::Fissure, head, toPlayer, 0.0f });
+                break;
+            case BossMind::Spiral:
+                m_moves.push_back({ BossSpecial::Rake, head, toPlayer, 0.0f });
+                break;
+        }
+
+        beginTell(config::BossTellTime, toPlayer, false);
+        return;
+    }
 
     switch (m_def->mind)
     {

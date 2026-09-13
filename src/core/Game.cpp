@@ -361,12 +361,147 @@ void Game::drawBossTell()
     m_window.draw(spear);
 }
 
+void Game::scheduleVolley(float delay, sf::Vector2f at, sf::Vector2f direction, float speed)
+{
+    // A move that takes four seconds to happen cannot be a function call. The
+    // queue is what lets a boss tear the floor open a step at a time, or sweep
+    // a beam across a hall, without any of it having to live in the boss.
+    m_volleys.push_back({ delay, at, direction, speed });
+}
+
+void Game::updateVolleys(float deltaTime)
+{
+    if (m_volleys.empty())
+        return;
+
+    // Nothing left to have fired them: a queue outliving its boss would spit
+    // orbs out of a dead thing's mouth once the next one arrived.
+    if (!m_boss)
+    {
+        m_volleys.clear();
+        return;
+    }
+
+    const int orbDamage = config::EnemyOrbDamage + m_level.getScaling().bonusDamage;
+
+    for (std::size_t i = m_volleys.size(); i-- > 0;)
+    {
+        m_volleys[i].delay -= deltaTime;
+        if (m_volleys[i].delay > 0.0f)
+            continue;
+
+        const Volley due = m_volleys[i];
+        m_volleys.erase(m_volleys.begin() + static_cast<std::ptrdiff_t>(i));
+
+        config::ProjectileStats orb = config::EnemyOrb;
+        orb.speed = due.speed;
+
+        m_pendingEnemyShots.emplace_back(m_assets.boss(m_boss->getShotTexture()), due.at,
+                                         due.direction, orb, orbDamage);
+        effects::hostileMuzzle(m_effects, due.at, due.direction);
+    }
+}
+
 void Game::applyBossMove(const BossMove& move)
 {
     const sf::Vector2f me = m_player.getPosition();
 
     switch (move.kind)
     {
+        case BossSpecial::Closing:
+        {
+            // The room falls in on you from every side at once, with one way
+            // out. Finding the gap is the move; there is no dodging a circle.
+            const float open = rng::range(0.0f, 360.0f);
+
+            for (int i = 0; i < config::ClosingOrbs; ++i)
+            {
+                const float around = 360.0f * static_cast<float>(i)
+                                     / static_cast<float>(config::ClosingOrbs);
+
+                float off = std::fmod(std::abs(around - open), 360.0f);
+                off = std::min(off, 360.0f - off);
+
+                if (off < config::ClosingGap * 0.5f)
+                    continue;
+
+                const sf::Vector2f out = unit(sf::degrees(around));
+
+                scheduleVolley(0.0f, move.at + out * config::ClosingRadius, -out,
+                               config::ClosingSpeed);
+            }
+
+            addFlash(config::HudBossColor, 0.30f);
+            m_audio.play(Sfx::Charge, 1.1f);
+            break;
+        }
+
+        case BossSpecial::Curtain:
+        {
+            // A wall the width of the hall, crossing it, with a hole somewhere
+            // along it. You do not out-run a wall, you go through it.
+            const sf::Vector2f along{ -move.direction.y, move.direction.x };
+            const float hole = rng::range(-0.34f, 0.34f);
+
+            for (int i = 0; i < config::CurtainOrbs; ++i)
+            {
+                const float t = static_cast<float>(i)
+                                    / static_cast<float>(config::CurtainOrbs - 1) - 0.5f;
+
+                if (std::abs(t - hole) * config::CurtainWidth < config::CurtainGap)
+                    continue;
+
+                scheduleVolley(0.0f, move.at + along * (t * config::CurtainWidth),
+                               move.direction, config::CurtainSpeed);
+            }
+
+            m_audio.play(Sfx::BossPhase, 0.9f);
+            break;
+        }
+
+        case BossSpecial::Fissure:
+        {
+            // The floor tearing open along a line, a step at a time, so the
+            // answer is to move across it rather than away from it.
+            for (int i = 1; i <= config::FissureSteps; ++i)
+            {
+                const sf::Vector2f at = move.at
+                                        + move.direction * (config::FissureStride
+                                                            * static_cast<float>(i));
+
+                const sf::Vector2f across{ -move.direction.y, move.direction.x };
+
+                scheduleVolley(config::FissureDelay * static_cast<float>(i), at, across,
+                               config::ClosingSpeed);
+                scheduleVolley(config::FissureDelay * static_cast<float>(i), at, -across,
+                               config::ClosingSpeed);
+            }
+
+            addShake(config::ShakeBossPart);
+            m_audio.play(Sfx::Vent, 1.2f);
+            break;
+        }
+
+        case BossSpecial::Rake:
+        {
+            // A beam swept across the hall. Slow enough to walk out of and long
+            // enough that standing anywhere is a decision.
+            const float from = move.direction.angle().asDegrees() - config::RakeArc * 0.5f;
+            const float turn = rng::range(0.0f, 1.0f) < 0.5f ? 1.0f : -1.0f;
+
+            for (int i = 0; i < config::RakeSteps; ++i)
+            {
+                const float t = static_cast<float>(i) / static_cast<float>(config::RakeSteps - 1);
+                const float angle = from + config::RakeArc * (turn > 0.0f ? t : 1.0f - t);
+
+                scheduleVolley(config::RakeDelay * static_cast<float>(i), move.at,
+                               unit(sf::degrees(angle)), config::RakeSpeed);
+            }
+
+            m_audio.play(Sfx::Charge, 0.85f);
+            break;
+        }
+
         case BossSpecial::Grab:
             // Armed rather than applied: the bite only lands if the lunge it
             // was announced with actually connects, which is checked where
@@ -841,6 +976,7 @@ void Game::beginLevel(int number)
     m_hullLost = 0;
     m_haveWound = false;
 
+    m_volleys.clear();
     m_harpoon.reset();
     m_harpoonPull = 0.0f;
     m_modeTimer = 0.0f;
@@ -3663,7 +3799,7 @@ void Game::handleCollisions()
             if (!hit.hit)
                 continue;
 
-            shot.markHit(config::BossHitToken - hit.partIndex);
+            shot.markHit(config::BossHitToken - static_cast<int>(hit.partIndex));
 
             effects::impact(m_effects, shot.getPosition(), shot.getDirection());
 
@@ -5294,6 +5430,7 @@ void Game::step(float deltaTime)
                 if (m_modeTimer > 0.0f)
                     m_modeTimer -= deltaTime;
 
+                updateVolleys(deltaTime);
                 updateHarpoon(deltaTime);
                 updateSonar(deltaTime);
 
