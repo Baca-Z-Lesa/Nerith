@@ -41,6 +41,25 @@ struct SaveGame
     bool muted = false;
     bool fullscreen = false;
 
+    // --- Display ---
+    bool vsync = false;        // smoother pacing, one more frame of latency
+    int  frameCap = 144;       // 0 is uncapped
+    int  brightness = 5;       // 0..10, 5 is the art as it was made
+
+    // --- Accessibility ---
+    // Both are how MUCH, not whether: somebody who cannot take a shaking
+    // frame should not have to give up the hit feedback to stop it.
+    int  shake = 10;           // 0..10
+    int  flashes = 10;         // 0..10
+
+    // --- Feel ---
+    int  cameraTight = 5;      // 0..10, how hard the view follows the sub
+
+    // What each action is bound to, as SFML scancode numbers in the order of
+    // the Action enum. Empty means nothing has been rebound and the defaults
+    // stand, which is also what an older save looks like.
+    std::vector<int> keys;
+
     static const char* path();
 
     static SaveGame load();

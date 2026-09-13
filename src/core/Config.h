@@ -237,7 +237,8 @@ namespace config
     // camera following the sub - it reads as the sub not answering the keys.
     // Fourteen still lags enough to sell the weight and stops lying about the
     // controls.
-    inline constexpr float CameraLerp = 14.0f;
+    inline constexpr float CameraLerpLoose = 6.0f;
+    inline constexpr float CameraLerpTight = 22.0f;
     inline constexpr float ArenaLightRadius = 340.0f;
     inline constexpr sf::Color ArenaLightColor{ 32, 78, 90 };
     inline constexpr std::size_t ArenaCausticBands = 7;
@@ -1106,6 +1107,15 @@ namespace config
     // and the hull can account for: the map is a record of where you have
     // been rather than a survey handed to you at the mouth.
     inline constexpr float MapRevealRadius = 420.0f;
+
+    // Where the card naming what killed you sits, under the death banner.
+    inline constexpr float DeathCardTop = 430.0f;
+
+    // How far the brightness slider can go either way, as an alpha over the
+    // whole frame. Lifting washes the blacks out faster than dropping crushes
+    // them, so the two are not the same number.
+    inline constexpr float BrightnessLift = 46.0f;
+    inline constexpr float BrightnessDrop = 96.0f;
 
     inline constexpr float MinimapWidth = 214.0f;
     inline constexpr float MinimapHeight = 142.0f;

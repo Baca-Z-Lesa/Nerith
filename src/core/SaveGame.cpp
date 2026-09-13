@@ -78,6 +78,28 @@ SaveGame SaveGame::load()
         }
         else if (key == "stalker_levels")
             stream >> data.stalkerLevels;
+        else if (key == "vsync")
+        {
+            int flag = 0;
+            stream >> flag;
+            data.vsync = flag != 0;
+        }
+        else if (key == "framecap")
+            stream >> data.frameCap;
+        else if (key == "brightness")
+            stream >> data.brightness;
+        else if (key == "shake")
+            stream >> data.shake;
+        else if (key == "flashes")
+            stream >> data.flashes;
+        else if (key == "camera")
+            stream >> data.cameraTight;
+        else if (key == "keys")
+        {
+            int code = 0;
+            while (stream >> code)
+                data.keys.push_back(code);
+        }
         else if (key == "difficulty")
             stream >> data.difficulty;
         else if (key == "sfx")
@@ -112,6 +134,11 @@ SaveGame SaveGame::load()
     data.difficulty = std::clamp(data.difficulty, 0, 2);
     data.sfxVolume = std::clamp(data.sfxVolume, 0, 10);
     data.musicVolume = std::clamp(data.musicVolume, 0, 10);
+    data.brightness = std::clamp(data.brightness, 0, 10);
+    data.shake = std::clamp(data.shake, 0, 10);
+    data.flashes = std::clamp(data.flashes, 0, 10);
+    data.cameraTight = std::clamp(data.cameraTight, 0, 10);
+    data.frameCap = std::max(0, data.frameCap);
 
     // A save written before levels could be replayed has no unlocked_level, so
     // fall back to however far it had reached.
@@ -152,6 +179,22 @@ void SaveGame::save() const
     file << "music " << musicVolume << '\n';
     file << "muted " << (muted ? 1 : 0) << '\n';
     file << "fullscreen " << (fullscreen ? 1 : 0) << '\n';
+    file << "vsync " << (vsync ? 1 : 0) << '\n';
+    file << "framecap " << frameCap << '\n';
+    file << "brightness " << brightness << '\n';
+    file << "shake " << shake << '\n';
+    file << "flashes " << flashes << '\n';
+    file << "camera " << cameraTight << '\n';
+
+    // Only written once something has actually been rebound, so a save made
+    // with the defaults keeps working if the defaults ever change.
+    if (!keys.empty())
+    {
+        file << "keys";
+        for (const int code : keys)
+            file << ' ' << code;
+        file << '\n';
+    }
 
     for (const std::string& id : unlocked)
         file << "upgrade " << id << '\n';

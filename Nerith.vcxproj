@@ -104,6 +104,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\audio\AudioSystem.cpp" />
     <ClCompile Include="src\core\Assets.cpp" />
+    <ClCompile Include="src\core\Controls.cpp" />
     <ClCompile Include="src\core\Game.cpp" />
     <ClCompile Include="src\core\Random.cpp" />
     <ClCompile Include="src\core\SaveGame.cpp" />
@@ -133,6 +134,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClInclude Include="src\audio\AudioSystem.h" />
     <ClInclude Include="src\core\Assets.h" />
     <ClInclude Include="src\core\Config.h" />
+    <ClInclude Include="src\core\Controls.h" />
     <ClInclude Include="src\core\Game.h" />
     <ClInclude Include="src\core\Mesh.h" />
     <ClInclude Include="src\core\Random.h" />

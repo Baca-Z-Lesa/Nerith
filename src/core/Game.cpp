@@ -167,7 +167,10 @@ void Game::createWindow(bool fullscreen)
     }
 
     m_fullscreen = fullscreen;
-    m_window.setFramerateLimit(config::FramerateLimit);
+    // No limiter: the pacer at the top of the loop does this, and it does it
+    // where the spare time is still worth something.
+    m_window.setFramerateLimit(0);
+    m_window.setVerticalSyncEnabled(m_save.vsync);
     applyLetterboxView();
 }
 
@@ -235,7 +238,13 @@ void Game::updateCamera(float deltaTime)
     // Exponential, written the way an exponential actually is. min(1, k * dt)
     // is only the same curve while dt is small, and it is what made the camera
     // follow at a different rate on a different machine.
-    const float blend = 1.0f - std::exp(-config::CameraLerp * deltaTime);
+    // How hard the view follows is the player's call: a loose camera reads
+    // as weight to some people and as the sub not answering to others.
+    const float follow = config::CameraLerpLoose
+                         + (config::CameraLerpTight - config::CameraLerpLoose)
+                               * static_cast<float>(m_save.cameraTight) / 10.0f;
+
+    const float blend = 1.0f - std::exp(-follow * deltaTime);
     m_cameraCentre += (target - m_cameraCentre) * blend;
 }
 
@@ -257,6 +266,12 @@ void Game::aimCamera(float alpha)
 
 void Game::addShake(float strength)
 {
+    // Scaled by what the player asked for before anything else. Turning the
+    // shake down should not also turn down the hit stop, the ring or the
+    // flash - it is one thing somebody cannot take, not the whole of the
+    // feedback.
+    strength *= static_cast<float>(m_save.shake) / 10.0f;
+
     // Takes the larger of the two rather than adding: a torpedo landing in a
     // swarm would otherwise stack into a screen nobody can read.
     m_shake = std::min(config::ShakeMax, std::max(m_shake, strength));
@@ -277,6 +292,8 @@ void Game::addSlowMotion(float seconds, float scale)
 
 void Game::addFlash(sf::Color colour, float strength)
 {
+    strength *= static_cast<float>(m_save.flashes) / 10.0f;
+
     m_flash = std::max(m_flash, std::clamp(strength, 0.0f, 1.0f));
     m_flashColour = colour;
 }
@@ -814,6 +831,7 @@ void Game::beginLevel(int number)
     // and not a minute longer: the pressure is meant to be inside a level.
     m_player.repairHull();
     m_hullLost = 0;
+    m_haveWound = false;
 
     m_harpoon.reset();
     m_harpoonPull = 0.0f;
@@ -1001,6 +1019,19 @@ void Game::onPlayerDied()
     // yours. What is taken away is the hold - everything this dive earned and
     // did not surface with. That is what makes the last two minutes of a level
     // a decision rather than a formality.
+    // Whatever it was, the player has certainly met it now. Dying to
+    // something is the most memorable way there is of being introduced, so it
+    // goes in the logbook the same as a kill would.
+    if (m_haveWound && m_lastWound.creature)
+    {
+        const std::size_t index = static_cast<std::size_t>(*m_lastWound.creature);
+
+        if (m_save.killed.size() <= index)
+            m_save.killed.resize(EnemyTypeCount, 0);
+
+        m_save.killed[index] = std::max(1, m_save.killed[index]);
+    }
+
     m_lostSalvage = m_diveSalvage;
     m_diveSalvage = 0;
 
@@ -1101,6 +1132,13 @@ void Game::activateMenuChoice()
         case MainMenu::Choice::Options:
             m_optionRow = 0;
             m_state = State::Options;
+
+            // Onto the first thing that can actually be changed: row zero is a
+            // heading, and a list that opens with nothing selected reads as
+            // a list that cannot be used.
+            m_optionRow = firstOptionRow();
+            m_optionScroll = 0;
+            m_rebinding = -1;
             break;
 
         case MainMenu::Choice::Credits:
@@ -1133,70 +1171,16 @@ void Game::applySettings()
     m_audio.setMusicVolume(static_cast<float>(m_save.musicVolume) / 10.0f);
     m_audio.setMuted(m_save.muted);
     m_level.setDifficulty(m_save.difficulty);
+
+    // Pacing. Vsync and the cap are two answers to the same question and the
+    // window will happily do both, which is how a machine ends up waiting
+    // twice for one frame - so it is one or the other.
+    m_window.setVerticalSyncEnabled(m_save.vsync);
+    m_frameBudget = (m_save.vsync || m_save.frameCap <= 0)
+                        ? 0.0f
+                        : 1.0f / static_cast<float>(m_save.frameCap);
 }
 
-void Game::handleOptionsKey(sf::Keyboard::Scancode key)
-{
-    constexpr int RowCount = 5;
-
-    const auto step = [&](int delta) {
-        switch (m_optionRow)
-        {
-            case 0:
-                m_save.difficulty = std::clamp(m_save.difficulty + delta, 0,
-                                               static_cast<int>(config::Difficulties.size()) - 1);
-                break;
-            case 1: m_save.sfxVolume = std::clamp(m_save.sfxVolume + delta, 0, 10); break;
-            case 2: m_save.musicVolume = std::clamp(m_save.musicVolume + delta, 0, 10); break;
-            case 3:
-                m_save.muted = delta > 0;
-                break;
-            case 4:
-                if ((delta > 0) != m_fullscreen)
-                {
-                    toggleFullscreen();
-                    m_save.fullscreen = m_fullscreen;
-                }
-                break;
-            default: break;
-        }
-
-        applySettings();
-        m_save.save();
-    };
-
-    switch (key)
-    {
-        case sf::Keyboard::Scancode::Up:
-        case sf::Keyboard::Scancode::W:
-            m_optionRow = (m_optionRow + RowCount - 1) % RowCount;
-            break;
-
-        case sf::Keyboard::Scancode::Down:
-        case sf::Keyboard::Scancode::S:
-            m_optionRow = (m_optionRow + 1) % RowCount;
-            break;
-
-        case sf::Keyboard::Scancode::Left:
-        case sf::Keyboard::Scancode::A:
-            step(-1);
-            break;
-
-        case sf::Keyboard::Scancode::Right:
-        case sf::Keyboard::Scancode::D:
-        case sf::Keyboard::Scancode::Enter:
-        case sf::Keyboard::Scancode::Space:
-            step(1);
-            break;
-
-        case sf::Keyboard::Scancode::Escape:
-            openMenu();
-            break;
-
-        default:
-            break;
-    }
-}
 
 void Game::applyUpgrades()
 {
@@ -1406,38 +1390,92 @@ void Game::processEvents()
             if (keyPressed->scancode != sf::Keyboard::Scancode::R)
                 m_respecArmed = false;
 
+            // The bound actions before the fixed ones, so that rebinding a key
+            // reaches everything the player can actually press during a dive.
+            // Escape always backs out whatever pause happens to be bound to:
+            // a player who has moved pause onto some other key has not asked
+            // to be trapped in a menu.
+            const sf::Keyboard::Scancode pressed = keyPressed->scancode;
+
+            if (pressed == keyFor(Action::Pause) || pressed == sf::Keyboard::Scancode::Escape
+                || pressed == sf::Keyboard::Scancode::P)
+            {
+                // Backs out one layer at a time. A fight in progress pauses
+                // rather than being abandoned: walking out of a dive has to
+                // be a deliberate second keypress, not a mistyped escape.
+                if (m_showUpgrades)
+                    m_showUpgrades = false;
+                else if (m_state == State::Fighting || m_state == State::LevelIntro)
+                    m_paused = !m_paused;
+                else
+                    openMenu();
+
+                continue;
+            }
+
+            if (pressed == keyFor(Action::Surface))
+            {
+                // Surfacing on purpose. It is the only way to keep what a dive
+                // has earned without finishing it, which is what turns a bad
+                // run into a decision instead of a write-off.
+                if (m_paused)
+                {
+                    bankSalvage();
+                    m_paused = false;
+                    m_state = State::Upgrading;
+                    m_showUpgrades = false;
+                    m_upgradeScreen.clearCursor();
+                    m_upgradeScreen.recentre();
+                    m_save.selectedLevel = m_level.getNumber();
+                    persist();
+                }
+
+                continue;
+            }
+
+            if (pressed == keyFor(Action::Lamp))
+            {
+                // Kill the lamp. Nearly blind, but so is everything else.
+                if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
+                    queue(Command::Lamp);
+
+                continue;
+            }
+
+            if (pressed == keyFor(Action::FireMode))
+            {
+                // Round the fitted guns. Nothing happens when only the jet is
+                // fitted, which is most of the campaign.
+                if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
+                    queue(Command::FireMode);
+
+                continue;
+            }
+
+            if (pressed == keyFor(Action::Dash) || pressed == sf::Keyboard::Scancode::RShift)
+            {
+                if (m_state == State::Fighting && !m_showUpgrades)
+                    queue(Command::Dash);
+
+                continue;
+            }
+
+            if (pressed == keyFor(Action::Upgrades))
+            {
+                // Between levels the tree is the screen, so there is nothing to
+                // toggle; after a death there is nothing left to spend.
+                if (m_state != State::Upgrading && m_state != State::GameOver)
+                {
+                    m_showUpgrades = !m_showUpgrades;
+                    m_upgradeScreen.clearCursor();
+                    m_upgradeScreen.recentre();
+                }
+
+                continue;
+            }
+
             switch (keyPressed->scancode)
             {
-                case sf::Keyboard::Scancode::Escape:
-                case sf::Keyboard::Scancode::P:
-                    // Backs out one layer at a time. A fight in progress pauses
-                    // rather than being abandoned: walking out of a dive has to
-                    // be a deliberate second keypress, not a mistyped escape.
-                    if (m_showUpgrades)
-                        m_showUpgrades = false;
-                    else if (m_state == State::Fighting || m_state == State::LevelIntro)
-                        m_paused = !m_paused;
-                    else
-                        openMenu();
-                    break;
-
-                case sf::Keyboard::Scancode::Q:
-                    // Surfacing on purpose. It is the only way to keep what a
-                    // dive has earned without finishing it, which is what turns
-                    // a bad run into a decision instead of a write-off.
-                    if (m_paused)
-                    {
-                        bankSalvage();
-                        m_paused = false;
-                        m_state = State::Upgrading;
-                        m_showUpgrades = false;
-                        m_upgradeScreen.clearCursor();
-                        m_upgradeScreen.recentre();
-                        m_save.selectedLevel = m_level.getNumber();
-                        persist();
-                    }
-                    break;
-
                 case sf::Keyboard::Scancode::Equal:
                 case sf::Keyboard::Scancode::NumpadPlus:
                     if (upgradesVisible())
@@ -1453,36 +1491,6 @@ void Game::processEvents()
                 case sf::Keyboard::Scancode::R:
                     if (m_state == State::Upgrading)
                         stripHull();
-                    break;
-
-                case sf::Keyboard::Scancode::F:
-                    // Kill the lamp. Nearly blind, but so is everything else.
-                    if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
-                        queue(Command::Lamp);
-                    break;
-
-                case sf::Keyboard::Scancode::E:
-                    // Round the fitted guns. Nothing happens when only the jet
-                    // is fitted, which is most of the campaign.
-                    if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
-                        queue(Command::FireMode);
-                    break;
-
-                case sf::Keyboard::Scancode::Tab:
-                    // Between levels the tree is the screen, so there is nothing
-                    // to toggle; after a death there is nothing left to spend.
-                    if (m_state != State::Upgrading && m_state != State::GameOver)
-                    {
-                        m_showUpgrades = !m_showUpgrades;
-                        m_upgradeScreen.clearCursor();
-                m_upgradeScreen.recentre();
-                    }
-                    break;
-
-                case sf::Keyboard::Scancode::LShift:
-                case sf::Keyboard::Scancode::RShift:
-                    if (m_state == State::Fighting && !m_showUpgrades)
-                        queue(Command::Dash);
                     break;
 
                 case sf::Keyboard::Scancode::Left:
@@ -3822,17 +3830,19 @@ void Game::sampleInput()
         return;
     }
 
-    // Scancodes describe the physical key position, so WASD stays in the same
-    // place regardless of the user's keyboard layout (QWERTY, QWERTZ, AZERTY).
+    // Through the bindings rather than straight at a scancode. The scancode
+    // already handles layout - W is wherever W physically sits on a QWERTZ
+    // board - but it cannot handle preference, and "I want to swim with the
+    // arrows" is not an unreasonable thing to want.
     sf::Vector2f move{ 0.0f, 0.0f };
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::W))
+    if (isHeld(Action::Up))
         move.y -= 1.0f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::S))
+    if (isHeld(Action::Down))
         move.y += 1.0f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::A))
+    if (isHeld(Action::Left))
         move.x -= 1.0f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::D))
+    if (isHeld(Action::Right))
         move.x += 1.0f;
 
     // Normalise so diagonals are not ~41% faster than straight lines.
@@ -3860,13 +3870,13 @@ float Game::simTimeScale() const
 
 void Game::pace()
 {
-    if (config::FramerateLimit == 0u)
+    if (m_frameBudget <= 0.0f)
     {
         m_pacer.restart();
         return;
     }
 
-    const sf::Time budget = sf::seconds(1.0f / static_cast<float>(config::FramerateLimit));
+    const sf::Time budget = sf::seconds(m_frameBudget);
     const sf::Time spin = sf::seconds(config::FrameSpinWindow);
     const sf::Time left = budget - m_pacer.getElapsedTime();
 
@@ -4272,6 +4282,72 @@ void Game::drawMinimap()
     m_window.draw(m_sonarMark);
 }
 
+void Game::drawKillerCard()
+{
+    // A death that only says you died teaches nothing. This says what did it,
+    // what it is, and what it does about you - which is the same two lines the
+    // logbook would have shown if the player had ever had a quiet moment to go
+    // and look them up. Dying is the moment they most want to know.
+    if (!m_haveWound)
+        return;
+
+    const float alpha = bannerAlpha(m_stateTimer, config::DeathBannerDuration);
+    if (alpha <= 0.01f)
+        return;
+
+    const auto fade = [alpha](sf::Color colour) {
+        colour.a = static_cast<std::uint8_t>(static_cast<float>(colour.a) * alpha);
+        return colour;
+    };
+
+    std::string name;
+    std::string what;
+    std::string how;
+
+    if (m_lastWound.creature)
+    {
+        const bestiary::Entry& entry = bestiary::entryFor(*m_lastWound.creature);
+        name = entry.name;
+        what = entry.what;
+        how = entry.how;
+    }
+    else if (m_lastWound.boss && m_boss)
+    {
+        name = m_boss->getName();
+        what = m_boss->getBrief();
+        how = "IT WAS NEVER GOING TO BE A FAIR FIGHT.";
+    }
+    else
+    {
+        // A vent, the pressure, something that is not an animal at all.
+        name = "THE TRENCH";
+        what = "NOTHING KILLED YOU. THE WATER DID.";
+        how = "IT IS NOT HUNTING. IT IS SIMPLY DEEPER THAN YOU.";
+    }
+
+    const float centre = static_cast<float>(config::WindowWidth) / 2.0f;
+    float y = config::DeathCardTop;
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+
+    const auto centred = [&](const std::string& line, float scale, sf::Color colour) {
+        pixelfont::append(text, line,
+                          { centre - pixelfont::measure(line, scale) / 2.0f, y },
+                          scale, fade(colour));
+        y += 13.0f * scale;
+    };
+
+    centred("KILLED BY", 1.4f, config::HudDimTextColor);
+    y += 6.0f;
+    centred(name, 2.6f, config::HudBossColor);
+    y += 10.0f;
+    centred(what, 1.5f, config::HudTextColor);
+    y += 4.0f;
+    centred(how, 1.5f, config::HudDimTextColor);
+
+    m_window.draw(text);
+}
+
 void Game::drawPauseOverlay()
 {
     // Its own veil rather than the death overlay: pausing is not dying, and a
@@ -4393,14 +4469,106 @@ void Game::drawControls()
     m_window.draw(text);
 }
 
-void Game::drawOptions()
-{
-    m_deathOverlay.setFillColor(config::PauseVeil);
-    m_window.draw(m_deathOverlay);
-    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+// ---------------------------------------------------------------------------
+//  Settings
+//
+//  One table, walked by both the drawing and the keys. It used to be a five
+//  entry string array next to a five case switch with the count written out
+//  as a constant in a third place, which is three things to keep in step every
+//  time a setting is added - and settings are exactly the sort of thing that
+//  gets added one at a time forever.
+// ---------------------------------------------------------------------------
 
-    sf::VertexArray text(sf::PrimitiveType::Triangles);
-    appendHeading(text, "OPTIONS", "ARROWS CHANGE.  ESCAPE GOES BACK.");
+namespace
+{
+    enum class Opt
+    {
+        Header,
+        Difficulty,
+        Sfx,
+        Music,
+        Muted,
+        Fullscreen,
+        VSync,
+        FrameCap,
+        Brightness,
+        Shake,
+        Flashes,
+        Camera,
+        Bind,       // one key, named by the row's action
+        Defaults,
+    };
+
+    struct OptionRow
+    {
+        const char* label;
+        Opt         kind;
+        Action      action = Action::Count; // Bind rows only
+    };
+
+    // Sections rather than pages: a list that scrolls is one idea, and a list
+    // with tabs is two. The rows the player is looking for are the ones near
+    // the top of their own heading.
+    const OptionRow OptionRows[] = {
+        { "GAMEPLAY",     Opt::Header },
+        { "DIFFICULTY",   Opt::Difficulty },
+        { "CAMERA",       Opt::Camera },
+
+        { "SOUND",        Opt::Header },
+        { "EFFECTS",      Opt::Sfx },
+        { "THE DRONE",    Opt::Music },
+        { "MUTE",         Opt::Muted },
+
+        { "PICTURE",      Opt::Header },
+        { "FULLSCREEN",   Opt::Fullscreen },
+        { "VSYNC",        Opt::VSync },
+        { "FRAME CAP",    Opt::FrameCap },
+        { "BRIGHTNESS",   Opt::Brightness },
+
+        { "COMFORT",      Opt::Header },
+        { "SCREEN SHAKE", Opt::Shake },
+        { "FLASHES",      Opt::Flashes },
+
+        { "CONTROLS",     Opt::Header },
+        { "SWIM UP",      Opt::Bind, Action::Up },
+        { "SWIM DOWN",    Opt::Bind, Action::Down },
+        { "SWIM LEFT",    Opt::Bind, Action::Left },
+        { "SWIM RIGHT",   Opt::Bind, Action::Right },
+        { "DASH",         Opt::Bind, Action::Dash },
+        { "LAMP",         Opt::Bind, Action::Lamp },
+        { "CYCLE GUN",    Opt::Bind, Action::FireMode },
+        { "SURFACE",      Opt::Bind, Action::Surface },
+        { "PAUSE",        Opt::Bind, Action::Pause },
+        { "UPGRADES",     Opt::Bind, Action::Upgrades },
+
+        { "",             Opt::Header },
+        { "BACK TO DEFAULTS", Opt::Defaults },
+    };
+
+    constexpr int OptionRowCount = static_cast<int>(std::size(OptionRows));
+
+    // How many rows fit between the heading and the hint at the bottom.
+    constexpr int OptionWindow = 11;
+
+    // Frame caps worth offering. Zero is uncapped, which is genuinely what
+    // somebody with a 240 Hz panel and a fast machine wants.
+    constexpr int FrameCaps[] = { 30, 60, 75, 90, 120, 144, 165, 240, 0 };
+}
+
+int Game::firstOptionRow() const
+{
+    for (int i = 0; i < OptionRowCount; ++i)
+    {
+        if (OptionRows[static_cast<std::size_t>(i)].kind != Opt::Header)
+            return i;
+    }
+
+    return 0;
+}
+
+std::string Game::optionValue(int row) const
+{
+    const OptionRow& option = OptionRows[static_cast<std::size_t>(row)];
 
     // A bar of ten blocks reads as a level at a glance without needing a
     // slider widget or a number nobody can picture.
@@ -4411,37 +4579,316 @@ void Game::drawOptions()
         return bar;
     };
 
-    const std::string rows[5][2] = {
-        { "DIFFICULTY", difficulty().name },
-        { "EFFECTS",    meter(m_save.sfxVolume) },
-        { "THE DRONE",  meter(m_save.musicVolume) },
-        { "MUTE",       m_save.muted ? "YES" : "NO" },
-        { "FULLSCREEN", m_fullscreen ? "YES" : "NO" },
-    };
+    switch (option.kind)
+    {
+        case Opt::Difficulty: return difficulty().name;
+        case Opt::Sfx:        return meter(m_save.sfxVolume);
+        case Opt::Music:      return meter(m_save.musicVolume);
+        case Opt::Muted:      return m_save.muted ? "YES" : "NO";
+        case Opt::Fullscreen: return m_fullscreen ? "YES" : "NO";
+        case Opt::VSync:      return m_save.vsync ? "ON" : "OFF";
+        case Opt::FrameCap:   return m_save.frameCap == 0
+                                         ? std::string("UNCAPPED")
+                                         : std::to_string(m_save.frameCap);
+        case Opt::Brightness: return meter(m_save.brightness);
+        case Opt::Shake:      return meter(m_save.shake);
+        case Opt::Flashes:    return meter(m_save.flashes);
+        case Opt::Camera:     return meter(m_save.cameraTight);
+        case Opt::Defaults:   return "ENTER";
+
+        case Opt::Bind:
+        {
+            if (m_rebinding == row)
+                return "PRESS A KEY";
+
+            const sf::Keyboard::Scancode key = keyFor(option.action);
+            const char* name = keyName(key);
+
+            return name != nullptr ? std::string(name)
+                                   : std::to_string(static_cast<int>(key));
+        }
+
+        case Opt::Header: break;
+    }
+
+    return {};
+}
+
+void Game::stepOption(int row, int delta)
+{
+    const OptionRow& option = OptionRows[static_cast<std::size_t>(row)];
+
+    const auto bump = [delta](int value) { return std::clamp(value + delta, 0, 10); };
+
+    switch (option.kind)
+    {
+        case Opt::Difficulty:
+            m_save.difficulty = std::clamp(m_save.difficulty + delta, 0,
+                                           static_cast<int>(config::Difficulties.size()) - 1);
+            break;
+
+        case Opt::Sfx:        m_save.sfxVolume = bump(m_save.sfxVolume); break;
+        case Opt::Music:      m_save.musicVolume = bump(m_save.musicVolume); break;
+        case Opt::Brightness: m_save.brightness = bump(m_save.brightness); break;
+        case Opt::Shake:      m_save.shake = bump(m_save.shake); break;
+        case Opt::Flashes:    m_save.flashes = bump(m_save.flashes); break;
+        case Opt::Camera:     m_save.cameraTight = bump(m_save.cameraTight); break;
+
+        case Opt::Muted: m_save.muted = delta > 0; break;
+        case Opt::VSync: m_save.vsync = delta > 0; break;
+
+        case Opt::Fullscreen:
+            if ((delta > 0) != m_fullscreen)
+            {
+                toggleFullscreen();
+                m_save.fullscreen = m_fullscreen;
+            }
+            break;
+
+        case Opt::FrameCap:
+        {
+            constexpr int count = static_cast<int>(std::size(FrameCaps));
+
+            int index = 0;
+            for (int i = 0; i < count; ++i)
+            {
+                if (FrameCaps[i] == m_save.frameCap)
+                    index = i;
+            }
+
+            m_save.frameCap = FrameCaps[std::clamp(index + delta, 0, count - 1)];
+            break;
+        }
+
+        case Opt::Bind:
+            // Left and right do nothing to a binding. Enter arms it, because a
+            // key is not on a scale and nudging one would be nonsense.
+            break;
+
+        case Opt::Defaults:
+        case Opt::Header:
+            break;
+    }
+
+    applySettings();
+    m_save.save();
+}
+
+void Game::pickOption(int row)
+{
+    const OptionRow& option = OptionRows[static_cast<std::size_t>(row)];
+
+    if (option.kind == Opt::Bind)
+    {
+        m_rebinding = row;
+        m_audio.play(Sfx::Charge, 0.4f);
+        return;
+    }
+
+    if (option.kind == Opt::Defaults)
+    {
+        // Settings only. Progress, the tree and the logbook are not settings
+        // and are not what anybody means by this button.
+        const SaveGame fresh;
+
+        m_save.difficulty = fresh.difficulty;
+        m_save.sfxVolume = fresh.sfxVolume;
+        m_save.musicVolume = fresh.musicVolume;
+        m_save.muted = fresh.muted;
+        m_save.vsync = fresh.vsync;
+        m_save.frameCap = fresh.frameCap;
+        m_save.brightness = fresh.brightness;
+        m_save.shake = fresh.shake;
+        m_save.flashes = fresh.flashes;
+        m_save.cameraTight = fresh.cameraTight;
+        m_save.keys.clear();
+
+        if (m_fullscreen != fresh.fullscreen)
+        {
+            toggleFullscreen();
+            m_save.fullscreen = m_fullscreen;
+        }
+
+        applySettings();
+        m_save.save();
+        m_audio.play(Sfx::PartBreak, 0.6f);
+        return;
+    }
+
+    // Everything else: enter nudges it forward, so the list can be driven
+    // without ever reaching for the arrow keys.
+    stepOption(row, 1);
+}
+
+sf::Keyboard::Scancode Game::keyFor(Action action) const
+{
+    const std::size_t index = static_cast<std::size_t>(action);
+
+    if (index < m_save.keys.size())
+        return static_cast<sf::Keyboard::Scancode>(m_save.keys[index]);
+
+    return DefaultKeys[index];
+}
+
+bool Game::isHeld(Action action) const
+{
+    return m_input.focused && sf::Keyboard::isKeyPressed(keyFor(action));
+}
+
+void Game::bindKey(int row, sf::Keyboard::Scancode key)
+{
+    const OptionRow& option = OptionRows[static_cast<std::size_t>(row)];
+    if (option.kind != Opt::Bind)
+        return;
+
+    if (m_save.keys.size() < ActionCount)
+    {
+        // First rebind: start from whatever the defaults were, so the other
+        // ten actions do not silently become unbound.
+        m_save.keys.resize(ActionCount);
+        for (std::size_t i = 0; i < ActionCount; ++i)
+            m_save.keys[i] = static_cast<int>(DefaultKeys[i]);
+    }
+
+    // A key can only do one thing. Whatever had it loses it - unless losing it
+    // would leave the sub unable to swim, in which case the two swap.
+    const std::size_t wanted = static_cast<std::size_t>(option.action);
+
+    for (std::size_t i = 0; i < ActionCount; ++i)
+    {
+        if (i == wanted || m_save.keys[i] != static_cast<int>(key))
+            continue;
+
+        m_save.keys[i] = isEssential(static_cast<Action>(i))
+                             ? m_save.keys[wanted]
+                             : static_cast<int>(sf::Keyboard::Scancode::Unknown);
+    }
+
+    m_save.keys[wanted] = static_cast<int>(key);
+
+    m_rebinding = -1;
+    m_save.save();
+    m_audio.play(Sfx::Impact, 0.4f);
+}
+
+void Game::drawOptions()
+{
+    m_deathOverlay.setFillColor(config::PauseVeil);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    appendHeading(text, "OPTIONS",
+                  m_rebinding >= 0 ? "PRESS A KEY.  ESCAPE CANCELS."
+                                   : "ARROWS CHANGE.  ENTER PICKS.  ESCAPE GOES BACK.");
 
     const float labelX = static_cast<float>(config::WindowWidth) / 2.0f - 260.0f;
-    const float valueX = labelX + 300.0f;
+    const float valueX = labelX + 320.0f;
 
-    float y = 220.0f;
-    for (int i = 0; i < 5; ++i)
+    float y = 200.0f;
+
+    for (int i = m_optionScroll; i < OptionRowCount && i < m_optionScroll + OptionWindow; ++i)
     {
+        const OptionRow& option = OptionRows[static_cast<std::size_t>(i)];
+
+        if (option.kind == Opt::Header)
+        {
+            if (option.label[0] != '\0')
+            {
+                pixelfont::append(text, option.label, { labelX - 18.0f, y + 6.0f }, 1.5f,
+                                  config::HudSalvageColor);
+            }
+
+            y += 34.0f;
+            continue;
+        }
+
         const bool picked = i == m_optionRow;
 
-        appendRow(text, (picked ? "> " : "  ") + rows[i][0], rows[i][1], y, 2.0f,
+        appendRow(text, (picked ? "> " : "  ") + std::string(option.label), optionValue(i),
+                  y, 2.0f,
                   picked ? config::HudTextColor : config::HudDimTextColor,
                   picked ? config::HudSalvageColor : config::HudDimTextColor,
                   labelX, valueX);
-        y += 46.0f;
+
+        y += 34.0f;
     }
 
-    // The difficulty's own sentence, under the rows, because the name alone
-    // does not say what it actually does.
-    const std::string note = difficulty().note;
-    pixelfont::append(text, note,
-                      { (config::WindowWidth - pixelfont::measure(note, 1.6f)) / 2.0f, 490.0f },
-                      1.6f, config::HudDimTextColor);
+    // A hint that there is more, because a list that scrolls silently reads as
+    // a list that ends.
+    if (m_optionScroll + OptionWindow < OptionRowCount)
+    {
+        pixelfont::append(text, "...", { labelX, y + 4.0f }, 1.6f, config::HudDimTextColor);
+    }
 
     m_window.draw(text);
+}
+
+void Game::handleOptionsKey(sf::Keyboard::Scancode key)
+{
+    // Armed and waiting for a key: everything except escape is the answer.
+    if (m_rebinding >= 0)
+    {
+        if (key == sf::Keyboard::Scancode::Escape)
+            m_rebinding = -1;
+        else
+            bindKey(m_rebinding, key);
+
+        return;
+    }
+
+    const auto move = [&](int delta) {
+        // Headings are labels, not choices, so the cursor steps over them.
+        for (int i = 0; i < OptionRowCount; ++i)
+        {
+            m_optionRow = (m_optionRow + delta + OptionRowCount) % OptionRowCount;
+
+            if (OptionRows[static_cast<std::size_t>(m_optionRow)].kind != Opt::Header)
+                break;
+        }
+
+        // Keep the cursor inside the window, and keep its heading above it
+        // wherever there is room.
+        m_optionScroll = std::clamp(m_optionScroll, m_optionRow - OptionWindow + 2,
+                                    std::max(0, m_optionRow - 1));
+        m_optionScroll = std::clamp(m_optionScroll, 0,
+                                    std::max(0, OptionRowCount - OptionWindow));
+    };
+
+    switch (key)
+    {
+        case sf::Keyboard::Scancode::Up:
+        case sf::Keyboard::Scancode::W:
+            move(-1);
+            break;
+
+        case sf::Keyboard::Scancode::Down:
+        case sf::Keyboard::Scancode::S:
+            move(1);
+            break;
+
+        case sf::Keyboard::Scancode::Left:
+        case sf::Keyboard::Scancode::A:
+            stepOption(m_optionRow, -1);
+            break;
+
+        case sf::Keyboard::Scancode::Right:
+        case sf::Keyboard::Scancode::D:
+            stepOption(m_optionRow, 1);
+            break;
+
+        case sf::Keyboard::Scancode::Enter:
+        case sf::Keyboard::Scancode::Space:
+            pickOption(m_optionRow);
+            break;
+
+        case sf::Keyboard::Scancode::Escape:
+            openMenu();
+            break;
+
+        default:
+            break;
+    }
 }
 
 void Game::drawVictory()
@@ -5239,11 +5686,38 @@ void Game::render(float alpha)
                              cost,
                              config::HudBossColor,
                              bannerAlpha(m_stateTimer, config::DeathBannerDuration));
+
+            drawKillerCard();
         }
     }
 
     if (m_paused)
         drawPauseOverlay();
 
+    drawBrightness();
     m_window.display();
+}
+
+void Game::drawBrightness()
+{
+    // The game is very dark on purpose, and on somebody else's monitor that
+    // can be the difference between atmospheric and unplayable. A wash over
+    // the finished frame rather than a change to the art: lifting it lifts
+    // everything together, so nothing that was meant to be readable against
+    // something else stops being.
+    if (m_save.brightness == 5)
+        return;
+
+    const float amount = (static_cast<float>(m_save.brightness) - 5.0f) / 5.0f;
+
+    m_deathOverlay.setFillColor(
+        amount > 0.0f
+            ? sf::Color(255, 255, 255,
+                        static_cast<std::uint8_t>(amount * config::BrightnessLift))
+            : sf::Color(0, 0, 0,
+                        static_cast<std::uint8_t>(-amount * config::BrightnessDrop)));
+
+    m_window.setView(m_ui);
+    m_window.draw(m_deathOverlay);
+    m_deathOverlay.setFillColor(config::DeathOverlayColor);
 }

@@ -3,6 +3,7 @@
 #include "audio/AudioSystem.h"
 #include "core/Assets.h"
 #include "core/Config.h"
+#include "core/Controls.h"
 #include "core/SaveGame.h"
 #include "effects/ParticleSystem.h"
 #include "entities/Boss.h"
@@ -382,7 +383,15 @@ private:
     // is, and in one go at the sonar range whenever a ping goes out.
     void revealMap(sf::Vector2f centre, float radius);
     bool mapSeen(sf::Vector2f at) const;
+    // What finished the dive, said plainly. A death that only reports that
+    // you died teaches nothing, and the moment the player most wants to know
+    // what that thing was is the moment it has just killed them.
+    void drawKillerCard();
     void drawPauseOverlay();
+
+    // A wash over the finished frame, so a dark monitor is a setting rather
+    // than a reason not to play.
+    void drawBrightness();
 
     // The three flat screens hanging off the title: what the controls are, what
     // can be turned, and who to blame. None of them owns any state beyond a row
@@ -394,6 +403,20 @@ private:
     void drawCredits();
 
     void handleOptionsKey(sf::Keyboard::Scancode key);
+
+    // The settings list, walked by both the drawing and the keys so there is
+    // only ever one place that knows what a setting is.
+    int         firstOptionRow() const;
+    std::string optionValue(int row) const;
+    void        stepOption(int row, int delta);
+    void        pickOption(int row);
+    void        bindKey(int row, sf::Keyboard::Scancode key);
+
+    // What an action is bound to, and whether it is down. Everything that
+    // reads the keyboard during a dive goes through these, so a rebind is one
+    // number in one place rather than a search for scancodes.
+    sf::Keyboard::Scancode keyFor(Action action) const;
+    bool                   isHeld(Action action) const;
     void applySettings();
 
     const config::DifficultyDef& difficulty() const;
@@ -430,6 +453,10 @@ private:
     sf::Vector2f     m_cameraCentre;
     sf::Clock        m_clock;
     sf::Clock        m_pacer;
+
+    // How long a frame is allowed to take, in seconds. Zero means the pacer
+    // stands aside, which is what vsync and an uncapped setting both want.
+    float            m_frameBudget = 1.0f / 144.0f;
 
     // What is left over from the last frame, waiting for a whole step to fit
     // in it. Divided by the step, it is also how far between two steps the
@@ -568,6 +595,8 @@ private:
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
 
     int   m_optionRow;    // which line of the options screen is selected
+    int   m_optionScroll = 0;
+    int   m_rebinding = -1; // which row is waiting for a key, -1 for none
     int   m_beastRow;     // which animal the logbook is open at
     float m_creditsScroll;
     bool  m_justBeatCampaign; // the clear that ends the campaign, seen once
