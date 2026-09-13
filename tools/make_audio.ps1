@@ -508,6 +508,43 @@ public static class Synth
         return b;
     }
 
+    // Up when something is out there that you have not seen. Nothing with a
+    // pitch you could name: a breath in and a breath out, far too slow to be
+    // yours, and a single high partial that wanders a little every cycle so
+    // the ear keeps checking whether it is still there. It has to be the one
+    // layer you notice without being able to say what changed.
+    public static float[] MusicStalk(float seconds)
+    {
+        int n = Count(seconds);
+        float[] b = new float[n];
+
+        float[] breath = new float[n];
+        for (int i = 0; i < n; i++) breath[i] = Noise();
+        LowPass(breath, 240f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+
+            // One slow cycle over the whole loop, so it never lines up with
+            // the bed's own swell and the two drift against each other.
+            float lungs = 0.5f - 0.5f * (float)Math.Cos(2 * Math.PI * t / seconds);
+            float draw = lungs * lungs; // heavier on the way in than on the way out
+
+            // The partial that wanders. High enough to sit above everything
+            // else in the score and quiet enough to be deniable.
+            float wander = 1f + 0.06f * (float)Math.Sin(2 * Math.PI * 0.037 * t);
+            float thread = (float)Math.Sin(2 * Math.PI * Root * 12.0 * t * wander);
+
+            b[i] = (breath[i] * 0.55f * draw
+                    + thread * 0.045f * (0.3f + 0.7f * draw)
+                    + (float)Math.Sin(2 * Math.PI * Root * 0.75 * t) * 0.20f * draw) * 0.5f;
+        }
+
+        Loop(b, seconds);
+        return b;
+    }
+
     // A creature changing its mind. Not a roar: a rising tone that stops dead,
     // because what has to land is the moment the fight turns, and a rise that
     // resolves reads as an ending rather than a beginning.
@@ -679,7 +716,8 @@ $jobs = @(
     @("siren.wav",           [Synth]::Siren()),
     @("music_bed.wav",       [Synth]::MusicBed(16.0)),
     @("music_pulse.wav",     [Synth]::MusicPulse(16.0)),
-    @("music_dread.wav",     [Synth]::MusicDread(16.0))
+    @("music_dread.wav",     [Synth]::MusicDread(16.0)),
+    @("music_stalk.wav",     [Synth]::MusicStalk(16.0))
 )
 
 foreach ($job in $jobs) {

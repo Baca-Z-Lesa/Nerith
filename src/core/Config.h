@@ -24,7 +24,33 @@ namespace config
     // (window dragged, breakpoint hit) would teleport everything on resume.
     inline constexpr float MaxDeltaTime = 0.05f;
 
+    // --- Time ---
+    // The fight runs on a fixed step, so what the game does never depends on
+    // how fast the machine happens to be drawing it. Before this, the orbit
+    // shield ate one orb per FRAME, every cooldown threw away its remainder,
+    // and a creature that lost you wandered further on a slow machine than on
+    // a fast one - three different ways of saying the rules changed with the
+    // frame rate.
+    //
+    // A hundred and twenty a second rather than sixty: it halves how far a
+    // shot travels between collision checks, and it keeps the quantisation of
+    // a fire rate down where nobody can feel it.
+    inline constexpr float FixedDeltaTime = 1.0f / 120.0f;
+
+    // How many steps one frame may run before the rest of the backlog is
+    // thrown away. Without a cap, a machine that cannot keep up spends longer
+    // simulating each frame than the frame took, and falls further behind
+    // every time round - the spiral that ends in a locked window.
+    inline constexpr int MaxStepsPerFrame = 6;
+
+    // How long the pacer spins rather than sleeps at the end of a frame.
+    // sf::sleep rounds to whole milliseconds on Windows, so sleeping the whole
+    // way leaves a millisecond of jitter in a frame that is only seven - and
+    // that jitter is what reads as the picture not quite keeping still.
+    inline constexpr float FrameSpinWindow = 0.0012f;
+
     inline constexpr sf::Color BackgroundColor{ 2, 5, 9 };
+
 
     // --- Arena ---
     // The basin is far wider than the window, so the camera follows the sub and
@@ -175,7 +201,12 @@ namespace config
     // overshoot is wanted: rock in frame is what tells the player where the
     // wall is before they hit it.
     inline constexpr float CameraOvershoot = 0.55f;
-    inline constexpr float CameraLerp = 5.0f;       // how quickly it catches up
+    // How quickly the view catches up with the sub. At five it took about a
+    // fifth of a second to close most of the gap, which does not read as a
+    // camera following the sub - it reads as the sub not answering the keys.
+    // Fourteen still lags enough to sell the weight and stops lying about the
+    // controls.
+    inline constexpr float CameraLerp = 14.0f;
     inline constexpr float ArenaLightRadius = 340.0f;
     inline constexpr sf::Color ArenaLightColor{ 32, 78, 90 };
     inline constexpr std::size_t ArenaCausticBands = 7;

@@ -22,6 +22,11 @@ public:
 
     void update(sf::Vector2f position, sf::Angle heading, const Stats& stats, float deltaTime);
 
+    // Re-places the hardware for drawing, without advancing anything. The sub
+    // is drawn between two simulation steps, and its guns have to be in the
+    // same place as its hull.
+    void present(sf::Vector2f position, sf::Angle heading);
+
     // Split so the hull can be drawn between them: slung hardware underneath,
     // plating and guns on top.
     void drawUnder(sf::RenderTarget& target) const;

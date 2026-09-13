@@ -8,6 +8,7 @@
 
 #include <SFML/Graphics/View.hpp>
 #include <SFML/System/Angle.hpp>
+#include <SFML/System/Sleep.hpp>
 #include <SFML/Window/Event.hpp>
 #include <SFML/Window/Mouse.hpp>
 #include <SFML/Window/VideoMode.hpp>
@@ -231,16 +232,27 @@ void Game::updateCamera(float deltaTime)
     target.x = std::clamp(target.x, low.x + half.x, std::max(low.x + half.x, high.x - half.x));
     target.y = std::clamp(target.y, low.y + half.y, std::max(low.y + half.y, high.y - half.y));
 
-    const float blend = std::min(1.0f, config::CameraLerp * deltaTime);
+    // Exponential, written the way an exponential actually is. min(1, k * dt)
+    // is only the same curve while dt is small, and it is what made the camera
+    // follow at a different rate on a different machine.
+    const float blend = 1.0f - std::exp(-config::CameraLerp * deltaTime);
     m_cameraCentre += (target - m_cameraCentre) * blend;
+}
+
+void Game::aimCamera(float alpha)
+{
+    // The view sits between the last two steps, like everything else being
+    // drawn. Setting it here rather than in the step also means the cursor is
+    // mapped through the view the player was actually looking at when they
+    // put it there.
+    sf::Vector2f centre = m_prevCameraCentre + (m_cameraCentre - m_prevCameraCentre) * alpha;
 
     // The jolt is applied to the view rather than to m_cameraCentre, so it
     // never drags the follow target along with it and never fights the clamp.
-    sf::Vector2f jolt{ 0.0f, 0.0f };
     if (m_shake > 0.05f)
-        jolt = { rng::range(-m_shake, m_shake), rng::range(-m_shake, m_shake) };
+        centre += sf::Vector2f{ rng::range(-m_shake, m_shake), rng::range(-m_shake, m_shake) };
 
-    m_camera.setCenter(m_cameraCentre + jolt);
+    m_camera.setCenter(centre);
 }
 
 void Game::addShake(float strength)
@@ -1226,7 +1238,7 @@ void Game::processEvents()
                 handleUpgradeClick();
             else if (!upgradesVisible() && m_state == State::Fighting
                      && mousePressed->button == sf::Mouse::Button::Right)
-                fireTorpedo();
+                queue(Command::Torpedo);
         }
         else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
         {
@@ -1365,14 +1377,14 @@ void Game::processEvents()
                 case sf::Keyboard::Scancode::F:
                     // Kill the lamp. Nearly blind, but so is everything else.
                     if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
-                        toggleLamp();
+                        queue(Command::Lamp);
                     break;
 
                 case sf::Keyboard::Scancode::E:
                     // Round the fitted guns. Nothing happens when only the jet
                     // is fitted, which is most of the campaign.
                     if (m_state == State::Fighting && !m_showUpgrades && !m_paused)
-                        cycleFireMode();
+                        queue(Command::FireMode);
                     break;
 
                 case sf::Keyboard::Scancode::Tab:
@@ -1389,7 +1401,7 @@ void Game::processEvents()
                 case sf::Keyboard::Scancode::LShift:
                 case sf::Keyboard::Scancode::RShift:
                     if (m_state == State::Fighting && !m_showUpgrades)
-                        performDash();
+                        queue(Command::Dash);
                     break;
 
                 case sf::Keyboard::Scancode::Left:
@@ -1858,7 +1870,7 @@ void Game::fireTorpedo()
 
 void Game::performDash()
 {
-    if (!m_player.tryDash())
+    if (!m_player.tryDash(m_input.move))
         return;
 
     effects::thrusterBubbles(m_effects, m_player.getPosition(), -m_player.getAimDirection());
@@ -3584,17 +3596,132 @@ void Game::removeDeadEntities()
 //  Loop
 // ---------------------------------------------------------------------------
 
+bool Game::takeCommand(Command command)
+{
+    const unsigned int bit = static_cast<unsigned int>(command);
+    const bool held = (m_commands & bit) != 0u;
+    m_commands &= ~bit;
+    return held;
+}
+
+void Game::sampleInput()
+{
+    // Read once, as late as possible, and let every step of this frame use the
+    // same answer. Reading it per step would mean a fast machine polling the
+    // keyboard more often than a slow one, which is the frame rate leaking
+    // back into the rules by another door.
+    m_input.focused = m_window.hasFocus();
+
+    if (!m_input.focused)
+    {
+        // An unfocused window used to keep the sub swimming, because the
+        // movement keys were read straight from the operating system and never
+        // asked whether anyone was looking.
+        m_input.move = { 0.0f, 0.0f };
+        m_input.firing = false;
+        m_commands = 0;
+        return;
+    }
+
+    // Scancodes describe the physical key position, so WASD stays in the same
+    // place regardless of the user's keyboard layout (QWERTY, QWERTZ, AZERTY).
+    sf::Vector2f move{ 0.0f, 0.0f };
+
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::W))
+        move.y -= 1.0f;
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::S))
+        move.y += 1.0f;
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::A))
+        move.x -= 1.0f;
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::D))
+        move.x += 1.0f;
+
+    // Normalise so diagonals are not ~41% faster than straight lines.
+    m_input.move = move.lengthSquared() > 0.0f ? move.normalized() : move;
+
+    // Through the camera as it was last drawn, which is the one the player was
+    // actually looking at when they put the cursor there.
+    m_input.aimWorld = m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_camera);
+    m_input.firing = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+}
+
+float Game::simTimeScale() const
+{
+    if (m_state != State::Fighting)
+        return 1.0f;
+
+    // A few frames of held time after something heavy lands. The camera and
+    // the ambience carry on through it, so the pause reads as impact rather
+    // than as the game locking up.
+    if (m_hitStop > 0.0f)
+        return 0.0f;
+
+    return m_slowScale;
+}
+
+void Game::pace()
+{
+    if (config::FramerateLimit == 0u)
+    {
+        m_pacer.restart();
+        return;
+    }
+
+    const sf::Time budget = sf::seconds(1.0f / static_cast<float>(config::FramerateLimit));
+    const sf::Time spin = sf::seconds(config::FrameSpinWindow);
+    const sf::Time left = budget - m_pacer.getElapsedTime();
+
+    // Hand the bulk of the wait back to the machine, then hold the last
+    // fraction here. SFML's own limiter sleeps the whole way and does it after
+    // the swap, which both leaves a millisecond of jitter and spends the spare
+    // time at the far end of the frame from where it is useful.
+    if (left > spin)
+        sf::sleep(left - spin);
+
+    while (m_pacer.getElapsedTime() < budget)
+    {
+    }
+
+    m_pacer.restart();
+}
+
 void Game::run()
 {
     m_clock.restart();
+    m_pacer.restart();
 
     while (m_window.isOpen())
     {
-        const float deltaTime = std::min(m_clock.restart().asSeconds(), config::MaxDeltaTime);
+        // Wait first and read second. Whatever is left of the frame's budget is
+        // spent BEFORE the keyboard is looked at, so what the player is holding
+        // is as fresh as the machine can make it. Spending it after the swap
+        // instead - which is what a framerate limiter does - means every press
+        // sits in a queue for most of a frame before anything sees it.
+        pace();
+
+        const float frame = std::min(m_clock.restart().asSeconds(), config::MaxDeltaTime);
 
         processEvents();
-        update(deltaTime);
-        render();
+        sampleInput();
+
+        m_accumulator += frame * simTimeScale();
+
+        int steps = 0;
+        while (m_accumulator >= config::FixedDeltaTime && steps < config::MaxStepsPerFrame)
+        {
+            rememberPositions();
+            step(config::FixedDeltaTime);
+            m_accumulator -= config::FixedDeltaTime;
+            ++steps;
+        }
+
+        // Too far behind to catch up: drop the backlog rather than spend the
+        // next frame simulating the last one.
+        if (steps >= config::MaxStepsPerFrame)
+            m_accumulator = 0.0f;
+
+        presentUpdate(frame);
+        render(m_accumulator / config::FixedDeltaTime);
     }
 }
 
@@ -4252,25 +4379,23 @@ void Game::drawCredits()
     m_window.draw(hintText);
 }
 
-void Game::update(float deltaTime)
+void Game::presentUpdate(float deltaTime)
 {
-    // The world keeps breathing in every state. Only the fight pauses.
+    // Real time, always, for everything that is only looked at. None of this is
+    // allowed to decide anything: if it did, a machine drawing twice as often
+    // would be playing a different game.
+    m_presentTime += deltaTime;
+
     m_arena.update(deltaTime);
     m_seabed.update(deltaTime);
-    updateCamera(deltaTime);
     updateFeel(deltaTime);
     spawnAmbience(deltaTime);
     callFromTheDark(deltaTime);
 
-    // A few frames of held time after something heavy lands. The camera and the
-    // ambience above carry on through it, so the pause reads as impact rather
-    // than as the game locking up.
+    // The hit is held in real time too - a tenth of a second is a tenth of a
+    // second - and what it holds is the accumulator, not this.
     if (m_hitStop > 0.0f)
-    {
-        m_hitStop -= deltaTime;
-        if (m_state == State::Fighting)
-            return;
-    }
+        m_hitStop = std::max(0.0f, m_hitStop - deltaTime);
 
     if (upgradesVisible())
     {
@@ -4302,9 +4427,30 @@ void Game::update(float deltaTime)
                                        config::CreditsScrollEnd);
             break;
 
+        default:
+            break;
+    }
+
+    m_ambience.update(deltaTime);
+    m_effects.update(deltaTime);
+}
+
+
+void Game::step(float deltaTime)
+{
+    // One fixed slice of the fight. Nothing in here may ask how long a frame
+    // took, and nothing outside it may change what the game does.
+    updateCamera(deltaTime);
+
+    switch (m_state)
+    {
+        case State::Story:
+        case State::Menu:
+        case State::Credits:
         case State::Controls:
         case State::Options:
         case State::Victory:
+        case State::Upgrading:
             break;
 
         case State::LevelIntro:
@@ -4316,20 +4462,28 @@ void Game::update(float deltaTime)
         case State::Fighting:
             if (!m_showUpgrades && !m_paused)
             {
-                // Slow motion applies to the fight and to nothing else: the
-                // camera, the ambience and the clock the player is being timed
-                // on all keep real time, so a moment is a moment rather than a
-                // way to buy seconds.
-                deltaTime *= m_slowScale;
-
+                // Slow motion is applied to what goes into the accumulator, not
+                // to the step: a shorter step would change the rate everything
+                // is integrated at, and with it every number in the game.
                 m_tally.seconds += deltaTime;
+
+                // Pressed once, so it is spent once - on the first step of the
+                // frame it arrived in, whichever step that turns out to be.
+                if (takeCommand(Command::Lamp))
+                    toggleLamp();
+                if (takeCommand(Command::FireMode))
+                    cycleFireMode();
+                if (takeCommand(Command::Torpedo))
+                    fireTorpedo();
+                if (takeCommand(Command::Dash))
+                    performDash();
 
                 // Held in a mouth, nothing the player presses moves the sub.
                 // updateBossMoves is what carries it, and the dash is the only
                 // way out.
                 if (m_grabTimer <= 0.0f)
                 {
-                    m_player.update(deltaTime, getMouseWorldPosition(), m_arena);
+                    m_player.update(deltaTime, m_input.move, m_input.aimWorld, m_arena);
                 }
                 handleShooting(deltaTime);
                 emitThrusterTrail(deltaTime);
@@ -4405,17 +4559,52 @@ void Game::update(float deltaTime)
                 m_upgradeScreen.recentre();
             }
             break;
-
-        case State::Upgrading:
-            break;
     }
-
-    m_ambience.update(deltaTime);
-    m_effects.update(deltaTime);
 }
 
-void Game::render()
+void Game::rememberPositions()
 {
+    // Taken before every step, so that after it there is a pair to draw
+    // between. Only things that move fast enough to stutter are in here;
+    // mines, vents and nests sit still once they are placed.
+    m_prevCameraCentre = m_cameraCentre;
+    m_player.remember();
+
+    for (Enemy& enemy : m_enemies)
+        enemy.remember();
+
+    for (Projectile& shot : m_playerShots)
+        shot.remember();
+
+    for (Projectile& shot : m_enemyShots)
+        shot.remember();
+
+    for (Projectile& torpedo : m_torpedoes)
+        torpedo.remember();
+}
+
+void Game::presentEntities(float alpha)
+{
+    m_player.present(alpha);
+
+    for (Enemy& enemy : m_enemies)
+        enemy.present(alpha);
+
+    for (Projectile& shot : m_playerShots)
+        shot.present(alpha);
+
+    for (Projectile& shot : m_enemyShots)
+        shot.present(alpha);
+
+    for (Projectile& torpedo : m_torpedoes)
+        torpedo.present(alpha);
+}
+
+void Game::render(float alpha)
+{
+    presentEntities(alpha);
+    aimCamera(alpha);
+
     m_window.clear(themeFor(m_level.getDepth()).background);
 
     // Everything that lives in the basin is drawn through the camera.

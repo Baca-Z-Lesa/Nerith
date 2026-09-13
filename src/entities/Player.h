@@ -19,7 +19,15 @@ class Player
 public:
     Player(const Assets& assets, const Stats& stats);
 
-    void update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena);
+    void update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarget,
+                const Arena& arena);
+
+    // Where the sub was at the end of the previous step, and where to draw it
+    // between the two. The simulation runs at a fixed rate that has nothing to
+    // do with how often the picture is made, so without this the sub would
+    // stutter on every frame that did not line up with a step.
+    void remember() { m_prevPosition = m_position; }
+    void present(float alpha);
     void draw(sf::RenderTarget& target) const;
 
     // Puts the sub back at full health, for a restart.
@@ -45,7 +53,7 @@ public:
     // Second wind: true while the sub is hurt badly enough to be running on
     // fumes, which is what the HUD and the trail read to show it.
     bool isDesperate() const;
-    bool tryDash();
+    bool tryDash(sf::Vector2f steering);
     bool isDashing() const { return m_dashTimer > 0.0f; }
 
     struct DamageResult
@@ -97,8 +105,8 @@ public:
     bool isMoving() const { return m_moving; }
 
 private:
-    // Reads WASD and returns a direction of length 0 or 1.
-    static sf::Vector2f readMovementInput();
+
+
 
     float urgency() const; // 1 normally, more when the second wind is up
 
@@ -112,6 +120,7 @@ private:
     ShipVisuals  m_visuals;
 
     sf::Vector2f m_position;
+    sf::Vector2f m_prevPosition;
     sf::Vector2f m_aimDirection; // unit vector the nose points along
     sf::Vector2f m_dashDirection;
 

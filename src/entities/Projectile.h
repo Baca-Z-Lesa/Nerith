@@ -19,6 +19,10 @@ public:
 
     void update(float deltaTime);
 
+    // See Enemy: the picture sits between two fixed steps.
+    void remember() { m_prevPosition = m_position; }
+    void present(float alpha);
+
     // Homing torpedoes: bend the heading towards a point, capped per second.
     void steerTowards(sf::Vector2f target, float turnRateDegrees, float deltaTime);
 
@@ -54,6 +58,7 @@ public:
 private:
     sf::Sprite   m_sprite;
     sf::Vector2f m_position;
+    sf::Vector2f m_prevPosition;
     sf::Vector2f m_direction;
     float        m_speed;
     float        m_radius;

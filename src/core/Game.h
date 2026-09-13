@@ -141,13 +141,68 @@ private:
     };
 
     void processEvents();
-    void update(float deltaTime);
-    void render();
+    void render(float alpha);
+
+    // --- time ---
+    // The frame is split in three. sampleInput reads the keyboard, the mouse
+    // and the window once, as late as it can; step advances the fight by a
+    // fixed slice and knows nothing about frames at all; presentUpdate carries
+    // everything that is only looked at - the light, the drift, the shake, the
+    // menus - on real time, because none of it is allowed to change what the
+    // game does.
+    //
+    // The point of the split is that the rules stop depending on the machine.
+    // What the player is holding is read once per frame and used by every step
+    // in it, so a fast machine does not get more input than a slow one.
+    struct InputFrame
+    {
+        sf::Vector2f move;      // WASD, length 0 or 1
+        sf::Vector2f aimWorld;  // the cursor, in the water
+        bool         firing = false;
+        bool         focused = true;
+    };
+
+    // Keys that do something once rather than continuously. They arrive on the
+    // event queue at some arbitrary point in the frame, so they are collected
+    // and then handed to the first step of the next one - otherwise the same
+    // press lands in a different place depending on when it was typed, and
+    // nothing about the fight is repeatable.
+    enum class Command : unsigned int
+    {
+        Dash     = 1u << 0,
+        Torpedo  = 1u << 1,
+        Lamp     = 1u << 2,
+        FireMode = 1u << 3,
+    };
+
+    void queue(Command command) { m_commands |= static_cast<unsigned int>(command); }
+    bool takeCommand(Command command);
+
+    void sampleInput();
+    void step(float deltaTime);
+    void presentUpdate(float deltaTime);
+
+    // Zero while a hit is held, slower during a dodge, one the rest of the
+    // time. It scales what goes INTO the accumulator rather than the step
+    // itself: a shorter step would change the integration frequency, and with
+    // it every number in the game.
+    float simTimeScale() const;
+
+    // Burns whatever is left of the frame's budget. Sleeps the bulk of it and
+    // spins the last stretch, because whole-millisecond sleeps are most of the
+    // jitter in a frame this short.
+    void pace();
+
+    // What everything that moves was at the end of the previous step, so the
+    // picture can sit between two steps rather than on one of them.
+    void rememberPositions();
+    void presentEntities(float alpha);
 
     void createWindow(bool fullscreen);
     void toggleFullscreen();
     void applyLetterboxView();
     void updateCamera(float deltaTime);
+    void aimCamera(float alpha);
     sf::Vector2f randomVisiblePoint() const;
 
     // --- campaign flow ---
@@ -319,6 +374,21 @@ private:
     sf::View         m_ui;     // fixed 1280x720 for the HUD and the vignette
     sf::Vector2f     m_cameraCentre;
     sf::Clock        m_clock;
+    sf::Clock        m_pacer;
+
+    // What is left over from the last frame, waiting for a whole step to fit
+    // in it. Divided by the step, it is also how far between two steps the
+    // picture should sit.
+    float            m_accumulator = 0.0f;
+    unsigned int     m_commands = 0;
+    InputFrame       m_input;
+
+    // Presentation time: a clock that only ever goes forward, for the things
+    // that pulse and drift. m_stateTimer used to be borrowed for this, and it
+    // sits at zero for the whole of a fight - which is why the grab ring, the
+    // cargo mouth and the herald aura never actually moved.
+    float            m_presentTime = 0.0f;
+    sf::Vector2f     m_prevCameraCentre;
     bool             m_fullscreen;
 
     // Declared before anything holding a sprite: sprites only borrow their

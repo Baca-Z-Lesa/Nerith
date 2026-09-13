@@ -26,6 +26,11 @@ public:
     // Without a route it simply grinds into rock whenever the sub is round a
     // corner, and a level built on killing everything stops being finishable.
     void update(float deltaTime, sf::Vector2f playerPosition, const Arena& arena);
+
+    // Where it was at the end of the previous step, so the picture can sit
+    // between two steps rather than snapping onto one of them.
+    void remember();
+    void present(float alpha);
     void draw(sf::RenderTarget& target) const;
 
     void takeDamage(int amount);
@@ -124,6 +129,12 @@ private:
 
     sf::Sprite   m_sprite;
     sf::Vector2f m_position;
+    sf::Vector2f m_prevPosition;
+
+    // Set when something moved it somewhere it could not have swum to - a
+    // surfacing, a level start. Interpolating across one of those would draw
+    // the creature flying through rock to get there.
+    bool         m_warped = false;
     sf::Vector2f m_aimDirection;
     int          m_health;
     int          m_maxHealth;

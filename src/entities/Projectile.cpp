@@ -79,6 +79,11 @@ void Projectile::setScale(float scale)
     m_sprite.setScale({ scale, scale });
 }
 
+void Projectile::present(float alpha)
+{
+    m_sprite.setPosition(m_prevPosition + (m_position - m_prevPosition) * alpha);
+}
+
 void Projectile::draw(sf::RenderTarget& target) const
 {
     target.draw(m_sprite);

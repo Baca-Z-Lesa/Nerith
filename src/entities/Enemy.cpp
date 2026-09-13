@@ -323,6 +323,7 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, const Arena& ar
                     const sf::Angle where = sf::degrees(rng::range(0.0f, 360.0f));
                     m_position = playerPosition
                                  + sf::Vector2f(config::RevenantSurfaceDistance, where);
+                    m_warped = true;
                 }
             }
 
@@ -348,6 +349,7 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, const Arena& ar
                                                      config::BlinkSpread * 0.35f);
 
                     m_position = playerPosition + sf::Vector2f(std::max(90.0f, reach), where);
+                    m_warped = true;
                     m_fireTimer = std::min(m_fireTimer, 0.15f);
                 }
             }
@@ -682,6 +684,22 @@ void Enemy::confine(const Arena& arena, float deltaTime)
 
     m_position = arena.clampInside(m_position, getRadius());
     m_sprite.setPosition(m_position);
+}
+
+void Enemy::remember()
+{
+    m_prevPosition = m_position;
+    m_warped = false;
+}
+
+void Enemy::present(float alpha)
+{
+    // A creature that surfaced or blinked did not swim there, so it is drawn
+    // where it is and nowhere in between - interpolating that would send it
+    // sailing through the rock it came out of.
+    m_sprite.setPosition(m_warped
+                             ? m_position
+                             : m_prevPosition + (m_position - m_prevPosition) * alpha);
 }
 
 sf::Vector2f Enemy::getMuzzlePosition() const

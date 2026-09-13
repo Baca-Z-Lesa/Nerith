@@ -32,7 +32,7 @@ Player::Player(const Assets& assets, const Stats& stats)
     // position no matter which way it faces.
     m_sprite.setOrigin(sf::Vector2f(assets.player.getSize()) / 2.0f);
     m_sprite.setScale({ config::PlayerScale, config::PlayerScale });
-    m_sprite.setPosition(m_position);
+
 }
 
 int Player::getMaxHealth() const
@@ -73,26 +73,16 @@ void Player::onLevelStart()
     m_shieldCharges = getMaxShieldCharges();
 }
 
-sf::Vector2f Player::readMovementInput()
+void Player::present(float alpha)
 {
-    // Scancodes describe the physical key position, so WASD stays in the same
-    // place regardless of the user's keyboard layout (QWERTY, QWERTZ, AZERTY).
-    sf::Vector2f direction{ 0.0f, 0.0f };
+    // Between where it was and where it is. The sprite is the only thing this
+    // touches - m_position stays exactly where the simulation left it, because
+    // everything that asks a question about the world has to get the same
+    // answer no matter how often the picture is being made.
+    const sf::Vector2f at = m_prevPosition + (m_position - m_prevPosition) * alpha;
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::W))
-        direction.y -= 1.0f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::S))
-        direction.y += 1.0f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::A))
-        direction.x -= 1.0f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::D))
-        direction.x += 1.0f;
-
-    // Normalise so diagonals are not ~41% faster than straight lines.
-    if (direction.lengthSquared() > 0.0f)
-        direction = direction.normalized();
-
-    return direction;
+    m_sprite.setPosition(at);
+    m_visuals.present(at, m_aimDirection.angle());
 }
 
 void Player::aimAt(sf::Vector2f target)
@@ -154,7 +144,8 @@ void Player::updateShield(float deltaTime)
     }
 }
 
-void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
+void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarget,
+                    const Arena& arena)
 {
     if (m_fireTimer > 0.0f)
         m_fireTimer -= deltaTime;
@@ -166,8 +157,7 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
     updateInvulnerability(deltaTime);
     updateShield(deltaTime);
 
-    const sf::Vector2f movement = readMovementInput();
-    m_moving = movement.lengthSquared() > 0.0f;
+    m_moving = steering.lengthSquared() > 0.0f;
 
     if (m_dashTimer > 0.0f)
     {
@@ -182,7 +172,7 @@ void Player::update(float deltaTime, sf::Vector2f aimTarget, const Arena& arena)
         const float engine = isBroken(Hull::Engine) ? config::BrokenEngineSpeed : 1.0f;
         const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency()
                             * m_burden * engine;
-        m_position += movement * speed * deltaTime;
+        m_position += steering * speed * deltaTime;
     }
 
     // Water that turns. A dash is strong enough to leave a pit, ordinary
@@ -234,15 +224,21 @@ bool Player::tryFire()
     // Fire rate is a multiplier on shots per second, so the cooldown is its
     // reciprocal. Guarded so a pathological stat cannot divide by zero.
     const float rate = std::max(0.05f, m_stats->get(Stat::FireRate, 1.0f));
-    m_fireTimer = config::PlayerFireCooldown / rate;
+    float cooldown = config::PlayerFireCooldown / rate;
 
     if (isDesperate())
-        m_fireTimer *= config::SecondWindFireRate;
+        cooldown *= config::SecondWindFireRate;
 
     // A cracked gun cycles slowly. Together with the damage it loses, this is
     // what makes the third threshold the one you actually feel.
     if (isBroken(Hull::Gun))
-        m_fireTimer *= config::BrokenGunRate;
+        cooldown *= config::BrokenGunRate;
+
+    // Added rather than assigned, so the fraction of a step the timer had
+    // already run past zero is not thrown away. Assigning it rounds every
+    // cooldown up to a whole step, which at the top of the weapon line is
+    // most of a tenth of the fire rate the player paid for.
+    m_fireTimer += cooldown;
 
     return true;
 }
@@ -285,7 +281,7 @@ void Player::repairHull()
     m_broken = 0;
 }
 
-bool Player::tryDash()
+bool Player::tryDash(sf::Vector2f steering)
 {
     // A dead engine is a dead engine. The dash is the one thing the player
     // reaches for when things go wrong, so losing it is the last and worst of
@@ -297,8 +293,7 @@ bool Player::tryDash()
         return false;
 
     // Dash along whatever you are holding; if nothing, dash where you are aiming.
-    const sf::Vector2f movement = readMovementInput();
-    m_dashDirection = movement.lengthSquared() > 0.0f ? movement : m_aimDirection;
+    m_dashDirection = steering.lengthSquared() > 0.0f ? steering : m_aimDirection;
 
     m_dashTimer = config::DashDuration;
     m_dashCooldown = std::max(0.2f, m_stats->get(Stat::DashCooldown, config::DashBaseCooldown));

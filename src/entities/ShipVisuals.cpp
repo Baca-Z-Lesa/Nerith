@@ -75,6 +75,21 @@ void ShipVisuals::update(sf::Vector2f position, sf::Angle heading, const Stats& 
     m_shield.setOutlineColor(m_shieldUp ? colour : sf::Color(60, 90, 100, 60));
 }
 
+void ShipVisuals::present(sf::Vector2f position, sf::Angle heading)
+{
+    for (Mount& mount : m_mounts)
+    {
+        if (!mount.fitted)
+            continue;
+
+        mount.sprite.setPosition(position
+                                 + (mount.offset * config::AttachmentScale).rotatedBy(heading));
+        mount.sprite.setRotation(heading);
+    }
+
+    m_shield.setPosition(position);
+}
+
 void ShipVisuals::drawUnder(sf::RenderTarget& target) const
 {
     for (const Mount& mount : m_mounts)
