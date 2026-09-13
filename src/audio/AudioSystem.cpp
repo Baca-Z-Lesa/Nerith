@@ -2,7 +2,11 @@
 
 #include "core/Config.h"
 
+#include <SFML/Audio/Listener.hpp>
+
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 
@@ -88,20 +92,78 @@ AudioSystem::AudioSystem()
     if (!m_ambientBuffer.loadFromFile(config::AmbientTrackPath))
         throw std::runtime_error(std::string("failed to load sound: ") + config::AmbientTrackPath);
 
+    m_filters.reserve(config::AudioVoiceCount);
     m_voices.reserve(config::AudioVoiceCount);
+
     for (std::size_t i = 0; i < config::AudioVoiceCount; ++i)
+    {
+        m_filters.push_back(std::make_unique<Filter>());
         m_voices.push_back(std::make_unique<sf::Sound>(m_buffers[0]));
+
+        // A one-pole low-pass, installed once and then only ever told a new
+        // corner frequency. It is the same filter the sounds themselves were
+        // synthesised through, so rock in the way sounds like the rest of the
+        // game rather than like an effect bolted onto it.
+        Filter* filter = m_filters.back().get();
+
+        m_voices.back()->setEffectProcessor(
+            [filter](const float* in, unsigned int& inFrames,
+                     float* out, unsigned int& outFrames, unsigned int channels) {
+                const float cutoff = filter->cutoff.load(std::memory_order_relaxed);
+                const unsigned int frames = std::min(inFrames, outFrames);
+                const unsigned int lanes = std::min(channels, 8u);
+
+                if (cutoff <= 0.0f)
+                {
+                    // Nothing in the way: hand it back untouched rather than
+                    // running a filter that would do nothing but cost.
+                    std::copy(in, in + static_cast<std::size_t>(frames) * channels, out);
+                    inFrames = frames;
+                    outFrames = frames;
+                    return;
+                }
+
+                const float a = 1.0f - std::exp(-6.2831853f * cutoff / 44100.0f);
+
+                for (unsigned int frame = 0; frame < frames; ++frame)
+                {
+                    for (unsigned int lane = 0; lane < channels; ++lane)
+                    {
+                        const std::size_t index = static_cast<std::size_t>(frame) * channels + lane;
+
+                        if (lane < lanes)
+                        {
+                            filter->history[lane] += (in[index] - filter->history[lane]) * a;
+                            out[index] = filter->history[lane];
+                        }
+                        else
+                        {
+                            out[index] = in[index];
+                        }
+                    }
+                }
+
+                inFrames = frames;
+                outFrames = frames;
+            });
+    }
 
     m_ambient = std::make_unique<sf::Sound>(m_ambientBuffer);
     m_ambient->setLooping(true);
     m_ambient->setVolume(config::VolumeAmbient);
 
-    // The three layers are the same length and start together, so they stay in
+    // The drone lives in the sub, not in the water, so it must not swing round
+    // the player's head the moment the listener moves.
+    m_ambient->setRelativeToListener(true);
+    m_ambient->setPosition({ 0.0f, 0.0f, 0.0f });
+
+    // The four layers are the same length and start together, so they stay in
     // phase for as long as the game runs. Starting them at different moments
     // would leave the heartbeat drifting against the chord.
     const char* const layerPaths[LayerCount] = { config::MusicBedPath,
                                                  config::MusicPulsePath,
-                                                 config::MusicDreadPath };
+                                                 config::MusicDreadPath,
+                                                 config::MusicStalkPath };
 
     for (std::size_t i = 0; i < LayerCount; ++i)
     {
@@ -111,6 +173,11 @@ AudioSystem::AudioSystem()
         m_music[i] = std::make_unique<sf::Sound>(m_musicBuffers[i]);
         m_music[i]->setLooping(true);
         m_music[i]->setVolume(0.0f);
+
+        // Score, not water. It follows the listener rather than sitting
+        // wherever the level started.
+        m_music[i]->setRelativeToListener(true);
+        m_music[i]->setPosition({ 0.0f, 0.0f, 0.0f });
     }
 
     m_layerTarget[static_cast<std::size_t>(Layer::Bed)] = 1.0f;
@@ -125,6 +192,21 @@ void AudioSystem::setLayer(Layer layer, float target)
 
 void AudioSystem::updateMusic(float deltaTime)
 {
+    // Anything the room owed back, now that it is late enough. Walked
+    // backwards so a fired echo can be taken out of the middle without
+    // disturbing the ones that have not come due.
+    for (std::size_t i = m_echoes.size(); i-- > 0;)
+    {
+        m_echoes[i].delay -= deltaTime;
+        if (m_echoes[i].delay > 0.0f)
+            continue;
+
+        const Echo due = m_echoes[i];
+        m_echoes.erase(m_echoes.begin() + static_cast<std::ptrdiff_t>(i));
+
+        speak(due.sound, due.volume, due.cutoff, &due.at);
+    }
+
     for (std::size_t i = 0; i < LayerCount; ++i)
     {
         if (!m_music[i])
@@ -155,19 +237,100 @@ void AudioSystem::startAmbient()
     }
 }
 
-void AudioSystem::play(Sfx sound, float volumeScale)
+std::size_t AudioSystem::takeVoice()
+{
+    // Round robin: the oldest voice is the one most likely to have finished,
+    // and stealing it is far better than dropping the new sound.
+    const std::size_t index = m_next;
+    m_next = (m_next + 1) % m_voices.size();
+    return index;
+}
+
+void AudioSystem::speak(Sfx sound, float volume, float cutoff, const sf::Vector2f* at)
 {
     if (m_muted || m_voices.empty())
         return;
 
-    // Round robin: the oldest voice is the one most likely to have finished,
-    // and stealing it is far better than dropping the new sound.
-    sf::Sound& voice = *m_voices[m_next];
-    m_next = (m_next + 1) % m_voices.size();
+    const std::size_t index = takeVoice();
+    sf::Sound& voice = *m_voices[index];
+
+    // Written before the buffer is handed over, so the audio thread never sees
+    // a new sound running through the last one's corner frequency.
+    m_filters[index]->cutoff.store(cutoff >= config::AudioOpenCutoff ? 0.0f : cutoff,
+                                   std::memory_order_relaxed);
 
     voice.setBuffer(m_buffers[static_cast<std::size_t>(sound)]);
-    voice.setVolume(volumeFor(sound) * volumeScale * m_sfxScale);
+    voice.setVolume(volume);
+
+    // Both paths set it. A pooled voice remembers whatever the last sound
+    // through it was, so leaving either one out leaks position between sounds
+    // that have nothing to do with each other.
+    if (at != nullptr)
+    {
+        voice.setRelativeToListener(false);
+        voice.setPosition({ at->x, 0.0f, at->y });
+        voice.setMinDistance(config::AudioNearDistance);
+        voice.setAttenuation(config::AudioRolloff);
+    }
+    else
+    {
+        voice.setRelativeToListener(true);
+        voice.setPosition({ 0.0f, 0.0f, 0.0f });
+    }
+
     voice.play();
+}
+
+void AudioSystem::play(Sfx sound, float volumeScale)
+{
+    speak(sound, volumeFor(sound) * volumeScale * m_sfxScale, 0.0f, nullptr);
+}
+
+void AudioSystem::playAt(Sfx sound, sf::Vector2f at, float volumeScale, float occlusion)
+{
+    const float blocked = std::clamp(occlusion, 0.0f, 1.0f);
+
+    // Volume is the small half of being behind something. What actually says
+    // it is the top coming off, swept in log space so the middle of the range
+    // sounds like the middle rather than like nothing at all.
+    const float muffle = 1.0f + (config::AudioMuffledVolume - 1.0f) * blocked;
+    const float cutoff = config::AudioOpenCutoff
+                         * std::pow(config::AudioMuffledCutoff / config::AudioOpenCutoff, blocked);
+
+    const float volume = volumeFor(sound) * volumeScale * m_sfxScale * muffle;
+
+    speak(sound, volume, cutoff, &at);
+
+    // And whatever the room hands back. Queued rather than played, because the
+    // whole point of an echo is that it is late.
+    if (m_muted || m_openness <= 0.0f)
+        return;
+
+    m_echoes.push_back({ sound, at, config::EchoNearDelay,
+                         volume * config::EchoNearVolume * m_openness,
+                         config::EchoNearCutoff });
+
+    // The second repeat is a hall only. One repeat is a room; two, later and
+    // darker, is the only thing that says the walls are a long way off.
+    if (m_openness > 0.55f)
+    {
+        m_echoes.push_back({ sound, at, config::EchoFarDelay,
+                             volume * config::EchoFarVolume * m_openness,
+                             config::EchoFarCutoff });
+    }
+}
+
+void AudioSystem::setListener(sf::Vector2f at)
+{
+    // The world's y becomes the listener's z, which lays the game plane flat
+    // in front of it. Mapping y to y instead would stand the whole basin on
+    // edge, where left and right are the same place and nothing pans.
+    sf::Listener::setPosition({ at.x, 0.0f, at.y });
+}
+
+void AudioSystem::setSpace(float openness)
+{
+    m_openness = std::clamp(openness, 0.0f, 1.0f);
 }
 
 void AudioSystem::setSfxVolume(float scale)

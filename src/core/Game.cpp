@@ -677,23 +677,56 @@ void Game::updateFeel(float deltaTime)
     {
         const bool fighting = m_state == State::Fighting && !m_paused;
 
+        const sf::Vector2f half{ config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };
+
         int hunting = 0;
+        int unseen = 0;
+
         if (fighting)
         {
             for (const Enemy& enemy : m_enemies)
             {
-                if (enemy.isAlive() && enemy.isAware())
-                    ++hunting;
+                if (!enemy.isAlive() || !enemy.isAware())
+                    continue;
+
+                ++hunting;
+
+                // Hunting you from somewhere you cannot look at. Either it is
+                // off the frame entirely, or it is one of the things that is
+                // barely there until it is on top of you.
+                const sf::Vector2f offset = enemy.getPosition() - m_cameraCentre;
+                const float distance = offset.length();
+                const bool offScreen = std::abs(offset.x) > half.x
+                                       || std::abs(offset.y) > half.y;
+                const bool hidden = config::enemyStats(enemy.getType()).stealth
+                                    && distance > config::StealthRevealRange;
+
+                if (offScreen || hidden)
+                    ++unseen;
             }
         }
 
         const float pressure = std::min(1.0f, static_cast<float>(hunting)
                                                   / config::MusicPulseFull);
 
+        // One thing you cannot see, hunting you, is already the whole point -
+        // so this fills far sooner than the pulse does, and the two are asking
+        // different questions rather than swelling together on the same
+        // creature.
+        const float stalked = std::min(1.0f, static_cast<float>(unseen)
+                                                 / config::MusicStalkFull);
+
         m_audio.setLayer(AudioSystem::Layer::Pulse, fighting ? pressure : 0.0f);
+        m_audio.setLayer(AudioSystem::Layer::Stalk, fighting ? stalked : 0.0f);
         m_audio.setLayer(AudioSystem::Layer::Dread,
                          (fighting && m_boss && m_boss->isAlive()) ? 1.0f : 0.0f);
     }
+
+    // Where the ear is, and how much room there is around it. Both are asked
+    // once a frame rather than per sound: the listener cannot be in two places
+    // and the room does not change between one hit and the next.
+    m_audio.setListener(m_player.getPosition());
+    m_audio.setSpace(opennessAt(m_player.getPosition()));
 
     m_audio.updateMusic(deltaTime);
 
@@ -1852,7 +1885,8 @@ void Game::updateHarpoon(float deltaTime)
 
         enemy.takeDamage(m_harpoon->getDamage());
         effects::impact(m_effects, at, m_harpoon->getDirection());
-        m_audio.play(hitVoice(enemy.getType()), 1.2f);
+        m_audio.playAt(hitVoice(enemy.getType()), enemy.getPosition(), 1.2f,
+                       occlusionAt(enemy.getPosition()));
         addHitRing(at, config::JetRingRadius, config::HarpoonLineColor);
         ++m_tally.shotsHit;
 
@@ -2395,7 +2429,7 @@ void Game::updateNests(float deltaTime)
         m_enemies.back().markHatched();
 
         effects::enemyDeath(m_effects, nest.position + offset);
-        m_audio.play(Sfx::Hatch, 0.7f);
+        m_audio.playAt(Sfx::Hatch, nest.position, 0.7f, occlusionAt(nest.position));
     }
 }
 
@@ -2424,6 +2458,45 @@ void Game::drawNests()
         m_sonarRing.setOutlineColor(ring);
         m_window.draw(m_sonarRing);
     }
+}
+
+float Game::occlusionAt(sf::Vector2f where) const
+{
+    const sf::Vector2f ear = m_player.getPosition();
+    const sf::Vector2f span = where - ear;
+
+    if (span.lengthSquared() < 1.0f)
+        return 0.0f;
+
+    // Three rays, spread across the line rather than along it. One ray is a
+    // yes or a no, and a creature dying in a doorway would flip between the
+    // two as it drifted; three give a fraction, so a mouth is half muffled
+    // and a wall is all of it.
+    const sf::Vector2f across = sf::Vector2f{ -span.y, span.x }.normalized()
+                               * config::AudioOcclusionSpread;
+
+    int blocked = 0;
+    for (int i = -1; i <= 1; ++i)
+    {
+        const sf::Vector2f offset = across * static_cast<float>(i);
+        if (!m_arena.clearLine(ear + offset, where + offset, 0.0f))
+            ++blocked;
+    }
+
+    return static_cast<float>(blocked) / 3.0f;
+}
+
+float Game::opennessAt(sf::Vector2f where) const
+{
+    const int room = m_arena.roomAt(where);
+    if (room < 0)
+        return 0.0f;
+
+    const float radius = m_arena.getRooms()[static_cast<std::size_t>(room)].radius;
+
+    return std::clamp((radius - config::EchoRoomFloor)
+                          / (config::EchoHallRadius - config::EchoRoomFloor),
+                      0.0f, 1.0f);
 }
 
 void Game::refreshLamp()
@@ -2529,7 +2602,7 @@ void Game::updateVents(float deltaTime)
             continue;
 
         vent.erupting = config::VentEruptTime;
-        m_audio.play(Sfx::Vent);
+        m_audio.playAt(Sfx::Vent, vent.position, 1.0f, occlusionAt(vent.position));
         addShake(config::ShakeTorpedo * 0.7f);
 
         effects::ventBurst(m_effects, vent.position, vent.radius);
@@ -3137,7 +3210,10 @@ void Game::killEnemy(Enemy& enemy)
     const float pitch = std::min(config::StreakPitchMax,
                                  1.0f + config::StreakPitchStep
                                             * static_cast<float>(m_streak));
-    m_audio.play(deathVoice(enemy.getType()), pitch);
+    // Out in the water, so it comes from where the thing was and through
+    // whatever was between the two of you.
+    m_audio.playAt(deathVoice(enemy.getType()), enemy.getPosition(), pitch,
+                   occlusionAt(enemy.getPosition()));
 
     if (m_streak == config::StreakNotable || m_streak == config::StreakLoud)
         addFlash(config::HudPipFullEdge, 0.30f);
@@ -3475,7 +3551,8 @@ void Game::handleCollisions()
                 }
 
                 effects::impact(m_effects, shot.getPosition(), shot.getDirection());
-                m_audio.play(hitVoice(enemy.getType()), crit ? 1.5f : 1.0f);
+                m_audio.playAt(hitVoice(enemy.getType()), enemy.getPosition(),
+                               crit ? 1.5f : 1.0f, occlusionAt(enemy.getPosition()));
                 addHitRing(shot.getPosition(),
                            crit ? config::CritRingRadius
                                 : (torpedo ? blastRadius : config::JetRingRadius),

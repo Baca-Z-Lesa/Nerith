@@ -902,7 +902,46 @@ namespace config
 
     // --- Audio ---
     inline constexpr const char* AmbientTrackPath = "assets/audio/ambient_abyss.wav";
-    inline constexpr std::size_t AudioVoiceCount = 24;
+    // Forty rather than twenty four, because every sound in an open room now
+    // asks for one or two more voices a moment later for its echo, and the
+    // pool has no priorities - running out means whatever was speaking gets
+    // cut off mid-word.
+    inline constexpr std::size_t AudioVoiceCount = 40;
+
+    // --- What the water does to a sound ---
+    // How far a sound can be before it starts getting quieter. Half the window
+    // height, so anything on screen is at full strength and distance only
+    // starts to matter out in the dark.
+    inline constexpr float AudioNearDistance = 360.0f;
+    inline constexpr float AudioRolloff = 1.15f;
+
+    // Rock in the way. The volume drop is the small half of it; what actually
+    // says "that is behind something" is the top coming off, and the corner
+    // frequency is swept between these in log space.
+    inline constexpr float AudioMuffledVolume = 0.42f;
+    inline constexpr float AudioOpenCutoff = 18000.0f;
+    inline constexpr float AudioMuffledCutoff = 520.0f;
+
+    // How much rock has to be between you and a sound before it is treated as
+    // fully behind something. Three rays, so a doorway gives a partial answer
+    // rather than a yes or a no.
+    inline constexpr float AudioOcclusionSpread = 62.0f;
+
+    // The room coming back at you. A passage returns nothing, a cavern one
+    // repeat, a great hall two - the second quieter, later and darker than the
+    // first, which is the whole of what makes a space sound large.
+    inline constexpr float EchoNearDelay = 0.115f;
+    inline constexpr float EchoFarDelay = 0.235f;
+    inline constexpr float EchoNearVolume = 0.30f;
+    inline constexpr float EchoFarVolume = 0.16f;
+    inline constexpr float EchoNearCutoff = 2600.0f;
+    inline constexpr float EchoFarCutoff = 1250.0f;
+
+    // Below this a room is a passage and gives nothing back; above it the
+    // second repeat comes in. Measured against the room radii the generator
+    // actually produces.
+    inline constexpr float EchoRoomFloor = 150.0f;
+    inline constexpr float EchoHallRadius = 520.0f;
     inline constexpr float VolumeAmbient = 34.0f;
     inline constexpr float VolumeJet = 13.0f;   // fires several times a second, so it stays quiet
     inline constexpr float VolumeImpact = 22.0f;
@@ -923,12 +962,17 @@ namespace config
     inline constexpr const char* MusicBedPath = "assets/audio/music_bed.wav";
     inline constexpr const char* MusicPulsePath = "assets/audio/music_pulse.wav";
     inline constexpr const char* MusicDreadPath = "assets/audio/music_dread.wav";
+    inline constexpr const char* MusicStalkPath = "assets/audio/music_stalk.wav";
     inline constexpr float VolumeMusic = 30.0f;
     inline constexpr float MusicFadeRate = 0.9f; // per second, so a swell takes about one
 
     // How many creatures actively hunting you counts as full pressure. Low on
     // purpose: three things closing in is already a fight.
     inline constexpr float MusicPulseFull = 4.0f;
+
+    // One creature hunting you from somewhere you cannot look is already the
+    // whole of what this layer is for, so two fills it.
+    inline constexpr float MusicStalkFull = 2.0f;
 
     // How often something out in the dark calls. Long gaps on purpose: a noise
     // you hear every few seconds stops being frightening.

@@ -267,6 +267,14 @@ private:
     // firing gives you away anyway. It is the other way to play a level.
     // Works out what the lamp is actually running at - the switch, the silt
     // and whether it is still in one piece - and tells the basin.
+    // How much rock is between the sub and a point, 0 to 1. Three rays rather
+    // than one, so a doorway gives a partial answer rather than a yes or a no.
+    float occlusionAt(sf::Vector2f where) const;
+
+    // How open the water is around a point, 0 for a passage and 1 for a great
+    // hall. It is what the room hands back after a sound.
+    float opennessAt(sf::Vector2f where) const;
+
     void refreshLamp();
     void toggleLamp();
     float noticeRange() const;
