@@ -79,8 +79,35 @@ void Player::present(float alpha)
     // touches - m_position stays exactly where the simulation left it, because
     // everything that asks a question about the world has to get the same
     // answer no matter how often the picture is being made.
-    const sf::Vector2f at = m_prevPosition + (m_position - m_prevPosition) * alpha;
+    sf::Vector2f at = m_prevPosition + (m_position - m_prevPosition) * alpha;
 
+    // A hull with water around it and weight in it. It leans into a turn, it
+    // stretches when the pumps open up, and it is never quite still. All of it
+    // is the picture: the muzzle, the stern and the hitbox are all still
+    // exactly where the step put them, so none of this can miss a shot.
+    constexpr float Tau = 6.283185307f;
+
+    const float speed = std::min(1.0f, m_velocity.length() / config::PlayerSpeed);
+
+    // Sitting still, it breathes; under way, the breath gives way to the surge
+    // of actually moving, because a sub at full ahead is not idling.
+    const float breath = config::SubIdleSwell * (1.0f - speed)
+                         * std::sin(m_age * config::SubIdleHz * Tau);
+
+    const float surge = config::SubSurge * speed;
+    const float narrow = std::abs(m_bank) * config::SubBankSquash;
+
+    const float along = 1.0f + (surge + breath) * config::MotionAmount;
+    const float across = 1.0f - (narrow + surge * 0.5f - breath) * config::MotionAmount;
+
+    // And the sway of something being pushed through water rather than slid
+    // across it - across the hull, and only while it is not already busy.
+    const sf::Vector2f side{ -m_aimDirection.y, m_aimDirection.x };
+
+    at += side * (config::SubWake * (1.0f - speed * 0.7f) * config::MotionAmount
+                  * std::sin(m_age * config::SubWakeHz * Tau));
+
+    m_sprite.setScale({ config::PlayerScale * along, config::PlayerScale * across });
     m_sprite.setPosition(at);
     m_visuals.present(at, m_aimDirection.angle());
 }
@@ -226,8 +253,23 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
                                   : sf::Vector2f{ 0.0f, 0.0f };
 
     aimAt(aimTarget);
-    m_prevPosition = m_position;
     m_sprite.setPosition(m_position);
+
+    // How hard the nose is being swung about, which is what the hull leans on.
+    // Measured here rather than in aimAt because that one has no clock, and a
+    // lean wants degrees per second, not degrees.
+    m_age += deltaTime;
+
+    const sf::Angle aim = m_aimDirection.angle();
+    const float rate = deltaTime > 0.0f
+                           ? (aim - m_lastAim).wrapSigned().asDegrees() / deltaTime
+                           : 0.0f;
+    m_lastAim = aim;
+
+    const float wanted = std::clamp(rate * config::SubBankDegrees,
+                                    -config::SubBankMax, config::SubBankMax);
+
+    m_bank += (wanted - m_bank) * std::min(1.0f, config::SubBankEase * deltaTime);
 
     m_visuals.setShieldUp(m_shieldCharges > 0);
     m_visuals.update(m_position, m_aimDirection.angle(), *m_stats, deltaTime);
@@ -440,6 +482,10 @@ void Player::reset()
     m_impulse = { 0.0f, 0.0f };
     m_impulseTimer = 0.0f;
     m_ventReady = true;
+    m_bank = 0.0f;
+
+    // Nothing to draw between: a fresh sub has not swum anywhere yet.
+    m_prevPosition = m_position;
 
     m_sprite.setColor(sf::Color::White);
     m_sprite.setPosition(m_position);

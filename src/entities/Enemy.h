@@ -5,6 +5,7 @@
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Texture.hpp>
+#include <SFML/System/Angle.hpp>
 #include <SFML/System/Vector2.hpp>
 
 #include <algorithm>
@@ -152,6 +153,14 @@ private:
     bool         m_warped = false;
     float        m_lit = 1.0f;
     sf::Vector2f m_aimDirection;
+
+    // Where it is pointed, kept here rather than pushed straight at the sprite,
+    // because the picture adds a beat to it and adding that to the sprite's own
+    // rotation would wind the creature up like a spring.
+    sf::Angle    m_facing{};
+    float        m_bodyScale = 1.0f; // what the hit flash left, before the beat
+    float        m_age = 0.0f;
+    float        m_phase;            // so a school does not swim in lockstep
     int          m_health;
     int          m_maxHealth;
     float        m_hitFlashTimer;   // seconds of impact feedback left

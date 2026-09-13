@@ -162,9 +162,19 @@ void Boss::advance(float deltaTime, float speed)
 
 void Boss::followChain()
 {
+    // A wave running from the head down the length of it. Applied to the
+    // sprite's rotation only - never to segment.position - because a segment
+    // is what the shots are tested against and what the fins are bolted to.
+    // Turning a link about its own centre moves neither.
+    const auto flex = [this](std::size_t index) {
+        const float lag = config::BossFlexLag * static_cast<float>(index);
+        return sf::degrees(config::BossFlexDegrees * config::MotionAmount
+                           * std::sin(m_time * config::BossFlexHz * 6.283185307f - lag));
+    };
+
     Segment& head = m_segments[0];
     head.sprite.setPosition(head.position);
-    head.sprite.setRotation(head.angle);
+    head.sprite.setRotation(head.angle + flex(0) * 0.4f);
 
     for (std::size_t i = 1; i < m_segments.size(); ++i)
     {
@@ -185,7 +195,7 @@ void Boss::followChain()
         }
 
         segment.sprite.setPosition(segment.position);
-        segment.sprite.setRotation(segment.angle);
+        segment.sprite.setRotation(segment.angle + flex(i));
     }
 }
 

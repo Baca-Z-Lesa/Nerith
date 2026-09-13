@@ -5,6 +5,7 @@
 
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Sprite.hpp>
+#include <SFML/System/Angle.hpp>
 #include <SFML/System/Vector2.hpp>
 
 class Arena;
@@ -139,6 +140,13 @@ private:
     float        m_impulseTimer = 0.0f;
     sf::Vector2f m_aimDirection; // unit vector the nose points along
     sf::Vector2f m_dashDirection;
+
+    // The hull as a thing with weight in it. None of this is the sub - the
+    // nose still points exactly where the aim says and the shot still leaves
+    // from there - it is only how the hull is drawn carrying itself.
+    float        m_age = 0.0f;
+    float        m_bank = 0.0f;    // degrees of lean, chasing the turn rate
+    sf::Angle    m_lastAim{};
 
     float m_fireTimer;
     float m_torpedoTimer;

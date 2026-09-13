@@ -310,19 +310,42 @@ namespace config
     inline constexpr float PlayerBlinkInterval = 0.16f;
     inline constexpr float PlayerBubbleInterval = 0.045f;
 
+    // The sub, moving rather than being moved. A hull with weight in it leans
+    // into a turn, stretches when the pumps open up, and never sits perfectly
+    // still in water - and none of that is anywhere near the simulation: the
+    // shot still leaves from where the aim says it does.
+    inline constexpr float SubBankDegrees = 0.085f; // per degree/sec of turn
+    inline constexpr float SubBankMax = 11.0f;      // and no further than this
+    inline constexpr float SubBankEase = 7.0f;      // how fast the lean catches up
+    inline constexpr float SubBankSquash = 0.010f;  // narrowing, per degree of lean
+    inline constexpr float SubSurge = 0.055f;       // stretch along the hull at full speed
+    inline constexpr float SubIdleSwell = 0.014f;   // breathing, when it is barely moving
+    inline constexpr float SubIdleHz = 0.75f;
+    inline constexpr float SubWake = 1.5f;          // pixels of sway across the hull
+    inline constexpr float SubWakeHz = 1.15f;
+
     // --- Projectiles ---
     struct ProjectileStats
     {
         float speed;
         float radius;
         float scale;
+
+        // What it does in flight besides go where it was pointed. A jet of
+        // pressurised water flickers, a thrown orb of something soft rolls and
+        // swells, a torpedo wallows. Zero on all of them is what a shot used
+        // to be: a picture of a shot, translated.
+        float throb = 0.0f;   // fraction of its own size, each way
+        float throbHz = 0.0f;
+        float roll = 0.0f;    // degrees of yaw wander off the heading
+        float rollHz = 0.0f;
     };
 
     inline constexpr const char* WaterJetTexturePath = "assets/textures/water_jet.png";
     inline constexpr const char* EnemyOrbTexturePath = "assets/textures/enemy_orb.png";
 
-    inline constexpr ProjectileStats WaterJet{ 620.0f, 8.0f, 0.75f };
-    inline constexpr ProjectileStats EnemyOrb{ 245.0f, 9.0f, 0.95f };
+    inline constexpr ProjectileStats WaterJet{ 620.0f, 8.0f, 0.75f, 0.09f, 9.0f, 2.5f, 6.0f };
+    inline constexpr ProjectileStats EnemyOrb{ 245.0f, 9.0f, 0.95f, 0.09f, 3.4f, 7.0f, 1.7f };
 
     inline constexpr int WaterJetDamage = 1;
     inline constexpr int EnemyOrbDamage = 1;
@@ -449,6 +472,51 @@ namespace config
           0.85f, 24.0f, 198.0f, 46, 3, 18, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, false, true, 1.20f },
     } };
+
+    // =====================================================================
+    //  HOW A THING MOVES WHILE IT IS MOVING
+    //  Everything in the water was a texture being slid across it: right
+    //  place, right angle, and about as alive as a road sign. None of what
+    //  follows touches a position, a hitbox or a heading - it is applied to
+    //  the sprite after the step has finished with it - so none of it can
+    //  change how a fight goes. It only makes the thing look like it is the
+    //  one doing the swimming.
+    //
+    //  Keyed by behaviour rather than by creature, because how something
+    //  moves is already the thing behaviour describes: chasers beat a tail,
+    //  bells pulse, and a shield being walked forward plods.
+    // =====================================================================
+    struct Motion
+    {
+        float sway;    // degrees of yaw either side of where it is pointed
+        float swayHz;
+        float pulse;   // fraction of its own size it swells and shrinks by
+        float pulseHz;
+        float bob;     // pixels across its heading
+        float bobHz;
+    };
+
+    // Order must match EnemyBehaviour.
+    inline constexpr std::array<Motion, 8> BehaviourMotion{ {
+        { 7.0f, 2.20f, 0.030f, 2.20f, 1.2f, 1.10f }, // Chase: a tail, beating
+        { 2.0f, 0.85f, 0.070f, 0.80f, 2.0f, 0.45f }, // Drift: a bell, breathing
+        { 5.0f, 1.60f, 0.025f, 3.20f, 1.6f, 0.80f }, // Orbit: leaning its turn
+        { 3.0f, 5.40f, 0.045f, 2.60f, 0.0f, 0.00f }, // Lance: wound up, shivering
+        { 1.5f, 0.60f, 0.060f, 0.55f, 0.9f, 0.35f }, // Brood: slow and swollen
+        { 2.0f, 1.05f, 0.018f, 1.05f, 2.4f, 1.05f }, // Bulwark: a heavy plod
+        { 6.0f, 2.00f, 0.030f, 2.00f, 1.4f, 1.00f }, // Burrow
+        { 9.0f, 2.40f, 0.025f, 2.40f, 0.0f, 0.00f }, // Serpent: the whole animal
+    } };
+
+    inline constexpr const Motion& motionFor(EnemyBehaviour behaviour)
+    {
+        return BehaviourMotion[static_cast<std::size_t>(behaviour)];
+    }
+
+    // Everything above is scaled by this, and so is the sub and so are the
+    // shots. One knob for how alive the water is, and setting it to zero puts
+    // every sprite back to being slid along its line.
+    inline constexpr float MotionAmount = 1.0f;
 
     // What a creature is made of, for the ear rather than the eye. Kept as its
     // own table rather than a field on EnemyStats because it is answering a
@@ -650,6 +718,13 @@ namespace config
     // The moves a boss keeps back. From the second act on, and on a slow clock
     // of their own, so the second half of a fight has a rhythm rather than
     // simply more of everything.
+    // The body flexing as it swims, rather than being towed round the basin in
+    // one rigid piece. Rotation only, and only on the sprite: the links the
+    // shots are tested against and the fins are bolted to do not move.
+    inline constexpr float BossFlexDegrees = 5.0f;
+    inline constexpr float BossFlexHz = 0.55f;
+    inline constexpr float BossFlexLag = 0.85f; // radians of wave per link
+
     inline constexpr int   BossUltraFromAct = 1;
     inline constexpr float BossUltraInterval = 15.0f;
 
@@ -1063,7 +1138,7 @@ namespace config
     inline constexpr const char* TorpedoTexturePath = "assets/textures/torpedo.png";
     inline constexpr const char* MineTexturePath = "assets/textures/mine.png";
 
-    inline constexpr ProjectileStats Torpedo{ 300.0f, 13.0f, 0.9f };
+    inline constexpr ProjectileStats Torpedo{ 300.0f, 13.0f, 0.9f, 0.05f, 2.2f, 3.5f, 1.3f };
     inline constexpr int   TorpedoBaseDamage = 4;
     inline constexpr float TorpedoCooldown = 1.9f;
     inline constexpr float TorpedoTurnRate = 190.0f; // degrees per second while homing

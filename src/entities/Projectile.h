@@ -78,5 +78,16 @@ private:
     int          m_recent[2] = { -9999, -9998 };
     int          m_recentNext = 0;
     float        m_scale;
+
+    // A shot that is in the water rather than drawn over it. The age is the
+    // clock the throb and the roll are read off, and the phase is why a ring
+    // of fourteen orbs does not beat as one object.
+    float        m_age = 0.0f;
+    float        m_phase;
+    float        m_throb;
+    float        m_throbHz;
+    float        m_roll;
+    float        m_rollHz;
+
     bool         m_alive;
 };

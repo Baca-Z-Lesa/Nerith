@@ -26,6 +26,7 @@ Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
     , m_sprite(texture)
     , m_position(position)
     , m_aimDirection(1.0f, 0.0f)
+    , m_phase(rng::range(0.0f, 6.283185307f))
     , m_health(std::max(1, static_cast<int>(std::lround(
           static_cast<float>(config::enemyStats(type).health) * scaling.health))))
     , m_maxHealth(m_health)
@@ -52,6 +53,7 @@ Enemy::Enemy(EnemyType type, const sf::Texture& texture, sf::Vector2f position,
     m_sprite.setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
     m_sprite.setScale({ m_stats->scale, m_stats->scale });
     m_sprite.setPosition(m_position);
+    m_bodyScale = m_stats->scale;
 }
 
 float Enemy::getRadius() const
@@ -178,6 +180,11 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
 void Enemy::update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f playerVelocity,
                    const Arena& arena)
 {
+    // Its own clock, which is what everything it does with its body is read
+    // off. Cold water slows the beat along with everything else, so a chilled
+    // creature does not swim at half speed while its tail keeps full time.
+    m_age += deltaTime * (1.0f - m_chillStrength);
+
     // Where to swim, as opposed to where the sub is. Straight at it when the
     // water is open, and along the room graph when it is not.
     //
@@ -265,7 +272,7 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f pl
                       * config::WanderSpeedFactor * deltaTime;
 
         m_aimDirection = heading;
-        m_sprite.setRotation(heading.angle());
+        m_facing = heading.angle();
         m_sprite.setPosition(m_position);
         m_playerDistance = distance;
         m_inFiringRange = false;
@@ -319,7 +326,7 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f pl
     // it where the hull is.
     if (m_latched)
     {
-        m_sprite.setRotation(m_aimDirection.angle());
+        m_facing = m_aimDirection.angle();
         m_sprite.setPosition(m_position);
         m_playerDistance = distance;
 
@@ -357,11 +364,11 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f pl
         if (m_stats->behaviour == EnemyBehaviour::Drift)
         {
             m_spin += config::BloomSpinSpeed * deltaTime;
-            m_sprite.setRotation(sf::degrees(m_spin));
+            m_facing = sf::degrees(m_spin);
         }
         else
         {
-            m_sprite.setRotation(m_aimDirection.angle());
+            m_facing = m_aimDirection.angle();
         }
 
         m_inFiringRange = m_hasEntered
@@ -646,9 +653,49 @@ void Enemy::present(float alpha)
     // A creature that surfaced or blinked did not swim there, so it is drawn
     // where it is and nowhere in between - interpolating that would send it
     // sailing through the rock it came out of.
-    m_sprite.setPosition(m_warped
-                             ? m_position
-                             : m_prevPosition + (m_position - m_prevPosition) * alpha);
+    sf::Vector2f at = m_warped
+                          ? m_position
+                          : m_prevPosition + (m_position - m_prevPosition) * alpha;
+
+    // And then the part that makes it an animal rather than a decal. Every
+    // number here comes out of the behaviour table, every one of them is read
+    // only while the picture is being made, and not one of them is visible to
+    // anything that decides what happens: the position it was hit at, the
+    // radius it is hit on and the way it is pointed are all exactly where the
+    // step left them.
+    const config::Motion& motion = config::motionFor(m_stats->behaviour);
+    const float strength = config::MotionAmount;
+
+    if (strength > 0.0f)
+    {
+        constexpr float Tau = 6.283185307f;
+
+        const float beat = m_phase + m_age * Tau;
+
+        // The tail. Yawing off the heading rather than turning the creature,
+        // so a shield still faces where it is walking.
+        const float sway = motion.sway * strength * std::sin(beat * motion.swayHz);
+
+        // The body. Swelling across itself and pinching along, which is what a
+        // thing that swims by squeezing water actually does.
+        const float swell = motion.pulse * strength * std::sin(beat * motion.pulseHz);
+
+        // And the whole animal riding a little across its own line, so two of
+        // them side by side are not one shape drawn twice.
+        at += sf::Vector2f{ -std::sin(m_facing.asRadians()), std::cos(m_facing.asRadians()) }
+              * (motion.bob * strength * std::sin(beat * motion.bobHz));
+
+        m_sprite.setRotation(m_facing + sf::degrees(sway));
+        m_sprite.setScale({ m_bodyScale * (1.0f - swell * 0.6f),
+                            m_bodyScale * (1.0f + swell) });
+    }
+    else
+    {
+        m_sprite.setRotation(m_facing);
+        m_sprite.setScale({ m_bodyScale, m_bodyScale });
+    }
+
+    m_sprite.setPosition(at);
 }
 
 sf::Vector2f Enemy::getMuzzlePosition() const
@@ -661,9 +708,10 @@ void Enemy::applyHitFlash()
     // A tint alone barely shows on an already dark sprite, so a hit also punches
     // the scale for a moment. That reads instantly at any size.
     const float strength = m_hitFlashTimer / config::EnemyHitFlashDuration;
-    const float scale = m_stats->scale * (1.0f + config::EnemyHitFlashPunch * strength);
 
-    m_sprite.setScale({ scale, scale });
+    // Handed to the picture rather than to the sprite, because the picture has
+    // a beat of its own to fold in and the two have to agree on one number.
+    m_bodyScale = m_stats->scale * (1.0f + config::EnemyHitFlashPunch * strength);
 
     sf::Color tint = strength > 0.0f ? config::EnemyHitFlashTint
                      : m_chillTimer > 0.0f ? config::ChillTint
