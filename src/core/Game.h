@@ -265,6 +265,9 @@ private:
     // Running dark. The lamp is what lets a creature find you from across the
     // basin; with it off you are nearly blind but so is everything else, and
     // firing gives you away anyway. It is the other way to play a level.
+    // Works out what the lamp is actually running at - the switch, the silt
+    // and whether it is still in one piece - and tells the basin.
+    void refreshLamp();
     void toggleLamp();
     float noticeRange() const;
     void updateSonar(float deltaTime);
@@ -276,7 +279,19 @@ private:
     // the player can shoot: it is there to make a quiet stretch feel wrong.
     void callFromTheDark(float deltaTime);
     void handleCollisions();
+    // Every wound in the game comes through here. `from` is where it came
+    // from, which is both the direction to shove the sub and - when it is the
+    // one that finishes the dive - the thing the death screen has to name.
+    struct Wound
+    {
+        sf::Vector2f            at;
+        std::optional<EnemyType> creature;  // empty for a boss, a vent, the dark
+        bool                     boss = false;
+        bool                     shove = true;
+    };
+
     void hurtPlayer(int amount);
+    void hurtPlayer(int amount, const Wound& from);
     void killEnemy(Enemy& enemy);
     void flushPendingShots();
     void removeDeadEntities();
@@ -430,6 +445,10 @@ private:
     std::vector<Nest>       m_nests;
     std::vector<Cargo>      m_cargo;
     std::vector<HitRing>    m_hitRings;
+    // What last hurt the sub, kept so a death can say what killed it.
+    Wound                   m_lastWound;
+    bool                    m_haveWound = false;
+
     std::optional<Boss>     m_boss;
 
     // The harpoon is kept apart from the shot list: there is only ever one, it

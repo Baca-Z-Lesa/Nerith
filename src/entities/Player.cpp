@@ -166,15 +166,51 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
         // A dash overrides steering entirely: you committed to a direction.
         m_dashTimer -= deltaTime;
         m_position += m_dashDirection * config::DashSpeed * deltaTime;
+
+        // And it leaves you carrying that direction, so the sub swims out of a
+        // dash instead of stopping dead at the end of one.
+        m_velocity = m_dashDirection * config::PlayerSpeed;
     }
     else
     {
-        // Multiplying by deltaTime is what makes the speed framerate-independent:
-        // the player always covers this many pixels per second of real time.
         const float engine = isBroken(Hull::Engine) ? config::BrokenEngineSpeed : 1.0f;
         const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency()
                             * m_burden * engine;
-        m_position += steering * speed * deltaTime;
+
+        // The sub has mass now. Not much of one - a whole hull is up to speed
+        // inside a fortieth of a second, which nobody can feel - but enough
+        // that a broken engine can take that away, and enough that the thing
+        // being steered reads as a submarine rather than as a cursor.
+        sf::Vector2f wanted = steering * speed;
+
+        // A cracked rudder cuts the part of the thrust that is ACROSS the way
+        // the sub is already going. Straight on it is fine; a hard turn
+        // becomes a wide one. It never stops the sub answering, which is what
+        // separates it from the engine.
+        if (isBroken(Hull::Rudder) && m_velocity.lengthSquared() > 1.0f)
+        {
+            const sf::Vector2f heading = m_velocity.normalized();
+            const sf::Vector2f along = heading * wanted.dot(heading);
+
+            wanted = along + (wanted - along) * config::BrokenRudderTurn;
+        }
+
+        const bool broken = isBroken(Hull::Engine);
+        const float rate = m_moving
+                               ? config::PlayerAccel * (broken ? config::BrokenEngineAccel : 1.0f)
+                               : config::PlayerDrag * (broken ? config::BrokenEngineDrag : 1.0f);
+
+        m_velocity += (wanted - m_velocity) * std::min(1.0f, rate * deltaTime);
+        m_position += m_velocity * deltaTime;
+    }
+
+    // Shoved by something that hit you. Decays rather than running out, so a
+    // hit pushes and lets go instead of carrying the sub across the room.
+    if (m_impulseTimer > 0.0f)
+    {
+        m_impulseTimer -= deltaTime;
+        m_position += m_impulse * deltaTime;
+        m_impulse *= std::exp(-config::KnockbackDecay * deltaTime);
     }
 
     // Water that turns. A dash is strong enough to leave a pit, ordinary
@@ -190,6 +226,7 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
                                   : sf::Vector2f{ 0.0f, 0.0f };
 
     aimAt(aimTarget);
+    m_prevPosition = m_position;
     m_sprite.setPosition(m_position);
 
     m_visuals.setShieldUp(m_shieldCharges > 0);
@@ -288,6 +325,20 @@ void Player::repairHull()
     m_broken = 0;
 }
 
+void Player::applyImpulse(sf::Vector2f push, float seconds)
+{
+    if (seconds <= 0.0f)
+        return;
+
+    // The larger of the two rather than the sum, the same way the shake is
+    // taken: four things landing at once should not throw the sub further
+    // than the worst of them did.
+    if (push.lengthSquared() >= m_impulse.lengthSquared())
+        m_impulse = push;
+
+    m_impulseTimer = std::max(m_impulseTimer, seconds);
+}
+
 bool Player::tryDash(sf::Vector2f steering)
 {
     // A dead engine is a dead engine. The dash is the one thing the player
@@ -362,7 +413,11 @@ Player::DamageResult Player::takeDamage(int amount)
 
 void Player::setPosition(sf::Vector2f position)
 {
+    // Put somewhere rather than swum there, so there is nothing to draw
+    // between: a harpoon, a boss move or the start of a dive would otherwise
+    // send the sub sailing across the basin over half a frame.
     m_position = position;
+    m_prevPosition = position;
     m_sprite.setPosition(m_position);
 }
 
@@ -381,6 +436,9 @@ void Player::reset()
     m_shieldTimer = 0.0f;
     m_shieldCharges = getMaxShieldCharges();
     m_moving = false;
+    m_velocity = { 0.0f, 0.0f };
+    m_impulse = { 0.0f, 0.0f };
+    m_impulseTimer = 0.0f;
     m_ventReady = true;
 
     m_sprite.setColor(sf::Color::White);

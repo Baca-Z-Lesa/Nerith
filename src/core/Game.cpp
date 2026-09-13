@@ -383,7 +383,9 @@ void Game::applyBossMove(const BossMove& move)
 
             m_pushTo = direction * config::SweepPush;
             m_pushTime = 0.30f;
-            hurtPlayer(config::SweepDamage);
+            // The sweep does its own throwing, so it must not get a second one.
+            hurtPlayer(config::SweepDamage,
+                       { m_boss->getPosition(), std::nullopt, true, false });
             break;
         }
 
@@ -446,8 +448,8 @@ void Game::applyBossMove(const BossMove& move)
             // Blind. The lamp is the only reason the basin is navigable, and
             // for the next few seconds most of it is gone.
             m_siltTimer = config::SiltDuration;
-            m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
-                            (m_lampOn ? 1.0f : config::LampDarkFactor) * config::SiltLamp);
+            refreshLamp();
+
             addFlash(config::EruptColor, 0.5f);
             m_audio.play(Sfx::Vent, 0.7f);
             break;
@@ -538,7 +540,9 @@ void Game::updateBossMoves(float deltaTime)
         if (m_grabBite <= 0.0f)
         {
             m_grabBite = config::GrabBiteInterval;
-            hurtPlayer(config::GrabBite + m_level.getScaling().bonusDamage);
+            // Held in its mouth: being shoved out of it would be a reward.
+            hurtPlayer(config::GrabBite + m_level.getScaling().bonusDamage,
+                       { m_boss->getPosition(), std::nullopt, true, false });
             addShake(config::ShakeBossPart);
         }
 
@@ -550,8 +554,7 @@ void Game::updateBossMoves(float deltaTime)
     {
         m_siltTimer -= deltaTime;
         if (m_siltTimer <= 0.0f)
-            m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
-                            m_lampOn ? 1.0f : config::LampDarkFactor);
+            refreshLamp();
     }
 
     if (m_eruptTimer > 0.0f)
@@ -566,7 +569,8 @@ void Game::updateBossMoves(float deltaTime)
             m_audio.play(Sfx::BossRoar, 0.9f);
 
             if ((m_player.getPosition() - m_eruptAt).length() <= config::EruptRadius)
-                hurtPlayer(config::EruptDamage);
+                hurtPlayer(config::EruptDamage,
+                           { m_eruptAt, std::nullopt, true, true });
 
             areaDamage(m_eruptAt, config::EruptRadius, config::EruptDamage);
         }
@@ -810,7 +814,7 @@ void Game::beginLevel(int number)
     // of the theme rather than replacing it.
     m_lampOn = true;
     m_noiseTimer = 0.0f;
-    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f), 1.0f);
+    refreshLamp();
 
     // Escorts are rebuilt each level so the count always matches the tree.
     m_drones.clear();
@@ -2422,12 +2426,28 @@ void Game::drawNests()
     }
 }
 
+void Game::refreshLamp()
+{
+    // Everything that dims the lamp, in one place. It used to be worked out
+    // at each of the four call sites, which is how a broken lamp could have
+    // been fixed in three of them and still be bright in the fourth.
+    float factor = m_lampOn ? 1.0f : config::LampDarkFactor;
+
+    if (m_siltTimer > 0.0f)
+        factor *= config::SiltLamp;
+
+    if (m_player.isBroken(Player::Hull::Lamp))
+        factor *= config::BrokenLampFactor;
+
+    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f), factor);
+}
+
 void Game::toggleLamp()
 {
     m_lampOn = !m_lampOn;
 
-    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
-                    m_lampOn ? 1.0f : config::LampDarkFactor);
+    refreshLamp();
+
 
     m_audio.play(Sfx::PartBreak, 0.35f);
 }
@@ -2519,7 +2539,7 @@ void Game::updateVents(float deltaTime)
         // exception: areaDamage does not reach them, and letting the floor cook
         // a depth's creature would take the fight away from the player.
         if ((m_player.getPosition() - vent.position).length() <= vent.radius)
-            hurtPlayer(config::VentDamage);
+            hurtPlayer(config::VentDamage, { vent.position, std::nullopt, false, true });
 
         areaDamage(vent.position, vent.radius,
                    std::max(1, static_cast<int>(std::lround(config::VentEnemyDamage))));
@@ -2960,7 +2980,9 @@ void Game::updateEnemies(float deltaTime)
 
         if (enemy.wantsBite(deltaTime))
         {
-            hurtPlayer(config::LeechDrain + m_level.getScaling().bonusDamage);
+            // It is attached. Shoving the sub would only take it along.
+            hurtPlayer(config::LeechDrain + m_level.getScaling().bonusDamage,
+                       { enemy.getPosition(), enemy.getType(), false, false });
             addHitRing(m_player.getPosition(), config::PlayerRadius * 1.8f,
                        config::HudBossColor);
         }
@@ -3165,6 +3187,31 @@ void Game::killEnemy(Enemy& enemy)
         m_level.notifyEnemyKilled(enemy.getType());
 }
 
+void Game::hurtPlayer(int amount, const Wound& from)
+{
+    // Remembered before anything can absorb it, so the death screen names what
+    // actually finished the dive rather than whatever happened to be nearest.
+    m_lastWound = from;
+    m_haveWound = true;
+
+    if (from.shove)
+    {
+        const sf::Vector2f away = m_player.getPosition() - from.at;
+
+        if (away.lengthSquared() > 0.0001f)
+        {
+            // Scaled by how hard it hit, so a spawnling nudges and a warden
+            // throws. Capped at both ends: a shove nobody can feel is not
+            // worth the code, and one that crosses the room is a boss move.
+            const float weight = std::clamp(static_cast<float>(amount) * 0.45f, 0.55f, 1.8f);
+            m_player.applyImpulse(away.normalized() * config::KnockbackPeak * weight,
+                                  config::KnockbackTime);
+        }
+    }
+
+    hurtPlayer(amount);
+}
+
 void Game::hurtPlayer(int amount)
 {
     // The single door every wound comes through, which is why the difficulty
@@ -3251,6 +3298,10 @@ void Game::hurtPlayer(int amount)
             addHitStop(config::HitStopBossPart);
             addHitRing(m_player.getPosition(), config::PlayerRadius * 3.4f,
                        config::HullBrokenColor);
+
+            // Losing the lamp has to be visible the instant it goes, not at
+            // the next time something else happens to touch the light.
+            refreshLamp();
         }
     }
 
@@ -3567,7 +3618,7 @@ void Game::handleCollisions()
 
         shot.kill();
         effects::impact(m_effects, shot.getPosition(), shot.getDirection());
-        hurtPlayer(shot.getDamage());
+        hurtPlayer(shot.getDamage(), { shot.getPosition(), std::nullopt, false, true });
     }
 
     // Contact damage. The invulnerability window is what stops a pile-up from
@@ -3585,7 +3636,8 @@ void Game::handleCollisions()
         // can be shot, but every ring of it can hit you.
         if (!touching && enemy.bodyTouches(m_player.getPosition(), config::PlayerRadius))
         {
-            hurtPlayer(enemy.getContactDamage());
+            hurtPlayer(enemy.getContactDamage(),
+                       { enemy.getPosition(), enemy.getType(), false, true });
             continue;
         }
 
@@ -3607,7 +3659,8 @@ void Game::handleCollisions()
         if (enemy.isLatched())
             continue; // it is feeding, and feeding is handled on its own clock
 
-        hurtPlayer(enemy.getContactDamage());
+        hurtPlayer(enemy.getContactDamage(),
+                   { enemy.getPosition(), enemy.getType(), false, true });
     }
 
     if (m_boss && m_boss->isVulnerable()
@@ -3627,7 +3680,8 @@ void Game::handleCollisions()
         }
         else if (m_grabTimer <= 0.0f)
         {
-            hurtPlayer(m_boss->getContactDamage());
+            hurtPlayer(m_boss->getContactDamage(),
+                       { m_boss->getPosition(), std::nullopt, true, true });
         }
     }
 }

@@ -54,6 +54,11 @@ public:
     // fumes, which is what the HUD and the trail read to show it.
     bool isDesperate() const;
     bool tryDash(sf::Vector2f steering);
+
+    // A shove from outside: a hit, a blast, anything that should move the sub
+    // without the player having asked. Replaces whatever was already pushing
+    // rather than adding to it, so a rain of small hits cannot launch you.
+    void applyImpulse(sf::Vector2f push, float seconds);
     bool isDashing() const { return m_dashTimer > 0.0f; }
 
     struct DamageResult
@@ -84,10 +89,12 @@ public:
     // the sub you limp home in is not the one you dived with.
     enum class Hull
     {
-        Sonar,  // no ping, and nothing marked on the map
+        Sonar,  // no ping, and the map stops filling itself in
         Tube,   // no torpedoes
+        Lamp,   // the beam drops to a stub and the halo with it
+        Rudder, // it still goes where you point it, just not quickly
         Gun,    // the jet lands soft and comes slowly
-        Engine, // no dash, and two thirds of the speed
+        Engine, // no dash, two thirds of the speed, and it wallows
         Count
     };
 
@@ -128,6 +135,8 @@ private:
     sf::Vector2f m_position;
     sf::Vector2f m_prevPosition;
     sf::Vector2f m_velocity;
+    sf::Vector2f m_impulse;
+    float        m_impulseTimer = 0.0f;
     sf::Vector2f m_aimDirection; // unit vector the nose points along
     sf::Vector2f m_dashDirection;
 

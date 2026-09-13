@@ -515,8 +515,29 @@ namespace config
     // A hull bar that only counts down says nothing about what the damage did.
     // Crossing each of these fractions knocks out the next system, least
     // crippling first, and none of it comes back until the dive is over.
-    inline constexpr std::array<float, 4> HullBreakAt{ { 0.72f, 0.52f, 0.32f, 0.16f } };
+    inline constexpr std::array<float, 6> HullBreakAt{ { 0.82f, 0.68f, 0.54f,
+                                                        0.40f, 0.26f, 0.13f } };
     inline constexpr float BrokenEngineSpeed = 0.66f;
+
+    // How the sub answers the keys. High enough that a whole hull feels
+    // immediate - a fortieth of a second to most of its speed, which nobody
+    // can feel - and low enough that losing the engine is something you feel
+    // in your hands rather than read off a bar.
+    inline constexpr float PlayerAccel = 26.0f;
+    inline constexpr float PlayerDrag = 19.0f;
+    inline constexpr float BrokenEngineAccel = 0.32f;  // multiplies both
+    inline constexpr float BrokenEngineDrag = 0.38f;
+
+    // A cracked rudder does not stop the sub going where you point it. It
+    // stops it going there QUICKLY: the part of the thrust that is across the
+    // way it is already travelling is what gets cut, so a straight line is
+    // fine and a hard turn becomes a wide one.
+    inline constexpr float BrokenRudderTurn = 0.34f;
+
+    // A dead lamp is not a dark lamp. It is a stub of a beam and a halo you
+    // have to lean on, which is the worst thing on this list that is not the
+    // engine.
+    inline constexpr float BrokenLampFactor = 0.42f;
     inline constexpr float BrokenGunDamage = 0.62f;
     inline constexpr float BrokenGunRate = 1.45f;   // multiplies the gap between shots
     inline constexpr sf::Color HullBrokenColor{ 226, 96, 78 };
@@ -971,6 +992,14 @@ namespace config
     // Shake is in pixels of camera jitter and dies off exponentially; hit stop
     // is measured in seconds of frozen simulation and has to stay short enough
     // that it reads as weight rather than as a dropped frame.
+    // What a hit does to where the sub is, as opposed to what it does to the
+    // bar. Peak well under the boss sweep, so a boss move stays the thing
+    // that throws you; time well under the invulnerability window, so a shove
+    // can never push you into a second hit you had no answer to.
+    inline constexpr float KnockbackPeak = 430.0f;
+    inline constexpr float KnockbackTime = 0.22f;
+    inline constexpr float KnockbackDecay = 7.0f;
+
     inline constexpr float ShakeDecay = 9.0f;
     inline constexpr float ShakeMax = 22.0f;
     inline constexpr float ShakeJet = 0.0f;  // a jet is too small to move the camera

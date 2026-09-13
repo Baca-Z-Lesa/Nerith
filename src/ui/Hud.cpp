@@ -114,12 +114,13 @@ void Hud::drawSystems(sf::RenderTarget& target, const LevelInfo& level)
     // "I have no torpedoes and no dash".
     if (level.broken != 0u)
     {
-        static const char* const names[] = { "SONAR", "TUBE", "GUN", "ENGINE" };
+        static const char* const names[] = { "SONAR", "TUBE", "LAMP",
+                                             "RUDDER", "GUN", "ENGINE" };
 
         y += (level.maxShieldCharges > 0 && level.mode == nullptr) ? 18.0f : 0.0f;
 
         float x = config::HudMargin;
-        for (unsigned int i = 0; i < 4; ++i)
+        for (unsigned int i = 0; i < static_cast<unsigned int>(std::size(names)); ++i)
         {
             if ((level.broken & (1u << i)) == 0u)
                 continue;
