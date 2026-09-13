@@ -1180,6 +1180,12 @@ void Game::applySettings()
     m_audio.setMuted(m_save.muted);
     m_level.setDifficulty(m_save.difficulty);
 
+    // And how much sub is being driven, which the water is about to be told
+    // to keep up with.
+    const int total = std::max(1, m_tree.getTotalCost());
+    const float share = static_cast<float>(m_tree.getSpent()) / static_cast<float>(total);
+    m_level.setPower(std::clamp(share / config::PowerFullShare, 0.0f, 1.0f));
+
     // Pacing. Vsync and the cap are two answers to the same question and the
     // window will happily do both, which is how a machine ends up waiting
     // twice for one frame - so it is one or the other.
@@ -3528,6 +3534,15 @@ void Game::handleCollisions()
                 if ((enemy.getPosition() - shot.getPosition()).lengthSquared() > reach * reach)
                     continue;
 
+                // Already landed on this one. A piercing shot travels slower
+                // than a big creature is wide, so without this it hits the same
+                // body on step after step and spends the pierce the player paid
+                // for on a single target.
+                if (shot.alreadyHit(enemy.getId()))
+                    continue;
+
+                shot.markHit(enemy.getId());
+
                 // A shield that only faces one way. The shot dies on it and
                 // says so: a hit that silently does nothing reads as a bug
                 // rather than as a rule.
@@ -3635,10 +3650,20 @@ void Game::handleCollisions()
             if (spent || !shot.isAlive() || !m_boss)
                 continue;
 
+            // Which part it would land on, asked before any damage is done, so
+            // a shot that is still inside the part it already hit simply
+            // passes through it rather than hitting it again this step.
+            const int part = m_boss->partAt(shot.getPosition(), shot.getRadius());
+
+            if (part >= 0 && shot.alreadyHit(config::BossHitToken - part))
+                continue;
+
             const Boss::Hit hit = m_boss->tryHit(shot.getPosition(), shot.getRadius(),
                                                  shot.getDamage(), weakPoint);
             if (!hit.hit)
                 continue;
+
+            shot.markHit(config::BossHitToken - hit.partIndex);
 
             effects::impact(m_effects, shot.getPosition(), shot.getDirection());
 

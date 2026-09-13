@@ -72,6 +72,11 @@ public:
     // weakPointBonus is added as a multiplier when the shot lands on an organ.
     Hit tryHit(sf::Vector2f position, float radius, int damage, float weakPointBonus);
 
+    // Which part a shot would land on, without landing it. Asked so a shot
+    // that is still inside the part it has already hit can be let through
+    // rather than hitting it again.
+    int partAt(sf::Vector2f position, float radius) const;
+
     // Chain Reaction: hurt whatever is bolted next to a part that just died.
     void splashNeighbours(std::size_t partIndex, int damage);
 

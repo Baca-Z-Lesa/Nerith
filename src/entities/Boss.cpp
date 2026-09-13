@@ -894,6 +894,30 @@ void Boss::confine(sf::Vector2f center, float maxDistance)
 //  Damage
 // ---------------------------------------------------------------------------
 
+int Boss::partAt(sf::Vector2f position, float radius) const
+{
+    if (!isVulnerable())
+        return -1;
+
+    for (std::size_t i = 0; i < m_parts.size(); ++i)
+    {
+        const Part& part = m_parts[i];
+
+        if (!part.alive)
+            continue;
+
+        if (part.def.role == PartRole::Organ && !organExposed(part))
+            continue;
+
+        const float reach = radius + part.def.radius;
+
+        if ((part.world - position).lengthSquared() <= reach * reach)
+            return static_cast<int>(i);
+    }
+
+    return -1;
+}
+
 Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float weakPointBonus)
 {
     Hit result;

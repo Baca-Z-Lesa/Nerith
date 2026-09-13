@@ -50,6 +50,15 @@ public:
     // same creature on the next frame and deletes it - which made splitshot
     // and the cluster torpedo into instant kills rather than into spray.
     void setIgnore(int enemyId) { m_ignore = enemyId; }
+
+    // The last two things it landed on, so a shot with pierce left cannot
+    // spend all of it on the same body. A boss is one enormous target made of
+    // parts: without this a piercing shot sitting inside it landed again on
+    // every step, which at a hundred and twenty steps a second is not piercing,
+    // it is a blender. Two rather than one, because two parts side by side
+    // would otherwise pass it back and forth.
+    bool alreadyHit(int token) const { return m_recent[0] == token || m_recent[1] == token; }
+    void markHit(int token) { m_recent[m_recentNext] = token; m_recentNext ^= 1; }
     int getIgnore() const { return m_ignore; }
 
     bool isAlive() const { return m_alive; }
@@ -66,6 +75,8 @@ private:
     int          m_pierce;
     int          m_bounces;
     int          m_ignore;
+    int          m_recent[2] = { -9999, -9998 };
+    int          m_recentNext = 0;
     float        m_scale;
     bool         m_alive;
 };

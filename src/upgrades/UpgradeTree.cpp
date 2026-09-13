@@ -510,6 +510,16 @@ bool UpgradeTree::tryUnlock(std::size_t index, int& salvage)
     return true;
 }
 
+int UpgradeTree::getTotalCost() const
+{
+    int total = 0;
+
+    for (const UpgradeNode& node : m_nodes)
+        total += node.cost;
+
+    return total;
+}
+
 int UpgradeTree::getSpent() const
 {
     int spent = 0;

@@ -610,6 +610,10 @@ namespace config
     //  These are the shared rules every one of them plays by.
     // =====================================================================
     inline constexpr float BossTurnRate = 150.0f;   // degrees per second at full mobility
+    // Boss parts are numbered from here downward so their tokens can never
+    // collide with a creature id, which counts upward from zero.
+    inline constexpr int   BossHitToken = -1000;
+
     inline constexpr float BossFlashDuration = 0.14f;
     inline constexpr float BossAimErrorMax = 34.0f; // degrees of wander once fully blinded
     inline constexpr float BossChargeSpeed = 3.4f;  // speed multiplier during a lunge
@@ -737,6 +741,23 @@ namespace config
     //  Turning these is how the whole campaign gets harder without editing
     //  twenty rows of the level table by hand.
     // =====================================================================
+    // --- Keeping up with the sub ---
+    // What the water gains as the tree fills. A level is written against a
+    // level number, and a level number says nothing about how much gun turned
+    // up to it: the tree is permanent, so a player who has ground the shallows
+    // meets the abyss with several times the sub the curve was drawn for. This
+    // is what stops the deepest water in the game being the easiest thing in
+    // it - and, because the base curve came down to make room for it, what
+    // stops the shelf being the hardest.
+    inline constexpr float PowerScaleHealth = 1.30f;
+    inline constexpr float PowerScaleSpeed = 0.22f;
+    inline constexpr float PowerScaleDamage = 2.0f;
+
+    // How much of the tree counts as a full sub. Not all of it: the last few
+    // nodes are a long grind, and somebody who has bought most of one is
+    // already driving the thing the curve has to answer.
+    inline constexpr float PowerFullShare = 0.72f;
+
     inline constexpr float GlobalCountScale = 1.45f;    // more of everything
     inline constexpr float GlobalIntervalScale = 0.74f; // arriving sooner
     inline constexpr std::size_t GlobalMaxAliveBonus = 3;

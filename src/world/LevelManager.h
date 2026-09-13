@@ -23,6 +23,10 @@ public:
     // creatures, so nothing downstream has to know the setting exists.
     void setDifficulty(int index);
 
+    // How much sub the player is driving, 0 for a bare hull and 1 for a tree
+    // that has nothing left to buy. What a level asks for follows it.
+    void setPower(float power) { m_power = power; }
+
     void start(int number);
     void update(float deltaTime);
 
@@ -65,6 +69,7 @@ private:
     LevelDef m_def{};
     int      m_number = 1;
     int      m_difficulty = 1;
+    float    m_power = 0.0f;
 
     std::vector<EnemyType> m_queue;
     std::size_t            m_queueIndex = 0;

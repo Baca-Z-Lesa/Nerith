@@ -28,6 +28,26 @@ EnemyScaling LevelManager::getScaling() const
     // damage, the orbs, the mines and the boss.
     EnemyScaling scaling = m_def.scaling;
     scaling.health *= difficulty().enemyHealth;
+
+    // And then by how much sub the player is actually driving.
+    //
+    // The curve used to be written against the level number alone, which
+    // assumes the player arrives at level fifteen with about as much hull as
+    // the designer imagined. They do not: the tree is permanent and salvage
+    // accumulates, so somebody who has ground the shallows arrives at the
+    // abyss with four times the gun the curve was drawn for, and the deepest
+    // water in the game is the easiest thing in it. Meanwhile a player who
+    // came straight down meets the same numbers with nothing, which is why the
+    // shelf was the hardest part of the campaign.
+    //
+    // This is the same number answering both: what a level asks for follows
+    // what the player brought to it.
+    const float power = std::clamp(m_power, 0.0f, 1.0f);
+
+    scaling.health *= 1.0f + config::PowerScaleHealth * power;
+    scaling.speed *= 1.0f + config::PowerScaleSpeed * power;
+    scaling.bonusDamage += static_cast<int>(std::lround(config::PowerScaleDamage * power));
+
     return scaling;
 }
 

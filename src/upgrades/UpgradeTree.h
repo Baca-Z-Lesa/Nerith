@@ -64,6 +64,10 @@ public:
     // What everything currently bolted on cost, and stripping it all off for
     // most of that back. A bad build is recoverable, at a price.
     int getSpent() const;
+
+    // What the whole tree costs, so what is bolted on can be read as a
+    // fraction of a finished sub rather than as a number on its own.
+    int getTotalCost() const;
     int stripForRefund();
 
     std::size_t getUnlockedCount() const;

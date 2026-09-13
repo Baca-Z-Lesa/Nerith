@@ -69,7 +69,7 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
       { { { EnemyType::Lurker, 10 } } }, false },
 
     { "THEY COME FASTER", "SOMETHING QUICK MOVES IN THE DARK.",
-      ObjectiveKind::ClearRoster, 0, 1.05f, 6, { 0.95f, 1.00f, 0 },
+      ObjectiveKind::ClearRoster, 0, 1.05f, 6, { 0.88f, 0.96f, 0 },
       { { { EnemyType::Lurker, 6 }, { EnemyType::Lancer, 4 },
           { EnemyType::Lurker, 5 }, { EnemyType::Lancer, 3 } } }, false },
 
@@ -77,11 +77,11 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // nests are cemented out at the reef, one is never in sight from
     // another, and they hatch until they are dead.
     { "THE NURSERY", "THREE NESTS OUT ON THE REEF. BURN THEM OUT.",
-      ObjectiveKind::DestroyNests, 3, 1.40f, 7, { 1.00f, 1.00f, 0 },
+      ObjectiveKind::DestroyNests, 3, 1.40f, 7, { 0.92f, 0.98f, 0 },
       { { { EnemyType::Lurker, 5 }, { EnemyType::Lancer, 3 } } }, false },
 
     { "THE PACK", "ALL OF IT AT ONCE.",
-      ObjectiveKind::ClearRoster, 0, 0.90f, 9, { 1.05f, 1.05f, 0 },
+      ObjectiveKind::ClearRoster, 0, 0.90f, 9, { 0.96f, 1.00f, 0 },
       { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 8 },
           { EnemyType::Brooder, 2 }, { EnemyType::Lancer, 4 } } }, false },
 
@@ -93,22 +93,22 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // The first haul. Two pods, a short basin, and the thing it teaches is
     // that you cannot fight your way through a room with your hands full.
     { "DEAD DROP", "TWO PODS OUT THERE. SOMETHING ARMOURED IS IN THE WAY.",
-      ObjectiveKind::HaulCargo, 2, 1.05f, 9, { 1.10f, 1.05f, 0 },
+      ObjectiveKind::HaulCargo, 2, 1.05f, 9, { 1.00f, 1.02f, 0 },
       { { { EnemyType::Lurker, 6 }, { EnemyType::Warden, 2 },
           { EnemyType::Lancer, 4 }, { EnemyType::Warden, 1 } } }, false },
 
     { "CROSSFIRE", "THE HEAVY ONES HERD YOU INTO THE GUNS.",
-      ObjectiveKind::ClearRoster, 0, 0.95f, 9, { 1.12f, 1.06f, 0 },
+      ObjectiveKind::ClearRoster, 0, 0.95f, 9, { 1.02f, 1.03f, 0 },
       { { { EnemyType::Warden, 2 }, { EnemyType::Weaver, 5 },
           { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
     { "THE CHARGE", "THEY AIM BEFORE THEY MOVE. WATCH FOR IT.",
-      ObjectiveKind::ClearRoster, 0, 0.90f, 10, { 1.15f, 1.08f, 0 },
+      ObjectiveKind::ClearRoster, 0, 0.90f, 10, { 1.05f, 1.04f, 0 },
       { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 7 },
           { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
     { "HOLD", "SURVIVE. THEY DO NOT STOP COMING.",
-      ObjectiveKind::SurviveTime, 65, 0.80f, 11, { 1.20f, 1.10f, 0 },
+      ObjectiveKind::SurviveTime, 65, 0.80f, 11, { 1.08f, 1.06f, 0 },
       { { { EnemyType::Lancer, 3 }, { EnemyType::Lurker, 6 },
           { EnemyType::Warden, 1 }, { EnemyType::Brooder, 1 },
           { EnemyType::Weaver, 3 } } }, false },
