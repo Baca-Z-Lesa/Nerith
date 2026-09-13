@@ -70,20 +70,20 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
 
     { "THEY COME FASTER", "SOMETHING QUICK MOVES IN THE DARK.",
       ObjectiveKind::ClearRoster, 0, 1.05f, 6, { 0.95f, 1.00f, 0 },
-      { { { EnemyType::Lurker, 6 }, { EnemyType::Darter, 5 },
-          { EnemyType::Lurker, 5 }, { EnemyType::Darter, 4 } } }, false },
+      { { { EnemyType::Lurker, 6 }, { EnemyType::Lancer, 4 },
+          { EnemyType::Lurker, 5 }, { EnemyType::Lancer, 3 } } }, false },
 
     // The first hunt. Nothing here is solved by holding the middle: the
     // nests are cemented out at the reef, one is never in sight from
     // another, and they hatch until they are dead.
     { "THE NURSERY", "THREE NESTS OUT ON THE REEF. BURN THEM OUT.",
       ObjectiveKind::DestroyNests, 3, 1.40f, 7, { 1.00f, 1.00f, 0 },
-      { { { EnemyType::Lurker, 5 }, { EnemyType::Darter, 4 } } }, false },
+      { { { EnemyType::Lurker, 5 }, { EnemyType::Lancer, 3 } } }, false },
 
     { "THE PACK", "ALL OF IT AT ONCE.",
       ObjectiveKind::ClearRoster, 0, 0.90f, 9, { 1.05f, 1.05f, 0 },
-      { { { EnemyType::Darter, 7 }, { EnemyType::Lurker, 8 },
-          { EnemyType::Brooder, 2 }, { EnemyType::Darter, 6 } } }, false },
+      { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 8 },
+          { EnemyType::Brooder, 2 }, { EnemyType::Lancer, 4 } } }, false },
 
     { "THE LEVIATHAN", "IT HAS BEEN CIRCLING SINCE YOU ARRIVED.",
       ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.00f, 1.00f, 0 },
@@ -94,24 +94,24 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // that you cannot fight your way through a room with your hands full.
     { "DEAD DROP", "TWO PODS OUT THERE. SOMETHING ARMOURED IS IN THE WAY.",
       ObjectiveKind::HaulCargo, 2, 1.05f, 9, { 1.10f, 1.05f, 0 },
-      { { { EnemyType::Lurker, 6 }, { EnemyType::Hulk, 3 },
-          { EnemyType::Darter, 5 }, { EnemyType::Hulk, 2 } } }, false },
+      { { { EnemyType::Lurker, 6 }, { EnemyType::Warden, 2 },
+          { EnemyType::Lancer, 4 }, { EnemyType::Warden, 1 } } }, false },
 
     { "CROSSFIRE", "THE HEAVY ONES HERD YOU INTO THE GUNS.",
       ObjectiveKind::ClearRoster, 0, 0.95f, 9, { 1.12f, 1.06f, 0 },
-      { { { EnemyType::Hulk, 3 }, { EnemyType::Spitter, 6 },
-          { EnemyType::Darter, 6 }, { EnemyType::Spitter, 4 } } }, false },
+      { { { EnemyType::Warden, 2 }, { EnemyType::Weaver, 5 },
+          { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
     { "THE CHARGE", "THEY AIM BEFORE THEY MOVE. WATCH FOR IT.",
       ObjectiveKind::ClearRoster, 0, 0.90f, 10, { 1.15f, 1.08f, 0 },
       { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 7 },
-          { EnemyType::Lancer, 5 }, { EnemyType::Spitter, 4 } } }, false },
+          { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
     { "HOLD", "SURVIVE. THEY DO NOT STOP COMING.",
       ObjectiveKind::SurviveTime, 65, 0.80f, 11, { 1.20f, 1.10f, 0 },
-      { { { EnemyType::Darter, 4 }, { EnemyType::Lancer, 3 },
-          { EnemyType::Hulk, 2 }, { EnemyType::Brooder, 1 },
-          { EnemyType::Spitter, 3 } } }, false },
+      { { { EnemyType::Lancer, 3 }, { EnemyType::Lurker, 6 },
+          { EnemyType::Warden, 1 }, { EnemyType::Brooder, 1 },
+          { EnemyType::Weaver, 3 } } }, false },
 
     { "THE BLOOM SOVEREIGN", "IT DOES NOT HUNT. IT SIMPLY FILLS THE WATER.",
       ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.45f, 1.10f, 0 },
@@ -120,13 +120,13 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // ---------------- DEPTH 3: THE TRENCH ----------------
     { "THE TRENCH", "THEY CIRCLE. THEY DO NOT CLOSE.",
       ObjectiveKind::ClearRoster, 0, 0.85f, 10, { 1.30f, 1.12f, 0 },
-      { { { EnemyType::Weaver, 5 }, { EnemyType::Darter, 7 },
+      { { { EnemyType::Weaver, 5 }, { EnemyType::Lancer, 5 },
           { EnemyType::Weaver, 4 }, { EnemyType::Lurker, 6 } } }, false },
 
-    { "DEAD WEIGHT", "DO NOT BE STANDING NEXT TO THEM.",
+    { "DEAD WEIGHT", "DO NOT BE STANDING NEXT TO THEM WHEN THEY GO.",
       ObjectiveKind::ClearRoster, 0, 0.85f, 10, { 1.35f, 1.14f, 0 },
-      { { { EnemyType::Husk, 6 }, { EnemyType::Hulk, 3 },
-          { EnemyType::Husk, 5 }, { EnemyType::Spitter, 4 } } }, false },
+      { { { EnemyType::Bloom, 4 }, { EnemyType::Warden, 2 },
+          { EnemyType::Bloom, 3 }, { EnemyType::Weaver, 3 } } }, false },
 
     { "GARDEN", "FIVE OF THEM. THE FLOOR IS THEIRS NOW.",
       ObjectiveKind::DestroyNests, 5, 1.05f, 10, { 1.40f, 1.15f, 1 },
@@ -136,9 +136,9 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // The same idea at depth, with four of them and nothing that stops coming.
     { "SALVAGE RUN", "FOUR PODS. EVERYTHING DOWN HERE KNOWS YOU ARE LOADED.",
       ObjectiveKind::HaulCargo, 4, 0.75f, 12, { 1.45f, 1.18f, 1 },
-      { { { EnemyType::Darter, 5 }, { EnemyType::Husk, 4 },
-          { EnemyType::Lancer, 4 }, { EnemyType::Spitter, 4 },
-          { EnemyType::Weaver, 3 } } }, false },
+      { { { EnemyType::Lancer, 4 }, { EnemyType::Bloom, 3 },
+          { EnemyType::Lancer, 4 }, { EnemyType::Weaver, 3 },
+          { EnemyType::Lurker, 5 } } }, false },
 
     { "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
       ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 1.90f, 1.15f, 1 },
@@ -147,25 +147,25 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
     // ---------------- DEPTH 4: THE ABYSS ----------------
     { "THE ABYSS", "SHOOTING THE BIG ONE IN THE FACE WILL NOT WORK.",
       ObjectiveKind::ClearRoster, 0, 0.90f, 11, { 1.55f, 1.20f, 1 },
-      { { { EnemyType::Angler, 5 }, { EnemyType::Lurker, 7 },
-          { EnemyType::Warden, 3 }, { EnemyType::Darter, 6 } } }, false },
+      { { { EnemyType::Revenant, 3 }, { EnemyType::Lurker, 7 },
+          { EnemyType::Warden, 3 }, { EnemyType::Lancer, 5 } } }, false },
 
-    { "PRESSURE", "SOMETHING DOWN HERE FEEDS RATHER THAN KILLS.",
+    { "PRESSURE", "THE FLOOR IS NOT THE FLOOR. HOLD OUT ANYWAY.",
       ObjectiveKind::SurviveTime, 80, 0.70f, 12, { 1.60f, 1.22f, 1 },
-      { { { EnemyType::Angler, 3 }, { EnemyType::Siphon, 5 },
-          { EnemyType::Weaver, 3 }, { EnemyType::Revenant, 3 },
-          { EnemyType::Hulk, 2 } } }, false },
+      { { { EnemyType::Revenant, 4 }, { EnemyType::Weaver, 3 },
+          { EnemyType::Lurker, 6 }, { EnemyType::Warden, 2 },
+          { EnemyType::Brooder, 1 } } }, false },
 
     { "THE SHOAL", "SOMETHING IS HOLDING A LIGHT UP FOR THEM.",
       ObjectiveKind::DestroyNests, 7, 0.85f, 12, { 1.65f, 1.24f, 1 },
-      { { { EnemyType::Angler, 4 }, { EnemyType::Darter, 8 },
-          { EnemyType::Herald, 3 }, { EnemyType::Lancer, 5 } } }, false },
+      { { { EnemyType::Revenant, 2 }, { EnemyType::Lancer, 6 },
+          { EnemyType::Herald, 3 }, { EnemyType::Lurker, 7 } } }, false },
 
     { "EVERYTHING", "ALL OF IT. AT ONCE. IN THE DARK.",
       ObjectiveKind::KillCount, 55, 0.65f, 14, { 1.75f, 1.26f, 1 },
-      { { { EnemyType::Rift, 4 }, { EnemyType::Weaver, 4 },
-          { EnemyType::Coilworm, 3 }, { EnemyType::Warden, 3 },
-          { EnemyType::Hulk, 3 }, { EnemyType::Brooder, 2 } } }, false },
+      { { { EnemyType::Revenant, 3 }, { EnemyType::Weaver, 4 },
+          { EnemyType::Warden, 3 }, { EnemyType::Herald, 2 },
+          { EnemyType::Lurker, 8 }, { EnemyType::Brooder, 2 } } }, false },
 
     // The floor of the trench. Everything the campaign has taught, asked for
     // at once, by the thing that was down here before any of it.

@@ -89,38 +89,6 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
             m_position += direction * speed * deltaTime;
             break;
 
-        case EnemyBehaviour::Dash:
-        {
-            // Sprint, coast, sprint. The rests are the window you get to shoot
-            // it, which is the whole point of a one hit creature this fast.
-            m_burstTimer -= deltaTime;
-            if (m_burstTimer <= 0.0f)
-            {
-                m_bursting = !m_bursting;
-                m_burstTimer = m_bursting ? m_stats->burstOn : m_stats->burstOff;
-            }
-
-            const float factor = m_bursting ? 1.0f : config::EnemyDashRestFactor;
-            m_position += direction * speed * factor * deltaTime;
-            break;
-        }
-
-        case EnemyBehaviour::Standoff:
-        {
-            // Hold the range. The deadzone stops it twitching once it settles.
-            const float gap = distance - m_stats->preferredDistance;
-            float approach = 0.0f;
-            if (gap > config::SpitterRangeBand)
-                approach = 1.0f;
-            else if (gap < -config::SpitterRangeBand)
-                approach = -1.0f;
-
-            const sf::Vector2f strafe(-direction.y, direction.x);
-            m_position += direction * approach * speed * deltaTime;
-            m_position += strafe * m_strafeDirection * speed
-                          * config::SpitterStrafeFactor * deltaTime;
-            break;
-        }
 
         case EnemyBehaviour::Orbit:
         {
@@ -173,38 +141,13 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
             break;
         }
 
-        case EnemyBehaviour::Leech:
-        {
-            // Sprints, then coasts, then sprints again, and it does not care
-            // about anything except closing the last few metres.
-            m_burstTimer -= deltaTime;
-            if (m_burstTimer <= 0.0f)
-            {
-                m_bursting = !m_bursting;
-                m_burstTimer = m_bursting ? 0.85f : 0.30f;
-            }
-
-            m_position += direction * speed * (m_bursting ? 1.0f : 0.35f) * deltaTime;
-            break;
-        }
-
         case EnemyBehaviour::Burrow:
             // Under the floor it tracks you at full speed, because nothing can
             // stop it down there. Up, it is committed to where it came up.
             m_position += direction * speed * (m_up ? 0.55f : 1.0f) * deltaTime;
             break;
 
-        case EnemyBehaviour::Beacon:
-            // It is not trying to reach you. It drifts in because whatever it
-            // is lighting up wants to be near you, and it goes where they go.
-            m_position += direction * speed * deltaTime;
-            break;
 
-        case EnemyBehaviour::Blink:
-            // Between steps it barely moves. All of its distance is covered by
-            // arriving somewhere rather than by swimming there.
-            m_position += direction * speed * deltaTime;
-            break;
 
         case EnemyBehaviour::Serpent:
         {
@@ -232,15 +175,45 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
     }
 }
 
-void Enemy::update(float deltaTime, sf::Vector2f playerPosition, const Arena& arena)
+void Enemy::update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f playerVelocity,
+                   const Arena& arena)
 {
     // Where to swim, as opposed to where the sub is. Straight at it when the
     // water is open, and along the room graph when it is not.
+    //
+    // Some of them do not swim at the sub at all. They swim at where the sub
+    // is going to be, which is the difference between a thing that trails you
+    // down a passage and a thing that is waiting at the far end of it. How far
+    // ahead is per creature, and it is capped by how long it would take to
+    // arrive - aiming a second ahead of something you cannot reach for five is
+    // not cutting anyone off, it is just swimming at the wrong place.
     m_navTimer -= deltaTime;
     if (m_navTimer <= 0.0f)
     {
-        m_navTimer = config::NavInterval * rng::range(0.75f, 1.25f);
-        m_navTarget = arena.waypointToward(m_position, playerPosition, getRadius());
+        // Tighter jitter for the ones that lead, because a stale intercept
+        // point is worse than a stale chase: it aims at a corner the sub
+        // turned away from half a second ago.
+        const bool cuts = m_stats->lead > 0.0f;
+        m_navTimer = config::NavInterval
+                     * (cuts ? rng::range(0.4f, 0.7f) : rng::range(0.75f, 1.25f));
+
+        sf::Vector2f wanted = playerPosition;
+
+        if (cuts)
+        {
+            const float speed = std::max(1.0f, m_stats->speed * m_scaling.speed);
+            const float reach = std::min(m_stats->lead,
+                                         (playerPosition - m_position).length() / speed);
+            const sf::Vector2f ahead = playerPosition + playerVelocity * reach;
+
+            // Only if it is somewhere it could actually be. An intercept point
+            // inside rock sends it grinding at a wall, which is the exact
+            // failure the routing was built to end.
+            if (arena.isOpen(ahead, getRadius()))
+                wanted = ahead;
+        }
+
+        m_navTarget = arena.waypointToward(m_position, wanted, getRadius());
     }
 
     if (m_chillTimer > 0.0f)
@@ -334,36 +307,6 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, const Arena& ar
             break;
         }
 
-        case EnemyBehaviour::Blink:
-        {
-            if (m_blinkTell > 0.0f)
-            {
-                m_blinkTell -= deltaTime;
-                if (m_blinkTell <= 0.0f && m_aware)
-                {
-                    // Somewhere it likes, on a side it was not on. Landing in
-                    // rock is left to confine, which drags it back into water.
-                    const sf::Angle where = sf::degrees(rng::range(0.0f, 360.0f));
-                    const float reach = m_stats->preferredDistance
-                                        + rng::range(-config::BlinkSpread * 0.35f,
-                                                     config::BlinkSpread * 0.35f);
-
-                    m_position = playerPosition + sf::Vector2f(std::max(90.0f, reach), where);
-                    m_warped = true;
-                    m_fireTimer = std::min(m_fireTimer, 0.15f);
-                }
-            }
-            else
-            {
-                m_blinkTimer -= deltaTime;
-                if (m_blinkTimer <= 0.0f)
-                {
-                    m_blinkTimer = config::BlinkInterval;
-                    m_blinkTell = config::BlinkTell;
-                }
-            }
-            break;
-        }
 
         default:
             break;
@@ -577,12 +520,17 @@ bool Enemy::wantsBite(float deltaTime)
     return true;
 }
 
-float Enemy::getBlinkTell() const
+bool Enemy::latches() const
 {
-    if (m_stats->behaviour != EnemyBehaviour::Blink || m_blinkTell <= 0.0f)
+    return m_stats->latches;
+}
+
+float Enemy::getSurfaceTell() const
+{
+    if (m_stats->behaviour != EnemyBehaviour::Burrow || !m_up)
         return 0.0f;
 
-    return std::clamp(1.0f - m_blinkTell / config::BlinkTell, 0.0f, 1.0f);
+    return std::clamp(m_surfaced, 0.0f, 1.0f) < 0.999f ? m_surfaced : 0.0f;
 }
 
 void Enemy::setSegmentTexture(const sf::Texture& texture)

@@ -18,6 +18,13 @@ SaveGame SaveGame::load()
     if (!file)
         return data; // no save yet, which is a perfectly normal first launch
 
+    // The logbook is a list in EnemyType order, so it only means anything to
+    // the roster it was written against. When the roster changed the entries
+    // did not become wrong, they became about different animals - which is
+    // worse, because nothing looks broken. A save written before that point
+    // keeps its progress and starts its book again.
+    bool sameRoster = false;
+
     std::string line;
     while (std::getline(file, line))
     {
@@ -25,6 +32,14 @@ SaveGame SaveGame::load()
         std::string key;
         if (!(stream >> key))
             continue;
+
+        if (key == "nerith")
+        {
+            int version = 0;
+            stream >> version;
+            sameRoster = version >= 3;
+            continue;
+        }
 
         // Unknown keys are skipped rather than rejected, so an older save still
         // loads after new fields are added.
@@ -55,6 +70,14 @@ SaveGame SaveGame::load()
             stream >> flag;
             data.campaignBeaten = flag != 0;
         }
+        else if (key == "stalker")
+        {
+            int flag = 0;
+            stream >> flag;
+            data.stalkerAlive = flag != 0;
+        }
+        else if (key == "stalker_levels")
+            stream >> data.stalkerLevels;
         else if (key == "difficulty")
             stream >> data.difficulty;
         else if (key == "sfx")
@@ -81,6 +104,9 @@ SaveGame SaveGame::load()
         }
     }
 
+    if (!sameRoster)
+        data.killed.clear();
+
     data.selectedLevel = std::max(1, data.selectedLevel);
     data.salvage = std::max(0, data.salvage);
     data.difficulty = std::clamp(data.difficulty, 0, 2);
@@ -101,7 +127,7 @@ void SaveGame::save() const
     if (!file)
         return; // read only directory: not worth interrupting the game over
 
-    file << "nerith 2\n";
+    file << "nerith 3\n";
     file << "best_level " << bestLevel << '\n';
     file << "best_depth " << bestDepth << '\n';
     file << "story " << storySeen << '\n';
@@ -117,6 +143,9 @@ void SaveGame::save() const
             file << ' ' << count;
         file << '\n';
     }
+
+    file << "stalker " << (stalkerAlive ? 1 : 0) << '\n';
+    file << "stalker_levels " << stalkerLevels << '\n';
 
     file << "difficulty " << difficulty << '\n';
     file << "sfx " << sfxVolume << '\n';

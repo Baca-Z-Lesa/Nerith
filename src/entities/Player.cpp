@@ -147,6 +147,8 @@ void Player::updateShield(float deltaTime)
 void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarget,
                     const Arena& arena)
 {
+    const sf::Vector2f before = m_position;
+
     if (m_fireTimer > 0.0f)
         m_fireTimer -= deltaTime;
     if (m_torpedoTimer > 0.0f)
@@ -181,6 +183,11 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
     m_position += arena.currentAt(m_position) * deltaTime;
 
     m_position = arena.clampInside(m_position, config::PlayerRadius);
+
+    // Measured rather than derived, so it already includes the dash, the
+    // current and anything that shoved the sub this step.
+    m_velocity = deltaTime > 0.0f ? (m_position - before) / deltaTime
+                                  : sf::Vector2f{ 0.0f, 0.0f };
 
     aimAt(aimTarget);
     m_sprite.setPosition(m_position);

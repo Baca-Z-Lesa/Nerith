@@ -4,28 +4,33 @@
 
 // Kept in its own header so the balance tables in Config can name the types
 // without Config having to pull in the whole Enemy class.
+//
+// There used to be seventeen of these, and half of them were the same creature
+// with different numbers: three separate ways for something to appear beside
+// you, two burst-chargers driving the same state machine, two things that held
+// a range and fired a fan, and four that simply swam at you. A roster that
+// long reads as variety in a list and as one animal in the water.
+//
+// Nine now, and each asks a question none of the others do. The rule for
+// adding a tenth is that it must need an answer none of these need. What was
+// worth keeping out of the ones that went was folded into whichever of these
+// was already nearest: the Lancer took the Darter's job, the Warden the
+// Hulk's, the Weaver the Spitter's, the Bloom the Husk's dying ring, and the
+// Revenant both the Angler's invisibility and the Rift's fan.
 enum class EnemyType
 {
-    Lurker,    // baseline: walks you down, only dangerous up close
-    Darter,    // fast and fragile, closes in bursts
-    Hulk,      // slow sponge that hits hard and cannot be ignored
-    Spitter,   // holds its range and fires aimed orbs
-    Bloom,     // barely moves, fires a full ring of orbs on a timer
-    Spawnling, // one hit, worth nothing, never stops coming
-    Brooder,   // drifts and keeps hatching spawnlings until it is killed
-    Lancer,    // winds up, then commits to a straight line at speed
-    Weaver,    // circles you at range and rakes the water with fans
-    Husk,      // slow and harmless right up until it dies on top of you
-    Angler,    // invisible outside your lamp, then it is already there
-
-    // Below the campaign. Each of these has a rule none of the ones above do,
-    // which is why they are worth their own type rather than bigger numbers.
-    Warden,    // armoured in front only: it has to be fought from behind
-    Siphon,    // latches onto the hull and drains until it is shaken off
-    Revenant,  // buried and untouchable until it surfaces beside you
+    Lurker,    // the yardstick: walks you down, only dangerous up close
+    Lancer,    // winds up, then commits to a straight line it cannot correct
+    Weaver,    // never closes; circles at range and rakes the water with fans
+    Bloom,     // does not chase, denies area with rings, and empties as it dies
+    Spawnling, // one hit, worth nothing - what the Brooder is made of
+    Brooder,   // the tap: keeps hatching until the source itself is killed
+    Warden,    // armoured in front only, so it has to be fought from behind
+    Revenant,  // under the floor and untouchable, then already beside you
     Herald,    // never attacks; it lights you up and hardens everything near it
-    Rift,      // does not swim to you, it arrives, and then it fires
-    Coilworm,  // the head steers, the body behind it is what hurts
+
+    // Not on any level's list. It follows you down from the last one.
+    Stalker,   // a head towing a body that is the weapon, and it holds on
     Count
 };
 
@@ -36,17 +41,12 @@ inline constexpr std::size_t EnemyTypeCount = static_cast<std::size_t>(EnemyType
 enum class EnemyBehaviour
 {
     Chase,    // straight at the player
-    Dash,     // at the player, but in bursts with a rest between
-    Standoff, // hold a preferred range and strafe around it
     Drift,    // creeps forward and spins, ignoring where the player is
     Orbit,    // circles at a fixed range rather than closing
     Lance,    // telegraphs, locks a heading, then commits to it
     Brood,    // creeps in and hatches more of something else
     Bulwark,  // walks you down behind a shield that only faces one way
-    Leech,    // closes fast, then holds on
     Burrow,   // under the floor, up, strike, under again
-    Beacon,   // drifts, does nothing, and makes everything else worse
-    Blink,    // vanishes and reappears nearer
     Serpent,  // a head towing a body that is itself the weapon
 };
 

@@ -68,6 +68,12 @@ public:
     DamageResult takeDamage(int amount);
 
     sf::Vector2f getPosition() const { return m_position; }
+
+    // How fast the sub is actually travelling, taken from the ground it
+    // covered rather than from the keys held: a dash, a current and a shove
+    // all move it, and anything trying to cut it off has to know about all
+    // three.
+    sf::Vector2f getVelocity() const { return m_velocity; }
     sf::Vector2f getAimDirection() const { return m_aimDirection; }
     sf::Vector2f getMuzzlePosition() const;
     sf::Vector2f getSternPosition() const;
@@ -121,6 +127,7 @@ private:
 
     sf::Vector2f m_position;
     sf::Vector2f m_prevPosition;
+    sf::Vector2f m_velocity;
     sf::Vector2f m_aimDirection; // unit vector the nose points along
     sf::Vector2f m_dashDirection;
 

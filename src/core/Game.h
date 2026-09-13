@@ -208,6 +208,11 @@ private:
     // --- campaign flow ---
     void beginLevel(int number);
     void onLevelComplete();
+
+    // Decides what is still in the water when a level ends, and whether one
+    // of it comes with you.
+    void followedDown();
+    void spawnStalker();
     void advanceLevel();
     void startNewRun();
     void diveIntoSelected();

@@ -51,7 +51,6 @@ namespace config
 
     inline constexpr sf::Color BackgroundColor{ 2, 5, 9 };
 
-
     // --- Arena ---
     // The basin is far wider than the window, so the camera follows the sub and
     // a boss no longer fills the whole playable space.
@@ -303,6 +302,18 @@ namespace config
         float broodInterval;
         int   deathShots;        // ring of orbs fired as it dies
         bool  stealth;           // barely visible outside the lamp
+
+        // It does not bite you and swim off, it holds on. Kept as a flag
+        // rather than as a movement kind, so whatever a creature does to
+        // reach you is a separate question from what it does when it gets
+        // there - which is what lets the stalker both tow a body and grab.
+        bool  latches;
+
+        // How many seconds ahead of the sub it swims. Zero means it goes where
+        // you are, which is where you were by the time it arrives; anything
+        // above zero means it goes where you are going, and cuts you off at
+        // the mouth of the passage instead of trailing you down it.
+        float lead;
     };
 
     // Order must match EnemyType.
@@ -311,24 +322,28 @@ namespace config
         { EnemyBehaviour::Chase, "assets/textures/enemy_lurker.png", nullptr,
           0.85f, 16.0f, 124.0f, 4, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
-        // Darter: dies to a single jet, but closes faster than you can back
-        // away. Punishes standing still, harmless if you keep track of it.
-        { EnemyBehaviour::Dash, "assets/textures/enemy_darter.png", nullptr,
-          0.8f, 12.0f, 405.0f, 1, 1, 1, 0.0f, 0.0f, 0, 0.0f, 0.55f, 0.55f },
+        // Lancer: telegraphs for most of a second, then commits to a straight
+        // line it cannot correct. It also does the Darter's old job now - the
+        // fast fragile thing that punishes standing still - because a
+        // telegraphed charge teaches the same lesson and can be read.
+        { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png", nullptr,
+          0.75f, 15.0f, 495.0f, 3, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.45f, 0.80f,
+          EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.55f },
 
-        // Hulk: cannot be outfought quickly, but can be walked away from all
-        // day. It is there to take up space and soak your damage.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_hulk.png", nullptr,
-          0.75f, 34.0f, 58.0f, 20, 2, 3, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
-
-        // Spitter: safe to ignore up close, lethal if left alone at range.
-        { EnemyBehaviour::Standoff, "assets/textures/enemy_spitter.png", "assets/textures/shot_spitter.png",
-          0.8f, 20.0f, 88.0f, 6, 1, 2, 225.0f, 1.10f, 2, 16.0f, 0.0f, 0.0f },
+        // Weaver: never closes. It circles at range raking fans across the
+        // water, so standing still anywhere is the mistake. It holds the
+        // Spitter's old reach as well, because a creature that plants itself
+        // at a range and stops moving is a turret, not a fight.
+        { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png", "assets/textures/shot_weaver.png",
+          0.75f, 18.0f, 158.0f, 6, 1, 3, 245.0f, 1.25f, 3, 38.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.40f },
 
         // Bloom: never chases and cannot be dodged by distance. It denies area
-        // with rings of orbs, so it has to be killed rather than avoided.
+        // with rings of orbs, and it lets go of one last ring on the way out -
+        // so killing it while standing next to it is its own mistake.
         { EnemyBehaviour::Drift, "assets/textures/enemy_bloom.png", "assets/textures/shot_bloom.png",
-          0.7f, 26.0f, 38.0f, 8, 1, 3, 0.0f, 1.95f, 14, 360.0f, 0.0f, 0.0f },
+          0.7f, 26.0f, 38.0f, 8, 1, 3, 0.0f, 1.95f, 14, 360.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 14, false, false },
 
         // Spawnling: one jet kills it and it drops nothing. It exists to fill
         // the water and take up the shots you wanted to spend elsewhere.
@@ -339,29 +354,7 @@ namespace config
         // fills up; the answer is always to kill the source, not the swarm.
         { EnemyBehaviour::Brood, "assets/textures/enemy_brooder.png", nullptr,
           0.9f, 30.0f, 42.0f, 26, 1, 5, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
-          EnemyType::Spawnling, 4, 2.5f, 0, false },
-
-        // Lancer: telegraphs for most of a second, then commits to a straight
-        // line it cannot correct. Readable, and lethal if you read it late.
-        { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png", nullptr,
-          0.75f, 15.0f, 495.0f, 4, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.45f, 0.80f },
-
-        // Weaver: never closes. It circles at range raking fans across the
-        // water, so standing still anywhere is the mistake.
-        { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png", "assets/textures/shot_weaver.png",
-          0.75f, 18.0f, 158.0f, 7, 1, 3, 265.0f, 1.35f, 4, 40.0f, 0.0f, 0.0f },
-
-        // Husk: slow, soft, and it fires a full ring the moment it dies. The
-        // punishment is for killing it while you are standing next to it.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_husk.png", "assets/textures/shot_husk.png",
-          0.8f, 22.0f, 70.0f, 7, 1, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
-          EnemyType::Lurker, 0, 0.0f, 16, false },
-
-        // Angler: invisible until it is inside your lamp. Fast and it hits
-        // hard, so the sonar upgrades stop being a luxury.
-        { EnemyBehaviour::Chase, "assets/textures/enemy_angler.png", nullptr,
-          0.8f, 17.0f, 205.0f, 6, 2, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
-          EnemyType::Lurker, 0, 0.0f, 0, true },
+          EnemyType::Spawnling, 4, 2.5f, 0, false, false },
 
         // ---------------- BELOW THE CAMPAIGN ----------------
         // Everything from here has a rule rather than a bigger number, and
@@ -370,36 +363,34 @@ namespace config
         // Warden: the shield only faces forward. Shooting it head on does
         // nothing at all, so the answer is to get behind it - and it is slow
         // enough to get behind, and hits hard enough that failing to is fatal.
+        // It is also the only thing in the water you cannot simply outshoot,
+        // which is the job the Hulk used to hold.
         { EnemyBehaviour::Bulwark, "assets/textures/enemy_warden.png", nullptr,
-          0.95f, 38.0f, 74.0f, 44, 4, 9, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
-
-        // Siphon: it does not want to kill you, it wants to hold on. Once it
-        // is attached it drains, and it keeps breaking the streak, so it has
-        // to come off before anything else gets dealt with.
-        { EnemyBehaviour::Leech, "assets/textures/enemy_siphon.png", "assets/textures/shot_siphon.png",
-          0.7f, 14.0f, 340.0f, 11, 2, 6, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+          0.95f, 38.0f, 74.0f, 34, 3, 8, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.90f },
 
         // Revenant: untouchable while it is under the floor, and it is under
         // the floor most of the time. The fight is entirely about the few
-        // seconds it is up.
-        { EnemyBehaviour::Burrow, "assets/textures/enemy_revenant.png", nullptr,
-          0.85f, 25.0f, 168.0f, 30, 4, 10, 0.0f, 0.0f, 0, 0.0f, 1.30f, 2.40f },
+        // seconds it is up - and when it is up it is beside you, barely
+        // visible, and emptying a fan into the space you were standing in.
+        { EnemyBehaviour::Burrow, "assets/textures/enemy_revenant.png", "assets/textures/shot_rift.png",
+          0.85f, 25.0f, 168.0f, 28, 3, 10, 300.0f, 1.60f, 7, 54.0f, 1.30f, 2.40f,
+          EnemyType::Lurker, 0, 0.0f, 0, true, false },
 
         // Herald: it has nothing to bite with and it is the most dangerous
         // thing in the water. It hardens everything near it and it keeps you
         // lit, so running dark stops working until it is dead.
-        { EnemyBehaviour::Beacon, "assets/textures/enemy_herald.png", nullptr,
+        { EnemyBehaviour::Chase, "assets/textures/enemy_herald.png", nullptr,
           0.9f, 27.0f, 58.0f, 40, 1, 13, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
-        // Rift: distance is not a defence against it. It steps through the
-        // water to a range it likes and empties a fan into you on arrival.
-        { EnemyBehaviour::Blink, "assets/textures/enemy_rift.png", "assets/textures/shot_rift.png",
-          0.8f, 21.0f, 46.0f, 24, 3, 11, 300.0f, 1.60f, 7, 54.0f, 0.0f, 0.0f },
-
-        // Coilworm: the head is only how it steers. The body laid along where
-        // it has already been is the weapon, and only the head can be hurt.
+        // Stalker: nothing puts it in the water. It is there because you left
+        // it alive somewhere above, and it has been following you down ever
+        // since. The head is only how it steers - the body laid along where it
+        // has already been is the weapon - and if it reaches you it does not
+        // bite once, it takes hold.
         { EnemyBehaviour::Serpent, "assets/textures/enemy_coilworm.png", nullptr,
-          0.8f, 23.0f, 196.0f, 38, 3, 14, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+          0.85f, 24.0f, 198.0f, 46, 3, 18, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 0, false, true, 1.20f },
     } };
 
     // What a creature is made of, for the ear rather than the eye. Kept as its
@@ -418,22 +409,15 @@ namespace config
     // Order must match EnemyType.
     inline constexpr std::array<CreatureVoice, EnemyTypeCount> EnemyVoices{ {
         CreatureVoice::Soft,    // Lurker
-        CreatureVoice::Wet,     // Darter
-        CreatureVoice::Shell,   // Hulk
-        CreatureVoice::Wet,     // Spitter
+        CreatureVoice::Shell,   // Lancer
+        CreatureVoice::Wet,     // Weaver
         CreatureVoice::Bladder, // Bloom
         CreatureVoice::Soft,    // Spawnling
         CreatureVoice::Bladder, // Brooder
-        CreatureVoice::Shell,   // Lancer
-        CreatureVoice::Wet,     // Weaver
-        CreatureVoice::Bladder, // Husk
-        CreatureVoice::Wet,     // Angler
         CreatureVoice::Shell,   // Warden
-        CreatureVoice::Soft,    // Siphon
-        CreatureVoice::Soft,    // Revenant
+        CreatureVoice::Void,    // Revenant
         CreatureVoice::Bladder, // Herald
-        CreatureVoice::Void,    // Rift
-        CreatureVoice::Shell,   // Coilworm
+        CreatureVoice::Shell,   // Stalker
     } };
 
     inline constexpr CreatureVoice voiceOf(EnemyType type)
@@ -446,15 +430,28 @@ namespace config
         return EnemyTable[static_cast<std::size_t>(type)];
     }
 
-    inline constexpr float EnemyDashRestFactor = 0.12f;
     inline constexpr float EnemyApproachBoost = 2.6f;
     inline constexpr float EnemyRoamMargin = 95.0f;
-    inline constexpr float SpitterStrafeFactor = 0.6f;
-    inline constexpr float SpitterRangeBand = 24.0f;
+
     inline constexpr float BloomSpinSpeed = 42.0f;
     inline constexpr float OrbitCloseFactor = 0.6f;   // how hard an orbiter corrects its range
     inline constexpr float LanceCreepFactor = 0.14f;  // speed while it winds up
-    inline constexpr float StealthRevealRange = 300.0f; // inside this the angler is visible
+    inline constexpr float StealthRevealRange = 300.0f; // inside this a revenant is visible
+
+    // --- What follows you down ---
+    // Leave this many creatures alive in water this deep and one of them comes
+    // with you. It is never rolled for: it is the price of finishing a level
+    // by walking away from it rather than by emptying it.
+    inline constexpr int   StalkerFromDepth = 2;
+    inline constexpr int   StalkerLeftBehind = 3;
+
+    // What each dive it survives adds. It is the same creature every time, so
+    // the escalation has to be in the numbers rather than in the roster - and
+    // it has to be steep enough that running from it twice is a bad idea.
+    inline constexpr float StalkerHealthPerLevel = 0.30f;
+    inline constexpr float StalkerSpeedPerLevel = 0.06f;
+    inline constexpr int   StalkerDamagePerLevel = 1;
+    inline constexpr int   StalkerMaxLevels = 6;
     inline constexpr std::uint8_t StealthAlpha = 26;    // how faint it is outside that
     // --- What the deep creatures do that the shallow ones do not ---
     // Warden: a shot inside this many degrees either side of where it faces is
@@ -512,10 +509,10 @@ namespace config
     inline constexpr sf::Color HeraldAuraColor{ 120, 208, 240, 30 };
 
     // Rift: it holds still, announces, and then it is somewhere else.
-    inline constexpr float BlinkInterval = 2.20f;
-    inline constexpr float BlinkTell = 0.55f;
-    inline constexpr float BlinkSpread = 240.0f;
-    inline constexpr sf::Color BlinkColor{ 192, 124, 255 };
+
+
+    // The ring a revenant pushes ahead of itself on the way up.
+    inline constexpr sf::Color RevenantTellColor{ 192, 124, 255 };
 
     // Coilworm: how much body it tows, how far apart the rings sit, and how
     // wide one of them is.
@@ -632,7 +629,7 @@ namespace config
 
     // Act two: it pulls its own dead off the column and sends them at you.
     inline constexpr float BossSummonInterval = 5.4f;
-    inline constexpr EnemyType BossSummonType = EnemyType::Husk;
+    inline constexpr EnemyType BossSummonType = EnemyType::Bloom;
 
     // Act three: the basin closes. Shots come inward off the rim, so backing
     // off stops being an answer.

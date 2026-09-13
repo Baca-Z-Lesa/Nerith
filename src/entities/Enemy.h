@@ -25,7 +25,8 @@ public:
     // The arena comes in because a creature has to be able to get across it.
     // Without a route it simply grinds into rock whenever the sub is round a
     // corner, and a level built on killing everything stops being finishable.
-    void update(float deltaTime, sf::Vector2f playerPosition, const Arena& arena);
+    void update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f playerVelocity,
+                const Arena& arena);
 
     // Where it was at the end of the previous step, so the picture can sit
     // between two steps rather than snapping onto one of them.
@@ -46,6 +47,7 @@ public:
 
     // Siphon: it stops swimming and holds on. Latched, it rides the hull, and
     // only a dash or its own death gets it off.
+    bool latches() const;
     bool isLatched() const { return m_latched; }
     void latchTo(sf::Vector2f hull);
     void shakeOff(sf::Vector2f away);
@@ -58,7 +60,10 @@ public:
     bool isBolstered() const { return m_auraTimer > 0.0f; }
 
     // Rift: 0 when it is not about to move, rising to 1 as it goes.
-    float getBlinkTell() const;
+    // How far through coming up a burrower is, 0 when it is not coming up.
+    // The ring drawn off this is the only warning the player gets, and a
+    // creature that arrives beside you with no warning is not a fight.
+    float getSurfaceTell() const;
 
     // Coilworm: the rings it is towing, and whether any of them is on you.
     // Only the head can be hurt, so this is asked separately from the hit test.
@@ -92,6 +97,11 @@ public:
     // Hatchlings are born inside the arena, so they skip the swim in. They also
     // do not count toward a level's roster: only what the script sent does.
     void markHatched() { m_hasEntered = true; m_scripted = false; }
+
+    // Nothing sent it, so it must not be counted against what the level is
+    // still owed. Unlike a hatchling it has not arrived yet - it swims in out
+    // of the dark like anything else the water sent.
+    void markUnscripted() { m_scripted = false; }
 
     // Whether it currently knows where the sub is. Unaware, it wanders and
     // holds its fire, which is what running dark buys the player.
@@ -164,8 +174,8 @@ private:
     float        m_surfaced = 0.0f;   // Burrow: 0 buried, 1 fully up
     bool         m_up = false;
     float        m_auraTimer = 0.0f;  // Beacon, on whatever it is helping
-    float        m_blinkTimer = 0.0f; // Blink
-    float        m_blinkTell = 0.0f;
+
+
     sf::Vector2f m_heading{ 1.0f, 0.0f }; // Serpent: turned rather than snapped
 
     // Where it is actually swimming, which is the sub when it can see it and

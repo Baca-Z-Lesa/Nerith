@@ -88,20 +88,20 @@ LevelDef levelFor(int number)
     if (beyond < 4)
     {
         def.script = { {
-            { EnemyType::Darter, std::min(9, wave) },
+            { EnemyType::Lancer, std::min(7, wave) },
             { EnemyType::Warden, std::min(4, deep) },
-            { EnemyType::Spitter, std::min(7, 2 + beyond / 3) },
+            { EnemyType::Weaver, std::min(6, 2 + beyond / 3) },
             { EnemyType::Lurker, std::min(9, wave) },
-            { EnemyType::Siphon, std::min(6, deep + 1) },
+            { EnemyType::Bloom, std::min(5, deep + 1) },
         } };
     }
     else if (beyond < 9)
     {
         def.script = { {
             { EnemyType::Revenant, std::min(5, deep) },
-            { EnemyType::Siphon, std::min(7, deep + 2) },
+            { EnemyType::Bloom, std::min(6, deep + 2) },
             { EnemyType::Herald, std::min(3, 1 + beyond / 6) },
-            { EnemyType::Darter, std::min(9, wave) },
+            { EnemyType::Lancer, std::min(8, wave) },
             { EnemyType::Warden, std::min(4, deep) },
             { EnemyType::Weaver, std::min(5, 1 + beyond / 4) },
         } };
@@ -109,12 +109,12 @@ LevelDef levelFor(int number)
     else
     {
         def.script = { {
-            { EnemyType::Rift, std::min(6, deep) },
-            { EnemyType::Coilworm, std::min(5, deep - 1) },
+            { EnemyType::Lancer, std::min(8, wave) },
+            { EnemyType::Bloom, std::min(5, deep - 1) },
             { EnemyType::Herald, std::min(4, 1 + beyond / 6) },
             { EnemyType::Warden, std::min(6, deep) },
             { EnemyType::Revenant, std::min(6, deep) },
-            { EnemyType::Siphon, std::min(8, deep + 2) },
+            { EnemyType::Weaver, std::min(7, deep + 2) },
         } };
     }
 

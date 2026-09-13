@@ -28,6 +28,13 @@ struct SaveGame
     // place in the game where these animals hold still long enough to look at.
     std::vector<int> killed;
 
+    // Something followed you down. It is set when a level is left with the
+    // water still occupied, and it stays set until the thing is killed - so
+    // it is carried between dives rather than rolled at the start of one.
+    bool stalkerAlive = false;
+    int  stalkerLevels = 0;   // how many dives it has survived, and how much
+                              // worse that has made it
+
     int  difficulty = 1;      // index into config::Difficulties
     int  sfxVolume = 10;      // tenths, 0..10
     int  musicVolume = 7;

@@ -767,6 +767,12 @@ void Game::beginLevel(int number)
     placeNests();
     placeCargo();
 
+    // And whatever came down with you. A boss hall is the one place it does
+    // not follow you into - a fight that is meant to be one creature is not
+    // improved by a second one arriving with its own agenda.
+    if (m_save.stalkerAlive && !m_level.isBoss())
+        spawnStalker();
+
     // Every dive starts in a whole sub. What a beating costs lasts the dive
     // and not a minute longer: the pressure is meant to be inside a level.
     m_player.repairHull();
@@ -850,8 +856,46 @@ void Game::beginLevel(int number)
     m_showUpgrades = false;
 }
 
+void Game::followedDown()
+{
+    // Whatever is still in the water when the level ends does not simply stop
+    // existing because the objective was met. One of them follows.
+    const bool stalkerHere = m_save.stalkerAlive;
+    bool stalkerSurvived = false;
+    int left = 0;
+
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive())
+            continue;
+
+        ++left;
+        if (enemy.getType() == EnemyType::Stalker)
+            stalkerSurvived = true;
+    }
+
+    if (stalkerHere)
+    {
+        // It was down here with you. Either you killed it - in which case it
+        // is over, and the next dive is yours again - or it watched you leave.
+        m_save.stalkerAlive = stalkerSurvived;
+        m_save.stalkerLevels = stalkerSurvived ? m_save.stalkerLevels + 1 : 0;
+        return;
+    }
+
+    // Nothing follows you out of the shallows, and nothing follows you out of
+    // water you emptied. It is specifically the price of walking away.
+    if (m_level.getDepth() >= config::StalkerFromDepth && left >= config::StalkerLeftBehind)
+    {
+        m_save.stalkerAlive = true;
+        m_save.stalkerLevels = 0;
+    }
+}
+
 void Game::onLevelComplete()
 {
+    followedDown();
+
     for (const Enemy& enemy : m_enemies)
         effects::enemyDeath(m_effects, enemy.getPosition());
 
@@ -2733,8 +2777,26 @@ void Game::spawnEnemy(EnemyType type)
     // The worm tows a body, and the body is a different sprite. Handed over
     // here rather than looked up inside Enemy, so the creature never has to
     // know where the assets live.
-    if (type == EnemyType::Coilworm)
+    if (config::enemyStats(type).behaviour == EnemyBehaviour::Serpent)
         m_enemies.back().setSegmentTexture(m_assets.boss(config::SerpentSegmentPath));
+}
+
+void Game::spawnStalker()
+{
+    // Not on the level's list, so it does not count against what the level is
+    // still owed and it does not take up a slot in the roster. It is simply
+    // already here, and it has been since you left it.
+    const int dives = std::min(m_save.stalkerLevels, config::StalkerMaxLevels);
+
+    EnemyScaling scaling = m_level.getScaling();
+    scaling.health *= 1.0f + config::StalkerHealthPerLevel * static_cast<float>(dives);
+    scaling.speed *= 1.0f + config::StalkerSpeedPerLevel * static_cast<float>(dives);
+    scaling.bonusDamage += config::StalkerDamagePerLevel * dives;
+
+    m_enemies.emplace_back(EnemyType::Stalker, m_assets.forEnemy(EnemyType::Stalker),
+                           pickSpawnPosition(), scaling);
+    m_enemies.back().setSegmentTexture(m_assets.boss(config::SerpentSegmentPath));
+    m_enemies.back().markUnscripted();
 }
 
 void Game::updateProjectiles(float deltaTime)
@@ -2919,7 +2981,7 @@ void Game::updateEnemies(float deltaTime)
     {
         const bool wasAlive = enemy.isAlive();
 
-        enemy.update(deltaTime, m_player.getPosition(), m_arena);
+        enemy.update(deltaTime, m_player.getPosition(), m_player.getVelocity(), m_arena);
         enemy.confine(m_arena, deltaTime);
 
         // Bleeding can finish something between shots, and that still counts.
@@ -3533,7 +3595,7 @@ void Game::handleCollisions()
         // A siphon does not bite you once, it takes hold. Latching is not a
         // hit, so it does not break the streak by arriving - it breaks it on
         // every mouthful after that, which is worse.
-        if (enemy.getType() == EnemyType::Siphon && !enemy.isLatched())
+        if (enemy.latches() && !enemy.isLatched())
         {
             enemy.latchTo(m_player.getPosition());
             m_audio.play(Sfx::Hatch, 1.4f);
@@ -4660,12 +4722,12 @@ void Game::render(float alpha)
             m_sonarRing.setFillColor(sf::Color::Transparent);
         }
 
-        const float tell = enemy.getBlinkTell();
+        const float tell = enemy.getSurfaceTell();
         if (tell > 0.0f)
         {
             const float radius = enemy.getRadius() * (3.2f - 2.2f * tell);
 
-            sf::Color edge = config::BlinkColor;
+            sf::Color edge = config::RevenantTellColor;
             edge.a = static_cast<std::uint8_t>(80.0f + 160.0f * tell);
 
             m_sonarRing.setRadius(radius);
