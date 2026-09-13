@@ -776,9 +776,17 @@ void Game::beginLevel(int number)
 {
     m_level.start(number);
 
-    // A new basin, cut from the level number, so every level is its own place
-    // and the same place every time it is dived. A boss gets a hall.
-    m_arena.generate(static_cast<unsigned int>(number), m_level.isBoss());
+    // A new basin every single time. It used to be cut from the level number
+    // alone, which made a level the same place on every dive - repeatable,
+    // which sounded like a virtue right up until the second run down the same
+    // corridor, when the map stops being somewhere you are finding your way
+    // through and becomes something you are remembering.
+    //
+    // The level number still goes in, so the scale and the shape a depth wants
+    // are still its own; what changes is which basin of that kind you get.
+    m_arena.generate(static_cast<unsigned int>(number)
+                         ^ static_cast<unsigned int>(rng::range(0.0f, 1.0e9f)),
+                     m_level.isBoss());
     m_seabed.reshape(m_arena);
 
     // The little map is cut from the basin, so it is cut when the basin is.

@@ -189,6 +189,15 @@ public:
 
     const std::vector<Room>& getRooms() const { return m_rooms; }
 
+    // True when every room can be swum to from the mouth. The generator
+    // already guarantees it; this is how that guarantee is checked.
+    bool everyRoomReachable() { return allRoomsReachable(); }
+
+    // How many rooms the sweep cannot colour in, for checking the above.
+    int  unreachableRooms();
+    std::size_t pillarCount() const { return m_pillars.size(); }
+    std::size_t rubbleFrom() const { return m_rubbleFrom; }
+
     // The grid the routing already runs on, exposed so the map in the corner
     // can be drawn out of the same cells rather than out of a second idea of
     // where the water is. Seventy pixels a cell is about three and a half on
@@ -211,6 +220,17 @@ private:
 
     void buildRoutes();
     void buildNavGrid();
+
+    // Whether every room can still be swum to from the mouth, and what to do
+    // about it when one cannot. Rubble is scenery, so rubble is what gets
+    // taken away rather than the map being regenerated from scratch.
+    bool allRoomsReachable();
+    void clearBlockedRoutes();
+
+    // Cuts a passage where the walk failed to leave one. The last resort, and
+    // the only thing that turns "almost always connected" into a guarantee.
+    void carveTo(sf::Vector2f from, sf::Vector2f to, float width, unsigned int seed);
+    void joinStrandedRooms();
 
     // --- The shape index ---
     // depthAt is the busiest function in the game: every collision, every
@@ -260,6 +280,10 @@ private:
     std::vector<Chamber>  m_chambers;
     std::vector<Corridor> m_corridors;
     std::vector<Pillar>   m_pillars;
+
+    // Where the decorative lumps begin in m_pillars. Everything before it is
+    // structure a room was designed around and must not be removed.
+    std::size_t           m_rubbleFrom = 0;
     std::vector<Current>  m_currents;
 
     // The graph: the rooms, who they join, and the precomputed next hop for
@@ -286,6 +310,10 @@ private:
     int                       m_navWidth = 0;
     int                       m_navHeight = 0;
     std::vector<std::uint8_t> m_navOpen;
+
+    // Where the open water in each cell was found, which in a narrow passage
+    // is not the middle of the cell.
+    std::vector<sf::Vector2f> m_navPoint;
     std::vector<int>          m_flowFrom;
     std::vector<int>          m_flowQueue;
     int                       m_flowSource = -1;

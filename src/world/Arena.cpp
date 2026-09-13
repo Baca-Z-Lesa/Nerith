@@ -409,12 +409,31 @@ void Arena::generate(unsigned int seed, bool bossRoom)
                 static_cast<float>(config::PillarCountMin),
                 static_cast<float>(config::PillarCountMax) + 0.999f));
 
+            // Sized against the room they stand in rather than against a flat
+            // pair of numbers. Seventy six pixels of rock is cover in a great
+            // hall and most of the floor in the smallest room the generator
+            // makes, and it was allowed in both.
+            const float widest = std::min(config::PillarRadiusMax,
+                                          room.radius * config::PillarRoomShare);
+
+            if (widest < config::PillarRadiusMin)
+                continue;
+
             for (int i = 0; i < count; ++i)
             {
                 const float angle = random.range(0.0f, 360.0f);
-                const float reach = room.radius * random.range(0.34f, 0.82f);
-                const float size = random.range(config::PillarRadiusMin,
-                                                config::PillarRadiusMax);
+                const float size = random.range(config::PillarRadiusMin, widest);
+
+                // In a band, not anywhere. Off the middle because the middle
+                // of the first room is where the dive starts, and off the wall
+                // because a column against one pinches the gap beside it.
+                const float inner = size + config::PillarCentreGap;
+                const float outer = room.radius - size - config::PillarWallGap;
+
+                if (outer <= inner)
+                    continue; // no room in this room for a column
+
+                const float reach = random.range(inner, outer);
 
                 m_pillars.push_back({ room.centre + sf::Vector2f(reach, sf::degrees(angle)),
                                       size });
@@ -432,6 +451,12 @@ void Arena::generate(unsigned int seed, bool bossRoom)
     // the ripple on the rim and a column standing in the room. Without them
     // every wall is a smooth curve however much it wanders, which is the one
     // thing a cave wall never is.
+    //
+    // Everything above this line is structure a room was designed around and
+    // is never taken away; everything below it is scenery, and scenery is what
+    // gets removed when the basin turns out not to join up.
+    m_rubbleFrom = m_pillars.size();
+
     for (const Chamber& chamber : m_chambers)
     {
         // Rooms only, and only against their walls. Scattered through a room
@@ -451,15 +476,16 @@ void Arena::generate(unsigned int seed, bool bossRoom)
 
             // A lump is allowed to bite into a passage - that is most of what
             // makes a passage look cut rather than drilled - but never far
-            // enough to seal it. What has to survive is a gap the sub fits
-            // through, and that is checked rather than assumed.
+            // enough to seal it, and never anywhere near a mouth. A rock in
+            // the middle of a room is scenery; the same rock in a doorway is
+            // a level that cannot be finished.
             bool blocks = false;
             for (const Corridor& corridor : m_corridors)
             {
                 const sf::Vector2f on = closestOnSegment(corridor.from, corridor.to, at);
                 const float axis = (at - on).length();
 
-                if (axis - size < -corridor.radius + config::RubbleClearance)
+                if (axis - size < corridor.radius + config::RubbleClearance)
                 {
                     blocks = true;
                     break;
@@ -477,6 +503,16 @@ void Arena::generate(unsigned int seed, bool bossRoom)
     buildShapeIndex();
     buildRoutes();
     buildNavGrid();
+
+    // And then check, rather than hope. Every rule above is a rule about one
+    // lump at a time, and a level is not made unfinishable by one lump - it is
+    // made unfinishable by two of them either side of the same gap, which no
+    // amount of care about each of them separately will ever catch.
+    clearBlockedRoutes();
+
+    // And if the walk itself left something stranded, cut the hole rather
+    // than ship a level with a room nobody can get to.
+    joinStrandedRooms();
 
     // The ground is not built here. It is cut from the theme as much as from
     // the shapes, and applyTheme always follows a generate, so building it
@@ -550,6 +586,190 @@ void Arena::buildRoutes()
 //  own cell and swims that way.
 // ---------------------------------------------------------------------------
 
+bool Arena::allRoomsReachable()
+{
+    // The sweep the creatures already use, run once from the mouth. Anything
+    // it does not colour in cannot be swum to from where the dive starts.
+    updateFlow(m_start);
+
+    for (const Room& room : m_rooms)
+    {
+        const int cell = nearestOpenCell(room.centre);
+
+        if (cell < 0 || m_flowFrom[static_cast<std::size_t>(cell)] < 0)
+            return false;
+    }
+
+    return true;
+}
+
+int Arena::unreachableRooms()
+{
+    updateFlow(m_start);
+
+    int missing = 0;
+    for (const Room& room : m_rooms)
+    {
+        const int cell = nearestOpenCell(room.centre);
+        if (cell < 0 || m_flowFrom[static_cast<std::size_t>(cell)] < 0)
+            ++missing;
+    }
+
+    return missing;
+}
+
+void Arena::carveTo(sf::Vector2f from, sf::Vector2f to, float width, unsigned int seed)
+{
+    // The same overlapping mouthfuls a passage is made of, cut straight. It is
+    // only ever used to join something the walk left stranded, so it does not
+    // need to wander - it needs to be there.
+    const sf::Vector2f leg = to - from;
+    const float length = leg.length();
+    if (length <= 1.0f)
+        return;
+
+    Seeded random{ seed };
+
+    const int bites = std::max(2, static_cast<int>(length / (width * config::BiteSpacing)));
+
+    for (int i = 0; i <= bites; ++i)
+    {
+        const float along = static_cast<float>(i) / static_cast<float>(bites);
+        const float size = width * random.range(0.88f, 1.14f);
+
+        Chamber bite{ from + leg * along, size, ChamberKind::Plain,
+                      random.range(0.0f, 6.28f), {}, 0.0f };
+
+        bite.warp[0] = random.range(0.12f, 0.24f);
+        bite.warp[1] = random.range(0.06f, 0.14f);
+        bite.warp[2] = random.range(0.03f, 0.08f);
+        bite.warp[3] = random.range(0.02f, 0.05f);
+
+        settleRim(bite);
+        m_chambers.push_back(bite);
+    }
+
+    m_corridors.push_back({ from, to, width });
+}
+
+void Arena::joinStrandedRooms()
+{
+    // Whatever is still cut off after the scenery has been taken away is the
+    // walk's own doing - two rooms whose passage came out too thin somewhere
+    // along its length, or a loop-back that never quite met. Rather than roll
+    // the whole basin again and hope, the hole is simply cut.
+    for (int pass = 0; pass < config::CarveAttempts; ++pass)
+    {
+        updateFlow(m_start);
+
+        int stranded = -1;
+        for (std::size_t i = 0; i < m_rooms.size(); ++i)
+        {
+            const int cell = nearestOpenCell(m_rooms[i].centre);
+
+            if (cell < 0 || m_flowFrom[static_cast<std::size_t>(cell)] < 0)
+            {
+                stranded = static_cast<int>(i);
+                break;
+            }
+        }
+
+        if (stranded < 0)
+            return;
+
+        // To the nearest room that CAN be reached, so the cut is as short as
+        // it can be and lands somewhere the player was going anyway.
+        int best = -1;
+        float nearest = 1.0e9f;
+
+        for (std::size_t i = 0; i < m_rooms.size(); ++i)
+        {
+            if (static_cast<int>(i) == stranded)
+                continue;
+
+            const int cell = nearestOpenCell(m_rooms[i].centre);
+            if (cell < 0 || m_flowFrom[static_cast<std::size_t>(cell)] < 0)
+                continue;
+
+            const float gap = (m_rooms[i].centre
+                               - m_rooms[static_cast<std::size_t>(stranded)].centre).length();
+
+            if (gap < nearest)
+            {
+                nearest = gap;
+                best = static_cast<int>(i);
+            }
+        }
+
+        if (best < 0)
+            return; // nothing is reachable at all, which the mouth rules out
+
+        carveTo(m_rooms[static_cast<std::size_t>(stranded)].centre,
+                m_rooms[static_cast<std::size_t>(best)].centre,
+                config::CorridorRadius, static_cast<unsigned int>(pass) * 2654435761u + 17u);
+
+        m_links[static_cast<std::size_t>(stranded)].push_back(best);
+        m_links[static_cast<std::size_t>(best)].push_back(stranded);
+
+        buildShapeIndex();
+        buildRoutes();
+        buildNavGrid();
+    }
+}
+
+void Arena::clearBlockedRoutes()
+{
+    if (m_rooms.empty() || m_rubbleFrom >= m_pillars.size())
+        return;
+
+    // Rubble is the only thing here that is purely decoration, so rubble is
+    // what goes. Worst first: how close a lump sits to the line a passage
+    // runs along is a good enough proxy for how likely it is to be standing
+    // in the one gap that matters.
+    const auto toAxis = [this](const Pillar& lump) {
+        float nearest = 1.0e9f;
+
+        for (const Corridor& corridor : m_corridors)
+        {
+            const sf::Vector2f on = closestOnSegment(corridor.from, corridor.to, lump.centre);
+            nearest = std::min(nearest, (lump.centre - on).length() - lump.radius);
+        }
+
+        return nearest;
+    };
+
+    // Removed in batches rather than one at a time: rebuilding the grid to
+    // test costs about as much as cutting the basin did, and a level with a
+    // dozen bad lumps would spend a second finding that out.
+    // Sorted once: worst last, so a pass is a resize rather than a search.
+    std::sort(m_pillars.begin() + static_cast<std::ptrdiff_t>(m_rubbleFrom), m_pillars.end(),
+              [&toAxis](const Pillar& a, const Pillar& b) { return toAxis(a) > toAxis(b); });
+
+    while (m_pillars.size() > m_rubbleFrom)
+    {
+        if (allRoomsReachable())
+            return;
+
+        const std::size_t rubble = m_pillars.size() - m_rubbleFrom;
+        const std::size_t keep = m_rubbleFrom + rubble / 2;
+
+        m_pillars.resize(keep);
+
+        buildShapeIndex();
+        buildNavGrid();
+    }
+
+    // Still cut off with every lump gone means the walk itself produced a
+    // basin that does not join up, which the loop-backs make vanishingly
+    // unlikely - but a level nobody can finish is worse than a bare one.
+    if (!allRoomsReachable())
+    {
+        m_pillars.resize(m_rubbleFrom);
+        buildShapeIndex();
+        buildNavGrid();
+    }
+}
+
 bool Arena::isNavOpen(int index) const
 {
     return index >= 0 && index < static_cast<int>(m_navOpen.size())
@@ -571,15 +791,61 @@ void Arena::buildNavGrid()
                               * static_cast<std::size_t>(m_navHeight);
 
     m_navOpen.assign(cells, 0);
+
+    // The sweep is now about a grid that no longer exists, and updateFlow
+    // skips its work when it is asked for a source it thinks it already swept
+    // from. Without this line a freshly cut basin keeps the last one's answer
+    // until the sub happens to cross a cell boundary, and every creature in it
+    // spends that time believing there is no way through to anywhere.
+    m_flowSource = -1;
     m_flowFrom.assign(cells, -1);
+
+    m_navPoint.assign(cells, { 0.0f, 0.0f });
+
+    // A cell is open if ANY of it is open, not if its middle happens to be.
+    // A throat is eighty pixels across and a cell is seventy, so a passage can
+    // very easily pass between two sample points and leave the grid believing
+    // there is no way through - which is how a level ends up with rooms that
+    // simply cannot be reached, and creatures convinced of the same.
+    //
+    // Where the open point turned out to be is kept, because that is the point
+    // everything is later told to swim to. Snapping to the geometric middle
+    // would send it back into the rock this search was done to avoid.
+    static const sf::Vector2f Probes[] = {
+        { 0.0f, 0.0f },
+        { -0.32f, 0.0f }, { 0.32f, 0.0f }, { 0.0f, -0.32f }, { 0.0f, 0.32f },
+        { -0.32f, -0.32f }, { 0.32f, -0.32f }, { -0.32f, 0.32f }, { 0.32f, 0.32f },
+    };
 
     for (int y = 0; y < m_navHeight; ++y)
     {
         for (int x = 0; x < m_navWidth; ++x)
         {
-            const sf::Vector2f at = cellCentre(y * m_navWidth + x);
-            m_navOpen[static_cast<std::size_t>(y * m_navWidth + x)] =
-                isOpen(at, config::NavClearance) ? 1u : 0u;
+            const std::size_t index = static_cast<std::size_t>(y * m_navWidth + x);
+
+            const sf::Vector2f middle =
+                m_navOrigin + sf::Vector2f{ (static_cast<float>(x) + 0.5f) * config::NavCell,
+                                            (static_cast<float>(y) + 0.5f) * config::NavCell };
+
+            m_navPoint[index] = middle;
+
+            // Most of a basin's bounding box is solid rock, and asking nine
+            // questions about each of those cells is eight questions wasted.
+            // One tells you whether any part of the cell could be water.
+            if (depthAt(middle) > config::NavCell)
+                continue;
+
+            for (const sf::Vector2f& probe : Probes)
+            {
+                const sf::Vector2f at = middle + probe * config::NavCell;
+
+                if (!isOpen(at, config::NavClearance))
+                    continue;
+
+                m_navOpen[index] = 1u;
+                m_navPoint[index] = at;
+                break;
+            }
         }
     }
 }
@@ -588,6 +854,13 @@ sf::Vector2f Arena::cellCentre(int index) const
 {
     if (m_navWidth <= 0)
         return m_center;
+
+    // Where the open water in this cell actually was, which for a cell in a
+    // narrow passage is not its middle. Everything that routes is told to swim
+    // here, so handing back the middle would aim it at the rock the search
+    // went to the trouble of avoiding.
+    if (index >= 0 && index < static_cast<int>(m_navPoint.size()))
+        return m_navPoint[static_cast<std::size_t>(index)];
 
     const int x = index % m_navWidth;
     const int y = index / m_navWidth;

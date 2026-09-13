@@ -113,6 +113,11 @@ namespace config
     inline constexpr float ChamberTurn = 78.0f;       // degrees the walk may swing
     inline constexpr float CorridorRadius = 105.0f;
 
+    // How many times the generator will cut a hole to reach a room the walk
+    // left stranded. More than a couple means something is wrong with the
+    // walk rather than with this basin.
+    inline constexpr int   CarveAttempts = 6;
+
     // Some passages run. A route that is easy one way and slow the other is
     // what stops a maze being symmetrical - you remember which way the water
     // was going, not just where the turnings were.
@@ -189,6 +194,13 @@ namespace config
     inline constexpr int   PillarCountMax = 6;
     inline constexpr float PillarRadiusMin = 44.0f;
     inline constexpr float PillarRadiusMax = 76.0f;
+
+    // A column may never be wider than this share of the room it stands in,
+    // and never closer than this to its wall. Between them they are what stops
+    // a small room being cut in half by its own scenery.
+    inline constexpr float PillarRoomShare = 0.26f;
+    inline constexpr float PillarWallGap = 90.0f;
+    inline constexpr float PillarCentreGap = 70.0f;
 
     // Rubble sits between the ripple on the rim and a column standing in the
     // room: lumps of rock bitten out of the wall, so that a wall is never a
