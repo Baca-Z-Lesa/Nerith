@@ -112,6 +112,23 @@ namespace config
     inline constexpr float LoopGapMax = 2300.0f;
     inline constexpr float ChamberTurn = 78.0f;       // degrees the walk may swing
     inline constexpr float CorridorRadius = 105.0f;
+
+    // Some passages run. A route that is easy one way and slow the other is
+    // what stops a maze being symmetrical - you remember which way the water
+    // was going, not just where the turnings were.
+    //
+    // Strength stays under PlayerSpeed on purpose: a passage you cannot swim
+    // back up is not tension, it is a locked door, and the routing the
+    // creatures use knows nothing about the water.
+    inline constexpr float CorridorCurrentChance = 0.22f;
+    inline constexpr float CurrentStrength = 150.0f;
+    inline constexpr float CurrentMouthTaper = 0.18f;
+
+    // How much of it a creature feels. Well under one, because the slowest of
+    // them is slower than the water: at full strength a lurker in an upstream
+    // passage goes backwards, and a level that wants the water empty can
+    // never be finished.
+    inline constexpr float CurrentOnCreatures = 0.45f;
     inline constexpr float BranchChance = 0.45f;
 
     // A boss gets one room it can turn in, off to one side of where you start.
@@ -191,6 +208,11 @@ namespace config
     inline constexpr float PitStrength = 190.0f;
     inline constexpr sf::Color PitMarkColor{ 132, 196, 210, 42 };
 
+    // Streaks down a passage that runs. Fainter than a pit, because a pit is
+    // somewhere you decide to cross and a current is somewhere you notice you
+    // are already in.
+    inline constexpr sf::Color FlowMarkColor{ 150, 205, 218, 34 };
+
     // Everything outside the basin is rock, painted as the depth's own floor
     // multiplied down. Darker than the sand by enough that the edge of the map
     // is obvious, and still the depth's colour rather than a flat grey.
@@ -199,6 +221,16 @@ namespace config
     // How far past the edge of the basin the camera is allowed to see. A little
     // overshoot is wanted: rock in frame is what tells the player where the
     // wall is before they hit it.
+    // --- The lamp ---
+    // The beam is what makes the dark cost something. Half angle wide enough
+    // to fight inside and narrow enough that turning to look is a decision;
+    // the halo is the short even glow close in, without which anything
+    // closing from behind is unanswerable rather than frightening.
+    inline constexpr float LampConeHalfAngle = 42.0f;   // degrees either side
+    inline constexpr float LampConeEdgeFade = 1.35f;    // higher is a softer edge
+    inline constexpr float LampHaloFactor = 0.34f;      // of the beam reach
+    inline constexpr float LampHaloBrightness = 0.62f;  // of the theme light
+
     inline constexpr float CameraOvershoot = 0.55f;
     // How quickly the view catches up with the sub. At five it took about a
     // fifth of a second to close most of the gap, which does not read as a

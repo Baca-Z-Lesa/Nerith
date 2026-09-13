@@ -49,7 +49,7 @@ public:
     void drawGround(sf::RenderTarget& target) const;
 
     // Additive light over the seabed. Drawn before the entities.
-    void drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre) const;
+    void drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const;
     // Darkness swallowing the distance. Drawn after the seabed, before entities.
     void drawGloom(sf::RenderTarget& target) const;
 
@@ -136,7 +136,18 @@ public:
     struct Pillar { sf::Vector2f centre; float radius; };
 
     // The turning water in a pit, as a disc with a pull that dies at its rim.
-    struct Current { sf::Vector2f centre; float radius; float strength; };
+    // Water that is doing something to whatever is in it. A pit turns on the
+    // spot and has from == to; a passage flows one way along its own axis and
+    // does not, which is what makes a route easy in and slow back out.
+    struct Current
+    {
+        sf::Vector2f from;
+        sf::Vector2f to;
+        float        radius;
+        float        strength;
+
+        bool spins() const { return from == to; }
+    };
 
     const std::vector<Chamber>& getChambers() const { return m_chambers; }
     const std::vector<Corridor>& getCorridors() const { return m_corridors; }

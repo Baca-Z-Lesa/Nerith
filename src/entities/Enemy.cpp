@@ -610,11 +610,12 @@ void Enemy::updateBody(float deltaTime)
 
 void Enemy::confine(const Arena& arena, float deltaTime)
 {
-    // Dragged by whatever the water is doing here, exactly as the sub is. A
-    // creature caught in a pit circles it instead of coming at you, which is
-    // the whole reason a pit is worth fighting next to.
+    // Dragged by whatever the water is doing here, but not as hard as the sub
+    // is. They live down here and it does not: a creature that could be pinned
+    // at the wrong end of a flowing passage would simply never arrive, and a
+    // level that asks you to clear the water would stop being finishable.
     if (m_hasEntered)
-        m_position += arena.currentAt(m_position) * deltaTime;
+        m_position += arena.currentAt(m_position) * config::CurrentOnCreatures * deltaTime;
 
     // The basin is cut out of rock now, so "inside" is a question about the
     // map. A creature still swimming in is left alone; once it is in the water

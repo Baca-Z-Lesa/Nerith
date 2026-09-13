@@ -183,6 +183,14 @@ void Arena::generate(unsigned int seed, bool bossRoom)
             static_cast<float>(config::CorridorPiecesMin),
             static_cast<float>(config::CorridorPiecesMax) + 0.999f));
 
+        // One roll for the whole passage, not one per piece: a corridor whose
+        // pieces each flowed their own way would be a washing machine rather
+        // than a route. Which way it runs is rolled too, so a shortcut can be
+        // easy in the direction you happen to need or the other one.
+        const bool flows = random.next() < config::CorridorCurrentChance;
+        const bool reversed = random.next() < 0.5f;
+        const float push = config::CurrentStrength * random.range(0.85f, 1.15f);
+
         sf::Vector2f previous = a;
         for (int i = 1; i <= pieces; ++i)
         {
@@ -198,6 +206,13 @@ void Arena::generate(unsigned int seed, bool bossRoom)
                                                       config::CorridorWidthMax);
 
             m_corridors.push_back({ previous, point, width });
+
+            if (flows)
+            {
+                m_currents.push_back(reversed
+                                         ? Current{ point, previous, width, push }
+                                         : Current{ previous, point, width, push });
+            }
 
             // The passage itself is cut as a run of overlapping wobbled
             // mouthfuls rather than as a capsule. A capsule has two perfectly
@@ -407,7 +422,7 @@ void Arena::generate(unsigned int seed, bool bossRoom)
         }
         else if (room.kind == ChamberKind::Pit)
         {
-            m_currents.push_back({ room.centre, room.radius * 1.15f,
+            m_currents.push_back({ room.centre, room.centre, room.radius * 1.15f,
                                    config::PitStrength * random.range(0.8f, 1.25f)
                                        * (random.next() < 0.5f ? -1.0f : 1.0f) });
         }
@@ -897,18 +912,57 @@ sf::Vector2f Arena::currentAt(sf::Vector2f position) const
 
     for (const Current& current : m_currents)
     {
-        const sf::Vector2f offset = position - current.centre;
-        const float distance = offset.length();
-        if (distance >= current.radius || distance <= 1.0f)
+        if (current.spins())
+        {
+            const sf::Vector2f offset = position - current.from;
+            const float distance = offset.length();
+            if (distance >= current.radius || distance <= 1.0f)
+                continue;
+
+            // Mostly round, a little inward, and dying at the rim so the edge
+            // of a pit is somewhere you can hold rather than a line you fall
+            // over.
+            const float fall = 1.0f - distance / current.radius;
+            const sf::Vector2f inward = -offset / distance;
+            const sf::Vector2f around{ -inward.y, inward.x };
+
+            drag += (around * 0.78f + inward * 0.34f) * (current.strength * fall);
+            continue;
+        }
+
+        const sf::Vector2f axis = current.to - current.from;
+        const float span = axis.lengthSquared();
+        if (span <= 1.0f)
             continue;
 
-        // Mostly round, a little inward, and dying at the rim so the edge of a
-        // pit is somewhere you can hold rather than a line you fall over.
-        const float fall = 1.0f - distance / current.radius;
-        const sf::Vector2f inward = -offset / distance;
-        const sf::Vector2f around{ -inward.y, inward.x };
+        // Cheap rejection before the projection, because this is asked once
+        // per moving thing per step and most of them are nowhere near.
+        const sf::Vector2f low{ std::min(current.from.x, current.to.x) - current.radius,
+                                std::min(current.from.y, current.to.y) - current.radius };
+        const sf::Vector2f high{ std::max(current.from.x, current.to.x) + current.radius,
+                                 std::max(current.from.y, current.to.y) + current.radius };
 
-        drag += (around * 0.78f + inward * 0.34f) * (current.strength * fall);
+        if (position.x < low.x || position.x > high.x
+            || position.y < low.y || position.y > high.y)
+        {
+            continue;
+        }
+
+        const float along = std::clamp((position - current.from).dot(axis) / span, 0.0f, 1.0f);
+        const sf::Vector2f on = current.from + axis * along;
+        const float off = (position - on).length();
+
+        if (off >= current.radius)
+            continue;
+
+        // Dying at the walls, and easing in at both ends. Without the ends the
+        // sub is punched sideways the instant it crosses the mouth, which
+        // reads as a bug rather than as water.
+        const float fall = 1.0f - off / current.radius;
+        const float mouth = std::min(1.0f, std::min(along, 1.0f - along)
+                                               / config::CurrentMouthTaper);
+
+        drag += axis.normalized() * (current.strength * fall * mouth);
     }
 
     return drag;
@@ -1398,6 +1452,47 @@ void Arena::buildSwirl()
     // about to happen to the sub is visible before it happens.
     for (const Current& current : m_currents)
     {
+        if (!current.spins())
+        {
+            // A flowing passage says so with streaks running down it. Without
+            // them the water is invisible and the sub simply steers badly,
+            // which is the difference between a current and a bug.
+            const sf::Vector2f axis = current.to - current.from;
+            const float length = axis.length();
+            if (length <= 1.0f)
+                continue;
+
+            const sf::Vector2f along = axis / length;
+            const sf::Vector2f across{ -along.y, along.x };
+            const int streaks = std::max(2, static_cast<int>(length / 26.0f));
+            const float drift = std::fmod(m_time * current.strength * 0.35f, 40.0f);
+
+            for (int i = 0; i < streaks; ++i)
+            {
+                const float head = std::fmod(static_cast<float>(i) * 40.0f + drift, length);
+                const float tail = std::max(0.0f, head - 17.0f);
+
+                // Off the axis by a fixed amount per streak, so the passage
+                // reads as full of moving water rather than as one line down
+                // the middle of it.
+                const float side = (static_cast<float>((i * 7) % 5) / 4.0f - 0.5f)
+                                   * current.radius * 1.30f;
+
+                const sf::Vector2f a = current.from + along * tail + across * side;
+                const sf::Vector2f b = current.from + along * head + across * side;
+
+                const sf::Color faint(config::FlowMarkColor.r, config::FlowMarkColor.g,
+                                      config::FlowMarkColor.b, 0);
+
+                appendRingQuad(m_swirl,
+                               a - across * 2.0f, b - across * 2.0f,
+                               a + across * 2.0f, b + across * 2.0f,
+                               faint, config::FlowMarkColor);
+            }
+
+            continue;
+        }
+
         const float spin = current.strength / 150.0f;
 
         for (int ring = 0; ring < 3; ++ring)
@@ -1427,10 +1522,10 @@ void Arena::buildSwirl()
                                              static_cast<float>(config::PitMarkColor.a) * fade));
 
                     appendRingQuad(m_swirl,
-                                   current.centre + d0 * (radius - width),
-                                   current.centre + d1 * (radius - width),
-                                   current.centre + d0 * (radius + width),
-                                   current.centre + d1 * (radius + width),
+                                   current.from + d0 * (radius - width),
+                                   current.from + d1 * (radius - width),
+                                   current.from + d0 * (radius + width),
+                                   current.from + d1 * (radius + width),
                                    tint, tint);
                 }
             }
@@ -1460,22 +1555,75 @@ void Arena::drawGround(sf::RenderTarget& target) const
 
 void Arena::buildLightPool()
 {
-    // A soft disc of light sitting over the sand, brightest in the middle and
-    // gone by the time it reaches the reef. Blended additively when drawn.
+    // A lamp, not a bubble. It used to be an even disc around the sub, which
+    // meant the darkness cost the player nothing: everything within the radius
+    // was equally visible whichever way they were pointing, so the one thing
+    // the whole game is about - not being able to see - had no bearing on
+    // anything they did. A beam makes looking where you are going and looking
+    // where you are shooting two different choices.
+    //
+    // Both halves are built around the origin and pointing along +X, so
+    // drawLight can carry them to the sub and turn them to the aim without any
+    // of this having to be rebuilt.
     const sf::Color core = m_theme->light;
     const sf::Color edge(core.r, core.g, core.b, 0);
+    const float reach = (m_theme->lightRadius + m_lampBonus) * m_lampFactor;
+
+    // The halo first: a short even glow close in. Without it a pure beam is
+    // unplayable - the sub sits in a hole it cannot see out of sideways, and
+    // anything that closes from behind is unanswerable rather than frightening.
+    const sf::Color halo(core.r, core.g, core.b,
+                         static_cast<std::uint8_t>(static_cast<float>(core.a)
+                                                   * config::LampHaloBrightness));
 
     for (std::size_t i = 0; i < Segments; ++i)
     {
-        const sf::Angle a0 = segmentAngle(i);
-        const sf::Angle a1 = segmentAngle(i + 1);
-
-        // Built around the origin so drawLight can carry it to the sub.
         appendRingQuad(m_lightPool,
                        { 0.0f, 0.0f }, { 0.0f, 0.0f },
-                       sf::Vector2f((m_theme->lightRadius + m_lampBonus) * m_lampFactor, a0),
-                       sf::Vector2f((m_theme->lightRadius + m_lampBonus) * m_lampFactor, a1),
-                       core, edge);
+                       sf::Vector2f(reach * config::LampHaloFactor, segmentAngle(i)),
+                       sf::Vector2f(reach * config::LampHaloFactor, segmentAngle(i + 1)),
+                       halo, edge);
+    }
+
+    // Then the beam, thrown from the rim of the halo out to the full reach.
+    // Quads rather than a fan: a fan meets at one vertex, and one vertex can
+    // only be one brightness, so a fan cannot say that the beam is dimmer at
+    // its edges than down its middle - which is the whole shape of a beam.
+    const std::size_t steps = Segments / 2;
+    const float half = config::LampConeHalfAngle;
+    const float inner = reach * config::LampHaloFactor * 0.85f;
+
+    // Cosine across the beam rather than a straight taper, so the edges wash
+    // out instead of ending on a line. A line reads as a cone drawn on the
+    // water; a wash reads as light.
+    const auto across = [&core](float t) {
+        const float amount = std::pow(std::cos(std::clamp(t, -1.0f, 1.0f) * 1.5707963f),
+                                      config::LampConeEdgeFade);
+        return sf::Color(core.r, core.g, core.b,
+                         static_cast<std::uint8_t>(static_cast<float>(core.a)
+                                                   * std::clamp(amount, 0.0f, 1.0f)));
+    };
+
+    for (std::size_t i = 0; i < steps; ++i)
+    {
+        const float t0 = static_cast<float>(i) / static_cast<float>(steps) * 2.0f - 1.0f;
+        const float t1 = static_cast<float>(i + 1) / static_cast<float>(steps) * 2.0f - 1.0f;
+
+        const sf::Angle a0 = sf::degrees(t0 * half);
+        const sf::Angle a1 = sf::degrees(t1 * half);
+
+        const sf::Vector2f in0(inner, a0);
+        const sf::Vector2f in1(inner, a1);
+        const sf::Vector2f out0(reach, a0);
+        const sf::Vector2f out1(reach, a1);
+
+        m_lightPool.append(sf::Vertex{ in0, across(t0) });
+        m_lightPool.append(sf::Vertex{ out0, edge });
+        m_lightPool.append(sf::Vertex{ out1, edge });
+
+        m_lightPool.append(sf::Vertex{ in0, across(t0) });
+        m_lightPool.append(sf::Vertex{ out1, edge });
+        m_lightPool.append(sf::Vertex{ in1, across(t1) });
     }
 }
 
@@ -1586,7 +1734,7 @@ void Arena::update(float deltaTime)
     buildSwirl();
 }
 
-void Arena::drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre) const
+void Arena::drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const
 {
     sf::RenderStates states;
     states.blendMode = sf::BlendAdd; // light adds to the sand, it does not paint over it
@@ -1595,6 +1743,10 @@ void Arena::drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre) const
     // than sitting on the middle of a basin far larger than the screen.
     sf::RenderStates lamp = states;
     lamp.transform.translate(lampCentre);
+
+    // Built pointing along +X and turned here, so the beam follows the aim
+    // without a single vertex being rebuilt.
+    lamp.transform.rotate(aim);
     target.draw(m_lightPool, lamp);
     target.draw(m_caustics, states);
 }

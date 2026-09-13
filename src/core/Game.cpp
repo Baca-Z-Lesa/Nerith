@@ -4679,7 +4679,7 @@ void Game::render(float alpha)
     m_seabed.drawFar(m_window, m_cameraCentre);
     m_arena.drawGround(m_window);
     m_seabed.draw(m_window);
-    m_arena.drawLight(m_window, m_player.getPosition());
+    m_arena.drawLight(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
 
     m_ambience.draw(m_window);
 
