@@ -1479,10 +1479,11 @@ void Boss::draw(sf::RenderTarget& target) const
         pose.rage = std::clamp(static_cast<float>(m_act) * 0.5f, 0.0f, 1.0f);
         pose.tell = getTell();
         pose.flinch = m_flinch;
+        pose.pulse = m_bellPulse;
         pose.look = m_look;
         pose.alpha = std::clamp(m_visibility, 0.0f, 1.0f);
 
-        bossart::drawLeviathan(target, pose, *m_hide);
+        bossart::draw(target, m_def->skin, pose, *m_hide);
         return;
     }
 

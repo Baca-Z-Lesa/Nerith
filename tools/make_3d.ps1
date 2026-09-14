@@ -1,4 +1,4 @@
-# Regenerates every texture from its own script, then lights all of them with
+﻿# Regenerates every texture from its own script, then lights all of them with
 # the same relief pass so the whole game looks like it was drawn by one hand.
 #
 # Run this, not the individual scripts: the relief pass is not idempotent, so
@@ -58,29 +58,9 @@ $Materials = @{
     'fish.png'            = 'flesh'
 
     # --- bosses ---
-    'hol_crown.png'     = 'shell'
-    'hol_vertebra.png'  = 'shell'
-    'hol_lamp.png'      = 'glow'
-    'hol_ribs.png'      = 'shell'
-    'hol_mass.png'      = 'jelly'
     # The leviathan has no textures: it is drawn from a pose by BossArt. The
     # flipper is the exception, and only because the trench worm wears a pair.
-    'lev_fin.png'       = 'flesh'
-    'worm_tail.png'     = 'shell'
-    'hol_tail.png'      = 'shell'
     'enemy_coil_tail.png' = 'shell'
-    'med_bell.png'      = 'jelly'
-    'med_tentacle.png'  = 'jelly'
-    'med_nucleus.png'   = 'glow'
-    'worm_head.png'     = 'shell'
-    'worm_seg.png'      = 'shell'
-    'worm_vent.png'     = 'jelly'
-    'fur_body.png'      = 'rock'
-    'fur_flue.png'      = 'rock'
-    'fur_throat.png'    = 'glow'
-    'mot_bell.png'      = 'flesh'
-    'mot_limb.png'      = 'flesh'
-    'mot_sac.png'       = 'jelly'
 
     # --- the world ---
     'rock_a.png'  = 'rock'
@@ -114,8 +94,7 @@ Write-Host "Drawing the flat art"
 foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_particle.ps1', 'make_world.ps1',
                       'make_enemies.ps1', 'make_enemies2.ps1', 'make_bestiary.ps1',
-                      'make_creatures.ps1', 'make_bosses.ps1',
-                      'make_boss4.ps1', 'make_shots.ps1', 'make_nest.ps1',
+                      'make_shots.ps1', 'make_nest.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
                       'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1')) {
     Write-Host "  $script"
@@ -188,3 +167,4 @@ if ($missing.Count -gt 0) {
     Write-Host "No material for, so left flat:" -ForegroundColor Yellow
     foreach ($m in $missing) { Write-Host "  $m" -ForegroundColor Yellow }
 }
+

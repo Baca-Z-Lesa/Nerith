@@ -59,6 +59,7 @@ namespace bossart
         float rage = 0.0f;   // 0..1, how far into the fight it is
         float tell = 0.0f;   // 0..1, how far through a wind-up
         float flinch = 0.0f; // 0..1, it has just been hurt
+        float pulse = 0.0f;  // 0..1, a bell mid clench
         float alpha = 1.0f;
 
         sf::Vector2f look{ 1.0f, 0.0f }; // the direction it is looking in
@@ -68,5 +69,6 @@ namespace bossart
     // by the colour the shape asked for, so one sheet does hide, plate, fin
     // and jaw - which is the same bargain every sprite in the game makes with
     // the relief pass.
-    void drawLeviathan(sf::RenderTarget& target, const Body& body, const sf::Texture& hide);
+    void draw(sf::RenderTarget& target, BossSkin skin, const Body& body,
+              const sf::Texture& hide);
 }

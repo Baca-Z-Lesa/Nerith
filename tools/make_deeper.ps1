@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Drawing
+﻿Add-Type -AssemblyName System.Drawing
 
 # The two creatures below the abyss, and the two things that guard the water
 # they live in. Kept in its own script so the deep roster can be retuned
@@ -175,71 +175,16 @@ foreach ($side in @(-1, 1)) {
 }
 Disc $g $stoneLo $c ($H * 0.86) 78
 Finish $bmp $g $outW $outH "enemy_effigy.png"
-
 # =====================================================================
-#  THE FURNACE  -  the vents boss. A chimney of slag sitting on the open
-#  floor, drawn as a bell so the body is one piece and everything else is
-#  bolted to it.
+#  What the two deep bosses throw.
+#  The creatures themselves are drawn from a pose by BossArt and have no
+#  textures at all any more; a shot is still a sprite, because a shot is
+#  twenty pixels across and there are forty of them in the water.
 # =====================================================================
-$slag   = C 92 66 58
-$slagLo = C 48 32 28
-$ember  = C 236 128 54
+$ember   = C 236 128 54
 $emberHi = C 255 210 130
-$fink   = C 20 12 10
+$vein    = C 126 84 96
 
-$outW = 150; $outH = 150
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $c = $W / 2.0
-
-Disc $g $slagLo $c $c ($c * 0.94)
-Disc $g $slag $c $c ($c * 0.84)
-
-# Cracks, with heat showing through them.
-for ($i = 0; $i -lt 9; $i++) {
-    $a = 2 * [math]::PI * $i / 9.0 + 0.2
-    $x0 = $c + [math]::Cos($a) * ($c * 0.24)
-    $y0 = $c + [math]::Sin($a) * ($c * 0.24)
-    $x1 = $c + [math]::Cos($a + 0.16) * ($c * 0.88)
-    $y1 = $c + [math]::Sin($a + 0.16) * ($c * 0.88)
-    Stroke $g $slagLo $x0 $y0 $x1 $y1 22
-    Stroke $g $ember $x0 $y0 $x1 $y1 9
-}
-
-Disc $g $slagLo $c $c ($c * 0.30)
-Disc $g $ember $c $c ($c * 0.22)
-Disc $g $emberHi $c $c ($c * 0.12)
-Ring $g $fink $c $c ($c * 0.84) 10
-Finish $bmp $g $outW $outH "fur_body.png"
-
-# --- one flue: a bolted-on chimney that vents. Root at the left edge. ---
-$outW = 84; $outH = 62
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $cy = $outH * $SS / 2.0
-
-Blob $g @( (P ($W * 0.04) ($cy - 82)), (P ($W * 0.72) ($cy - 58)),
-           (P ($W * 0.96) $cy),
-           (P ($W * 0.72) ($cy + 58)), (P ($W * 0.04) ($cy + 82)) ) $slag $fink 8 0.2
-foreach ($t in @(0.3, 0.55, 0.8)) {
-    Stroke $g $slagLo ($W * $t) ($cy - 70 + 30 * $t) ($W * $t) ($cy + 70 - 30 * $t) 9
-}
-Disc $g $ember ($W * 0.88) $cy 26
-Disc $g $emberHi ($W * 0.88) $cy 13
-Finish $bmp $g $outW $outH "fur_flue.png"
-
-# --- the throat: what has to be burned out to kill it ----------------
-$outW = 62; $outH = 62
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$c = $outW * $SS / 2.0
-Disc $g (C 255 140 60 70) $c $c ($c * 0.96)
-Disc $g $fink $c $c ($c * 0.74)
-Disc $g $ember $c $c ($c * 0.58)
-Disc $g $emberHi $c $c ($c * 0.34)
-for ($i = 0; $i -lt 6; $i++) {
-    $a = 2 * [math]::PI * $i / 6.0
-    Stroke $g $fink ($c + [math]::Cos($a) * ($c * 0.30)) ($c + [math]::Sin($a) * ($c * 0.30)) `
-        ($c + [math]::Cos($a) * ($c * 0.72)) ($c + [math]::Sin($a) * ($c * 0.72)) 8
-}
-Finish $bmp $g $outW $outH "fur_throat.png"
 
 # --- its shot: a cinder ----------------------------------------------
 $outW = 24; $outH = 24
@@ -250,81 +195,6 @@ Disc $g $ember $c $c ($c * 0.56)
 Disc $g $emberHi $c $c ($c * 0.30)
 Finish $bmp $g $outW $outH "shot_furnace.png"
 
-# =====================================================================
-#  THE MOTHER  -  the cradle boss. A bell that charges, which nothing
-#  shaped like this has ever done before. The sacs on it are where the
-#  water keeps coming from.
-# =====================================================================
-$sac    = C 178 168 150
-$sacLo  = C 104 98 86
-$sacHi  = C 216 210 190
-$vein   = C 126 84 96
-$oink   = C 18 18 16
-
-$outW = 168; $outH = 168
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $c = $W / 2.0
-
-# The bell itself, lopsided, because it is swollen rather than built.
-$bell = @()
-for ($i = 0; $i -lt 14; $i++) {
-    $a = 2 * [math]::PI * $i / 14.0
-    $rad = $c * (0.80 + 0.10 * [math]::Sin($a * 3.0 + 0.7))
-    $bell += (P ($c + [math]::Cos($a) * $rad) ($c + [math]::Sin($a) * $rad))
-}
-Blob $g $bell $sacLo $oink 10 0.5
-$inner = @()
-for ($i = 0; $i -lt 14; $i++) {
-    $a = 2 * [math]::PI * $i / 14.0
-    $rad = $c * (0.70 + 0.09 * [math]::Sin($a * 3.0 + 0.7))
-    $inner += (P ($c + [math]::Cos($a) * $rad) ($c + [math]::Sin($a) * $rad))
-}
-Blob $g $inner $sac $null 0 0.5
-
-# Veins running to the middle.
-for ($i = 0; $i -lt 11; $i++) {
-    $a = 2 * [math]::PI * $i / 11.0 + 0.3
-    Stroke $g $vein ($c + [math]::Cos($a) * ($c * 0.18)) ($c + [math]::Sin($a) * ($c * 0.18)) `
-        ($c + [math]::Cos($a + 0.3) * ($c * 0.70)) ($c + [math]::Sin($a + 0.3) * ($c * 0.70)) 11
-}
-
-# And the brood chambers under the skin, which is what it is for.
-foreach ($spot in @(@(0.42, 0.9), @(1.9, 0.62), @(3.3, 0.8), @(4.6, 0.55), @(5.6, 0.74))) {
-    $a = $spot[0]
-    $d = $spot[1]
-    $x = $c + [math]::Cos($a) * ($c * $d * 0.62)
-    $y = $c + [math]::Sin($a) * ($c * $d * 0.62)
-    Disc $g $sacHi $x $y ($c * 0.14)
-    Disc $g $vein $x $y ($c * 0.07)
-}
-Finish $bmp $g $outW $outH "mot_bell.png"
-
-# --- a limb: it drags these rather than swimming with them -----------
-$outW = 96; $outH = 56
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $cy = $outH * $SS / 2.0
-
-Blob $g @( (P ($W * 0.02) ($cy - 66)), (P ($W * 0.48) ($cy - 44)),
-           (P ($W * 0.92) ($cy - 14)), (P ($W * 0.94) ($cy + 18)),
-           (P ($W * 0.44) ($cy + 46)), (P ($W * 0.02) ($cy + 66)) ) $sacLo $oink 7 0.35
-foreach ($t in @(0.2, 0.42, 0.64, 0.84)) {
-    Disc $g $sac ($W * $t) ($cy + 6 * $t) (40 - 24 * $t)
-}
-Finish $bmp $g $outW $outH "mot_limb.png"
-
-# --- the brood sac: the organ ----------------------------------------
-$outW = 66; $outH = 66
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$c = $outW * $SS / 2.0
-Disc $g (C 200 150 160 80) $c $c ($c * 0.96)
-Disc $g $sacLo $c $c ($c * 0.80)
-Disc $g $vein $c $c ($c * 0.62)
-Disc $g $sacHi $c $c ($c * 0.30)
-for ($i = 0; $i -lt 5; $i++) {
-    $a = 2 * [math]::PI * $i / 5.0 + 0.5
-    Disc $g $sacHi ($c + [math]::Cos($a) * ($c * 0.44)) ($c + [math]::Sin($a) * ($c * 0.44)) ($c * 0.12)
-}
-Finish $bmp $g $outW $outH "mot_sac.png"
 
 # --- its shot: a seed ------------------------------------------------
 $outW = 22; $outH = 22

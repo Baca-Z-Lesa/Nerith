@@ -46,9 +46,11 @@ namespace
         // =================================================================
         {
             "THE BLOOM SOVEREIGN", "IT DOES NOT HUNT. IT SIMPLY FILLS THE WATER.",
-            BossBody::Bell, BossMind::Drifter, BossSkin::Sprites,
-            "assets/textures/med_bell.png", "assets/textures/shot_sovereign.png",
-            "assets/textures/med_bell.png", nullptr,
+            BossBody::Bell, BossMind::Drifter, BossSkin::Medusa,
+            // Drawn, not stamped: a translucent bell with the plumbing showing
+            // through it. Every part below is a hitbox and a role.
+            nullptr, "assets/textures/shot_sovereign.png",
+            nullptr, nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 84.0f,
             2, 46,
             34.0f, 0.0f,
@@ -56,13 +58,13 @@ namespace
             { 0.60f, 1.15f, 5, 1.0f },
             7,
             { {
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  62.0f,   0.0f, 26.0f, 0.85f,   0.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  31.0f,  54.0f, 26.0f, 0.85f,  60.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -31.0f,  54.0f, 26.0f, 0.85f, 120.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -62.0f,   0.0f, 26.0f, 0.85f, 180.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0, -31.0f, -54.0f, 26.0f, 0.85f, 240.0f, 26 },
-                { PartRole::Tentacle, "assets/textures/med_tentacle.png", 0,  31.0f, -54.0f, 26.0f, 0.85f, 300.0f, 26 },
-                { PartRole::Organ,    "assets/textures/med_nucleus.png",  0,   0.0f,   0.0f, 32.0f, 0.95f,    0.0f, 120 },
+                { PartRole::Tentacle, nullptr,                              0,  62.0f,   0.0f, 26.0f, 0.85f,   0.0f, 26 },
+                { PartRole::Tentacle, nullptr,                              0,  31.0f,  54.0f, 26.0f, 0.85f,  60.0f, 26 },
+                { PartRole::Tentacle, nullptr,                              0, -31.0f,  54.0f, 26.0f, 0.85f, 120.0f, 26 },
+                { PartRole::Tentacle, nullptr,                              0, -62.0f,   0.0f, 26.0f, 0.85f, 180.0f, 26 },
+                { PartRole::Tentacle, nullptr,                              0, -31.0f, -54.0f, 26.0f, 0.85f, 240.0f, 26 },
+                { PartRole::Tentacle, nullptr,                              0,  31.0f, -54.0f, 26.0f, 0.85f, 300.0f, 26 },
+                { PartRole::Organ,    nullptr,                            0,   0.0f,   0.0f, 32.0f, 0.95f,    0.0f, 120 },
             } }
         },
 
@@ -74,9 +76,9 @@ namespace
         // =================================================================
         {
             "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
-            BossBody::Serpent, BossMind::Burrower, BossSkin::Sprites,
-            "assets/textures/worm_head.png", "assets/textures/shot_worm.png",
-            "assets/textures/worm_seg.png", "assets/textures/worm_tail.png",
+            BossBody::Serpent, BossMind::Burrower, BossSkin::Worm,
+            nullptr, "assets/textures/shot_worm.png",
+            nullptr, nullptr,
             0.95f, 0.9f, 0.94f, 6, 44.0f, 44.0f,
             2, 52,
             132.0f, 0.0f,
@@ -84,13 +86,13 @@ namespace
             { 0.58f, 1.30f, 4, 1.5f },
             5,
             { {
-                { PartRole::Fin,   "assets/textures/lev_fin.png",    1,  0.0f, -32.0f, 20.0f, 0.7f, -62.0f, 30 },
-                { PartRole::Fin,   "assets/textures/lev_fin.png",    1,  0.0f,  32.0f, 20.0f, 0.7f,  62.0f, 30 },
-                { PartRole::Organ, "assets/textures/worm_vent.png",  2,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
-                { PartRole::Organ, "assets/textures/worm_vent.png",  4,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+                { PartRole::Fin,   nullptr,                          1,  0.0f, -32.0f, 20.0f, 0.7f, -62.0f, 30 },
+                { PartRole::Fin,   nullptr,                          1,  0.0f,  32.0f, 20.0f, 0.7f,  62.0f, 30 },
+                { PartRole::Organ, nullptr,                          2,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+                { PartRole::Organ, nullptr,                          4,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
                 // Not on the last link: that one is the tail now, and a heat
                 // vent sitting on a point is not anywhere on an animal.
-                { PartRole::Organ, "assets/textures/worm_vent.png",  5,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+                { PartRole::Organ, nullptr,                          5,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
             } }
         },
 
@@ -105,9 +107,9 @@ namespace
         // =================================================================
         {
             "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
-            BossBody::Serpent, BossMind::Spiral, BossSkin::Sprites,
-            "assets/textures/hol_crown.png", "assets/textures/shot_hollow.png",
-            "assets/textures/hol_vertebra.png", "assets/textures/hol_tail.png",
+            BossBody::Serpent, BossMind::Spiral, BossSkin::Hollow,
+            nullptr, "assets/textures/shot_hollow.png",
+            nullptr, nullptr,
             1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
             3, 96,
             96.0f, 330.0f,
@@ -115,22 +117,25 @@ namespace
             { 0.70f, 1.20f, 2, 1.0f },
             10,
             { {
-                // Four lamps on the crown: each one is an arm of the spiral.
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f, -30.0f, 18.0f, 0.70f,   0.0f, 30 },
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0,  22.0f,  30.0f, 18.0f, 0.70f,   0.0f, 30 },
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f, -30.0f, 18.0f, 0.70f,   0.0f, 30 },
-                { PartRole::Eye,    "assets/textures/hol_lamp.png",     0, -26.0f,  30.0f, 18.0f, 0.70f,   0.0f, 30 },
+                // Four lamps on the crown, each on the end of an arm it holds up
+                // into the current the way a feather star does. Out on the ends
+                // rather than tucked against the skull: an arm you cannot see is
+                // not a thing the player can decide to shoot off.
+                { PartRole::Eye,    nullptr,                            0,  62.0f, -66.0f, 20.0f, 0.70f,   0.0f, 30 },
+                { PartRole::Eye,    nullptr,                            0,  62.0f,  66.0f, 20.0f, 0.70f,   0.0f, 30 },
+                { PartRole::Eye,    nullptr,                            0, -34.0f, -80.0f, 20.0f, 0.70f,   0.0f, 30 },
+                { PartRole::Eye,    nullptr,                            0, -34.0f,  80.0f, 20.0f, 0.70f,   0.0f, 30 },
                 // Three joints down the column. Breaking them is what finally
                 // slows the thing down, and they are furthest from the crown,
                 // so going for them means turning your back on the spiral.
-                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 2,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
-                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 3,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
-                { PartRole::Fin,    "assets/textures/hol_vertebra.png", 4,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
+                { PartRole::Fin,    nullptr,                         2,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
+                { PartRole::Fin,    nullptr,                         3,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
+                { PartRole::Fin,    nullptr,                         4,   0.0f,   0.0f, 26.0f, 0.72f,   0.0f, 40 },
                 // Two shells over the mass, one behind the other, so the last
                 // act cannot be skipped by a lucky torpedo early on.
-                { PartRole::Armour, "assets/textures/hol_ribs.png",     1,   0.0f,   0.0f, 40.0f, 1.0f,    0.0f, 70 },
-                { PartRole::Armour, "assets/textures/hol_ribs.png",     1,  14.0f,   0.0f, 34.0f, 0.82f,   0.0f, 70 },
-                { PartRole::Organ,  "assets/textures/hol_mass.png",     1,   0.0f,   0.0f, 30.0f, 1.0f,    0.0f, 180 },
+                { PartRole::Armour, nullptr,                            1,   0.0f,   0.0f, 40.0f, 1.0f,    0.0f, 70 },
+                { PartRole::Armour, nullptr,                            1,  14.0f,   0.0f, 34.0f, 0.82f,   0.0f, 70 },
+                { PartRole::Organ,  nullptr,                            1,   0.0f,   0.0f, 30.0f, 1.0f,    0.0f, 180 },
             } }
         },
 
@@ -144,9 +149,9 @@ namespace
         // =================================================================
         {
             "THE FURNACE", "IT IS SITTING ON THE HOLE IN THE FLOOR.",
-            BossBody::Bell, BossMind::Spiral, BossSkin::Sprites,
-            "assets/textures/fur_body.png", "assets/textures/shot_furnace.png",
-            "assets/textures/fur_body.png", nullptr,
+            BossBody::Bell, BossMind::Spiral, BossSkin::Furnace,
+            nullptr, "assets/textures/shot_furnace.png",
+            nullptr, nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 92.0f,
             3, 58,
             30.0f, 300.0f,
@@ -154,16 +159,16 @@ namespace
             { 0.62f, 1.10f, 3, 1.0f },
             8,
             { {
-                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0,  74.0f,   0.0f, 24.0f, 0.85f,   0.0f, 34 },
-                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0,  23.0f,  70.0f, 24.0f, 0.85f,  72.0f, 34 },
-                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0, -60.0f,  44.0f, 24.0f, 0.85f, 144.0f, 34 },
-                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0, -60.0f, -44.0f, 24.0f, 0.85f, 216.0f, 34 },
-                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0,  23.0f, -70.0f, 24.0f, 0.85f, 288.0f, 34 },
+                { PartRole::Tentacle, nullptr,                          0,  74.0f,   0.0f, 24.0f, 0.85f,   0.0f, 34 },
+                { PartRole::Tentacle, nullptr,                          0,  23.0f,  70.0f, 24.0f, 0.85f,  72.0f, 34 },
+                { PartRole::Tentacle, nullptr,                          0, -60.0f,  44.0f, 24.0f, 0.85f, 144.0f, 34 },
+                { PartRole::Tentacle, nullptr,                          0, -60.0f, -44.0f, 24.0f, 0.85f, 216.0f, 34 },
+                { PartRole::Tentacle, nullptr,                          0,  23.0f, -70.0f, 24.0f, 0.85f, 288.0f, 34 },
                 // Three throats, spread so no single pass over the top can
                 // reach two of them.
-                { PartRole::Organ,    "assets/textures/fur_throat.png", 0,  38.0f,   0.0f, 26.0f, 1.0f,    0.0f, 96 },
-                { PartRole::Organ,    "assets/textures/fur_throat.png", 0, -19.0f,  33.0f, 26.0f, 1.0f,    0.0f, 96 },
-                { PartRole::Organ,    "assets/textures/fur_throat.png", 0, -19.0f, -33.0f, 26.0f, 1.0f,    0.0f, 96 },
+                { PartRole::Organ,    nullptr,                          0,  38.0f,   0.0f, 26.0f, 1.0f,    0.0f, 96 },
+                { PartRole::Organ,    nullptr,                          0, -19.0f,  33.0f, 26.0f, 1.0f,    0.0f, 96 },
+                { PartRole::Organ,    nullptr,                          0, -19.0f, -33.0f, 26.0f, 1.0f,    0.0f, 96 },
             } }
         },
 
@@ -177,9 +182,9 @@ namespace
         // =================================================================
         {
             "THE MOTHER", "IT IS WHERE THEY ALL CAME FROM.",
-            BossBody::Bell, BossMind::Prowler, BossSkin::Sprites,
-            "assets/textures/mot_bell.png", "assets/textures/shot_mother.png",
-            "assets/textures/mot_bell.png", nullptr,
+            BossBody::Bell, BossMind::Prowler, BossSkin::Mother,
+            nullptr, "assets/textures/shot_mother.png",
+            nullptr, nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 96.0f,
             3, 72,
             104.0f, 330.0f,
@@ -187,14 +192,14 @@ namespace
             { 0.55f, 1.30f, 4, 1.2f },
             7,
             { {
-                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0,  46.0f,  62.0f, 26.0f, 0.9f,   52.0f, 42 },
-                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0, -46.0f,  62.0f, 26.0f, 0.9f,  128.0f, 42 },
-                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0, -46.0f, -62.0f, 26.0f, 0.9f,  232.0f, 42 },
-                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0,  46.0f, -62.0f, 26.0f, 0.9f,  308.0f, 42 },
+                { PartRole::Tentacle, nullptr,                          0,  46.0f,  62.0f, 26.0f, 0.9f,   52.0f, 42 },
+                { PartRole::Tentacle, nullptr,                          0, -46.0f,  62.0f, 26.0f, 0.9f,  128.0f, 42 },
+                { PartRole::Tentacle, nullptr,                          0, -46.0f, -62.0f, 26.0f, 0.9f,  232.0f, 42 },
+                { PartRole::Tentacle, nullptr,                          0,  46.0f, -62.0f, 26.0f, 0.9f,  308.0f, 42 },
                 // Three sacs, and every one of them is still hatching.
-                { PartRole::Organ,    "assets/textures/mot_sac.png",    0,  44.0f,   0.0f, 28.0f, 1.0f,    0.0f, 120 },
-                { PartRole::Organ,    "assets/textures/mot_sac.png",    0, -22.0f,  38.0f, 28.0f, 1.0f,    0.0f, 120 },
-                { PartRole::Organ,    "assets/textures/mot_sac.png",    0, -22.0f, -38.0f, 28.0f, 1.0f,    0.0f, 120 },
+                { PartRole::Organ,    nullptr,                          0,  44.0f,   0.0f, 28.0f, 1.0f,    0.0f, 120 },
+                { PartRole::Organ,    nullptr,                          0, -22.0f,  38.0f, 28.0f, 1.0f,    0.0f, 120 },
+                { PartRole::Organ,    nullptr,                          0, -22.0f, -38.0f, 28.0f, 1.0f,    0.0f, 120 },
             } }
         },
     };

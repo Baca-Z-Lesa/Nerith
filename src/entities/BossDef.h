@@ -33,10 +33,19 @@ enum class BossBody
 //
 // Anything with its own skin is drawn by BossArt out of shapes, and its
 // textures do not exist.
+// Every drawn creature is built from something that is actually down there.
+// The trench is not a bestiary of invented shapes: it is a pliosaur, a lion's
+// mane, a bobbit worm, a whale fall, a vent colony and a brooding octopus, and
+// each of them is drawn the way that animal is actually put together.
 enum class BossSkin
 {
     Sprites,   // the textures named in the definition
-    Leviathan, // drawn: a spine, a hinged jaw, fins that beat, eyes that track
+    Leviathan, // a long-jawed marine reptile: spine, hinged jaw, fins, eyes
+    Medusa,    // a lion's mane: translucent bell, radial canals, oral arms
+    Worm,      // a bobbit worm: chitin rings, parapodia, chaetae, scissor jaws
+    Hollow,    // a whale fall: cranium, vertebrae, ribs, and a crinoid crown
+    Furnace,   // a vent chimney: mineral crust, tube worms, shimmering water
+    Mother,    // a brooding octopus: mantle, chromatophores, arms, eggs
 };
 
 // How it thinks. One of these plus the numbers below is a whole fight.

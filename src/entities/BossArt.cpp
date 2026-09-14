@@ -1,4 +1,4 @@
-#include "entities/BossArt.h"
+﻿#include "entities/BossArt.h"
 
 #include "core/Config.h"
 
@@ -135,6 +135,69 @@ namespace
         quad(into, root - side * rootHalf, tip - side * tipHalf,
              tip + side * tipHalf, root + side * rootHalf, colour, skin);
     }
+
+    // Two colours down a length, alpha included, because most of what the
+    // creatures below are made of fades out towards its own tip.
+    sf::Color blend(sf::Color from, sf::Color to, float t)
+    {
+        const auto mix = [t](std::uint8_t a, std::uint8_t b) {
+            return static_cast<std::uint8_t>(static_cast<float>(a)
+                                             + (static_cast<float>(b) - static_cast<float>(a))
+                                                   * std::clamp(t, 0.0f, 1.0f));
+        };
+
+        return sf::Color(mix(from.r, to.r), mix(from.g, to.g), mix(from.b, to.b),
+                         mix(from.a, to.a));
+    }
+
+    // A limb that curves. Walks out from a root, turning by `curl` degrees each
+    // step, narrowing from one half-width to the other and fading from one
+    // colour to the other.
+    //
+    // It is the workhorse of everything that is not a fish: an oral arm, a
+    // chaeta, a rib, a crinoid arm, a tube worm's plume and an octopus arm are
+    // all this function with different numbers in it.
+    void ribbon(sf::VertexArray& into, sf::Vector2f root, sf::Angle dir, float length,
+                float halfRoot, float halfTip, float curl, int steps, sf::Color from,
+                sf::Color to, const Skin& skin)
+    {
+        if (steps < 1 || length <= 0.0f)
+            return;
+
+        const float stride = length / static_cast<float>(steps);
+
+        sf::Vector2f at = root;
+        sf::Angle angle = dir;
+
+        for (int i = 0; i < steps; ++i)
+        {
+            const float t0 = static_cast<float>(i) / static_cast<float>(steps);
+            const float t1 = static_cast<float>(i + 1) / static_cast<float>(steps);
+
+            const sf::Vector2f side0 = across(unit(angle));
+            const sf::Vector2f next = at + unit(angle) * stride;
+
+            angle += sf::degrees(curl);
+            const sf::Vector2f side1 = across(unit(angle));
+
+            const float w0 = halfRoot + (halfTip - halfRoot) * t0;
+            const float w1 = halfRoot + (halfTip - halfRoot) * t1;
+
+            const sf::Color c0 = blend(from, to, t0);
+            const sf::Color c1 = blend(from, to, t1);
+
+            vert(into, at - side0 * w0, c0, skin);
+            vert(into, next - side1 * w1, c1, skin);
+            vert(into, next + side1 * w1, c1, skin);
+
+            vert(into, at - side0 * w0, c0, skin);
+            vert(into, next + side1 * w1, c1, skin);
+            vert(into, at + side0 * w0, c0, skin);
+
+            at = next;
+        }
+    }
+
 
     // ------------------------------------------------------------------
     //  The body
@@ -539,11 +602,11 @@ namespace
                   organ.size * 0.03f, sf::Color(Organ.r, Organ.g, Organ.b, 150), none);
         }
     }
-}
 
-namespace bossart
-{
-    void drawLeviathan(sf::RenderTarget& target, const Body& body, const sf::Texture& hide)
+    // The animal from the first pass: a long-jawed marine reptile, which is
+    // what a pliosaur was and what this thing is pretending to be.
+    void drawLeviathan(sf::RenderTarget& target, const bossart::Body& body,
+                       const sf::Texture& hide)
     {
         if (body.links.empty() || body.alpha <= 0.01f)
             return;
@@ -567,7 +630,7 @@ namespace bossart
         const sf::Vector2f kick = -unit(body.links.front().angle) * (body.flinch * 7.0f);
 
         // Fins first: they hang off the flanks and the body sits over them.
-        for (const Limb& limb : body.limbs)
+        for (const bossart::Limb& limb : body.limbs)
         {
             if (limb.role == PartRole::Fin)
                 drawFin(skinned, limb, body, tint(Hide), kick, tile);
@@ -588,7 +651,7 @@ namespace bossart
         // slide over one another as the spine bends.
         for (std::size_t i = 1; i + 1 < body.links.size(); ++i)
         {
-            const Link& link = body.links[i];
+            const bossart::Link& link = body.links[i];
             const sf::Vector2f out = unit(link.angle);
             const sf::Vector2f side = across(out);
             const sf::Vector2f at = link.at + kick;
@@ -604,7 +667,7 @@ namespace bossart
             }
         }
 
-        for (const Limb& limb : body.limbs)
+        for (const bossart::Limb& limb : body.limbs)
         {
             if (limb.role == PartRole::Armour)
                 drawPlate(skinned, limb, kick, tile);
@@ -623,7 +686,7 @@ namespace bossart
         }
 
         // Then everything with no scale on it.
-        for (const Limb& limb : body.limbs)
+        for (const bossart::Limb& limb : body.limbs)
         {
             if (limb.role == PartRole::Organ)
                 drawOrgan(plain, limb, body, kick);
@@ -631,7 +694,7 @@ namespace bossart
 
         drawSoft(plain, body, kick);
 
-        for (const Limb& limb : body.limbs)
+        for (const bossart::Limb& limb : body.limbs)
         {
             if (limb.role == PartRole::Eye)
                 drawEye(plain, limb, body, kick);
@@ -642,5 +705,992 @@ namespace bossart
 
         target.draw(skinned, states);
         target.draw(plain);
+    }
+
+    // ==================================================================
+    //  THE BLOOM SOVEREIGN  -  a lion's mane
+    //
+    //  The one creature in the trench you can see through. A scyphozoan is a
+    //  bell of jelly with the plumbing printed on it: eight radial canals off
+    //  a central stomach, a scalloped margin with a sense organ in every
+    //  notch, a curtain of fine stinging threads hanging off that margin, and
+    //  four frilled oral arms underneath doing the actual eating.
+    //
+    //  It is drawn at about two thirds alpha, because that is the whole
+    //  character of the animal: the water and whatever is behind it show
+    //  through, and the gonads under the bell are visible from outside.
+    // ==================================================================
+    namespace medusa
+    {
+        constexpr sf::Color Jelly{ 118, 158, 186, 132 };
+        constexpr sf::Color Rim{ 168, 206, 224, 168 };
+        constexpr sf::Color Canal{ 196, 148, 172, 190 };
+        constexpr sf::Color Arm{ 176, 132, 158, 150 };
+        constexpr sf::Color Thread{ 150, 176, 198, 96 };
+        constexpr sf::Color Gonad{ 226, 142, 158, 210 };
+        constexpr sf::Color Stomach{ 122, 66, 90, 190 };
+
+        // The margin, as a run of lobes rather than a circle. A bell rim with
+        // no notches in it is a plate; the notches are where the eyes are.
+        void bell(sf::VertexArray& into, const bossart::Body& body, sf::Vector2f at,
+                  float radius, const Skin& skin, float alpha)
+        {
+            constexpr int Lobes = 16;
+
+            for (int i = 0; i < Lobes; ++i)
+            {
+                const float t0 = static_cast<float>(i) / Lobes;
+                const float t1 = static_cast<float>(i + 1) / Lobes;
+
+                const sf::Angle a0 = sf::degrees(360.0f * t0);
+                const sf::Angle a1 = sf::degrees(360.0f * t1);
+                const sf::Angle mid = sf::degrees(360.0f * (t0 + t1) * 0.5f);
+
+                // Each lobe bulges out between two notches, and the whole rim
+                // breathes with the clench.
+                const float notch = radius * (0.90f - 0.05f * body.pulse);
+                const float belly = radius * (1.02f + 0.06f * std::sin(body.breath * Tau
+                                                                      + static_cast<float>(i)));
+
+                shape(into, { at,
+                              at + sf::Vector2f(notch, a0),
+                              at + sf::Vector2f(belly, mid),
+                              at + sf::Vector2f(notch, a1) },
+                      fade(Jelly, alpha), skin);
+
+                // The thickened rim itself, and the sense organ in the notch.
+                sweep(into, at + sf::Vector2f(notch, a0), at + sf::Vector2f(belly, mid),
+                      radius * 0.05f, radius * 0.05f, fade(Rim, alpha), skin);
+                sweep(into, at + sf::Vector2f(belly, mid), at + sf::Vector2f(notch, a1),
+                      radius * 0.05f, radius * 0.05f, fade(Rim, alpha), skin);
+
+                disc(into, at + sf::Vector2f(notch, a0), radius * 0.035f,
+                     fade(Canal, alpha), skin, 7);
+            }
+        }
+
+        // Eight canals off the stomach, which is the plumbing of the animal and
+        // the only structure a jelly has to show.
+        void canals(sf::VertexArray& into, const bossart::Body& body, sf::Vector2f at,
+                    float radius, const Skin& skin, float alpha)
+        {
+            for (int i = 0; i < 8; ++i)
+            {
+                const sf::Angle a = sf::degrees(45.0f * static_cast<float>(i)
+                                                + std::sin(body.breath * Tau) * 3.0f);
+
+                sweep(into, at + unit(a) * (radius * 0.16f), at + unit(a) * (radius * 0.94f),
+                      radius * 0.055f, radius * 0.018f, fade(Canal, alpha), skin);
+            }
+        }
+
+        // The curtain. A lion's mane trails threads many times its own width,
+        // and they are the reason nobody swims past one.
+        void threads(sf::VertexArray& into, const bossart::Body& body, sf::Vector2f at,
+                     float radius, const Skin& skin, float alpha)
+        {
+            constexpr int Count = 44;
+
+            for (int i = 0; i < Count; ++i)
+            {
+                const float t = static_cast<float>(i) / Count;
+                const sf::Angle a = sf::degrees(360.0f * t);
+
+                // Every thread drifts on its own beat, so the curtain moves
+                // like water rather than like a skirt.
+                const float drift = std::sin(body.breath * Tau * 0.7f
+                                             + static_cast<float>(i) * 1.7f);
+                const float reach = radius * (1.3f + 1.3f * t) * (0.9f + 0.2f * drift);
+
+                // Fine, many, and curling off on their own. A lion's mane
+                // trails a curtain, not a set of spokes.
+                ribbon(into, at + unit(a) * (radius * 0.92f), a, reach,
+                       radius * 0.016f, 0.0f, drift * 9.0f, 7,
+                       fade(Thread, alpha * 0.8f), fade(Thread, 0.0f), skin);
+            }
+        }
+    }
+
+    void drawMedusaArm(sf::VertexArray& into, const bossart::Limb& limb,
+                       const bossart::Body& body, const Skin& skin, float alpha)
+    {
+        if (!limb.alive)
+            return;
+
+        // An oral arm is a frill, not a rope: a ribbon with a ruffled edge that
+        // gathers and lets go as the bell pumps.
+        const float wave = std::sin(body.breath * Tau + limb.angle.asRadians());
+        const float reach = limb.size * (4.0f + 1.4f * body.pulse);
+
+        ribbon(into, limb.at, limb.angle, reach, limb.size * 0.9f, limb.size * 0.24f,
+               wave * 5.0f, 7, fade(flashed(medusa::Arm, limb.flash), alpha),
+               fade(medusa::Arm, alpha * 0.35f), skin);
+
+        // The ruffle, as a row of lobes down one side and then the other.
+        for (int i = 1; i < 6; ++i)
+        {
+            const float t = static_cast<float>(i) / 6.0f;
+            const sf::Angle a = limb.angle + sf::degrees(wave * 5.0f * static_cast<float>(i));
+            const sf::Vector2f on = limb.at + unit(a) * (reach * t);
+            const sf::Vector2f side = across(unit(a));
+            const float flank = (i % 2) == 0 ? 1.0f : -1.0f;
+
+            disc(into, on + side * (flank * limb.size * 0.5f * (1.0f - t)),
+                 limb.size * 0.36f * (1.0f - t * 0.7f),
+                 fade(flashed(medusa::Arm, limb.flash), alpha * 0.7f), skin, 9);
+        }
+    }
+
+    void drawMedusa(sf::RenderTarget& target, const bossart::Body& body, const sf::Texture& hide)
+    {
+        const float tile = static_cast<float>(hide.getSize().x);
+        const float alpha = std::clamp(body.alpha, 0.0f, 1.0f);
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+        sf::VertexArray plain(sf::PrimitiveType::Triangles);
+
+        const bossart::Link& head = body.links.front();
+        const sf::Vector2f at = head.at;
+        const Skin skin{ at, unit(head.angle), 0.0f, tile };
+
+        // Clenching pulls the bell in and pushes it taller, which is how a
+        // jelly actually swims: it is squeezing water out from under itself.
+        const float radius = head.girth * (3.1f - 0.30f * body.pulse);
+
+        medusa::threads(plain, body, at, radius, skin, alpha);
+
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role == PartRole::Tentacle)
+                drawMedusaArm(plain, limb, body, skin, alpha);
+        }
+
+        // Into the plain pass on purpose. The sheet is a scale sheet, and a
+        // jelly has no scales: it is one sheet of mesogloea with the plumbing
+        // showing through it, and putting reptile grain on that would be the
+        // only wrong thing on the animal.
+        medusa::bell(plain, body, at, radius, Skin{}, alpha);
+
+        // The stomach and the gonads, seen through the jelly rather than
+        // sitting on top of it - which is the whole reason this one is drawn
+        // see-through in the first place.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Organ || !limb.alive)
+                continue;
+
+            const float beat = 1.0f + 0.14f * std::sin(body.breath * Tau * 2.0f);
+
+            disc(plain, at, limb.size * 1.3f * beat, fade(medusa::Stomach, alpha * 0.8f),
+                 Skin{}, 16);
+
+            for (int i = 0; i < 4; ++i)
+            {
+                const sf::Angle a = sf::degrees(90.0f * static_cast<float>(i) + 45.0f);
+                const sf::Vector2f on = at + unit(a) * (limb.size * 0.9f);
+
+                // Horseshoes, the way a scyphozoan's gonads actually sit.
+                for (int k = 0; k < 5; ++k)
+                {
+                    const sf::Angle b = a + sf::degrees(-40.0f + 20.0f * static_cast<float>(k));
+                    disc(plain, on + unit(b) * (limb.size * 0.44f), limb.size * 0.17f * beat,
+                         fade(flashed(medusa::Gonad, limb.flash),
+                              alpha * (limb.shown ? 0.95f : 0.45f)),
+                         Skin{}, 9);
+                }
+            }
+        }
+
+        medusa::canals(plain, body, at, radius, skin, alpha);
+
+        if (body.tell > 0.0f)
+        {
+            medusa::bell(plain, body, at, radius * 1.02f,
+                         Skin{}, body.tell * body.tell * 0.22f * alpha);
+        }
+
+        sf::RenderStates states;
+        states.texture = &hide;
+
+        target.draw(skinned, states);
+        target.draw(plain);
+    }
+
+    // ==================================================================
+    //  THE TRENCH WORM  -  a bobbit worm
+    //
+    //  A eunicid polychaete, which is a real animal that really does live in a
+    //  burrow with only its head out and really does cut things in half. The
+    //  body is a run of chitin rings; every ring carries a pair of parapodia
+    //  with a bundle of bristles in each; the head is a prostomium with five
+    //  antennae on it and a set of scissor jaws that open sideways.
+    //
+    //  The chitin is iridescent, which on a flat palette means the tint slides
+    //  down the body rather than staying one colour.
+    // ==================================================================
+    namespace worm
+    {
+        constexpr sf::Color Chitin{ 96, 78, 54 };
+        constexpr sf::Color Sheen{ 138, 128, 78 };
+        constexpr sf::Color Under{ 54, 42, 30 };
+        constexpr sf::Color Bristle{ 196, 178, 130 };
+        constexpr sf::Color Jaw{ 36, 26, 20 };
+        constexpr sf::Color Gill{ 186, 74, 78 };
+        constexpr sf::Color GillLit{ 232, 128, 116 };
+
+        // Iridescence, as a slide from one tone to the other down the length.
+        sf::Color along(float t, float alpha)
+        {
+            const auto mix = [t](std::uint8_t a, std::uint8_t b) {
+                return static_cast<std::uint8_t>(static_cast<float>(a)
+                                                 + (static_cast<float>(b) - static_cast<float>(a))
+                                                       * std::clamp(t, 0.0f, 1.0f));
+            };
+
+            return fade(sf::Color(mix(Sheen.r, Chitin.r), mix(Sheen.g, Chitin.g),
+                                  mix(Sheen.b, Chitin.b)), alpha);
+        }
+    }
+
+    void drawWorm(sf::RenderTarget& target, const bossart::Body& body, const sf::Texture& hide)
+    {
+        const float tile = static_cast<float>(hide.getSize().x);
+        const float alpha = std::clamp(body.alpha, 0.0f, 1.0f);
+        const std::size_t count = body.links.size();
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+        sf::VertexArray plain(sf::PrimitiveType::Triangles);
+
+        const sf::Vector2f kick = -unit(body.links.front().angle) * (body.flinch * 6.0f);
+
+        // Parapodia first: they stick out sideways off every ring and the ring
+        // has to sit over its own roots.
+        for (std::size_t i = 1; i < count; ++i)
+        {
+            const bossart::Link& link = body.links[i];
+            const sf::Vector2f out = unit(link.angle);
+            const sf::Vector2f side = across(out);
+            const sf::Vector2f at = link.at + kick;
+            const Skin skin{ at, out, 0.0f, tile };
+            const float t = static_cast<float>(i) / static_cast<float>(count);
+
+            // They row. Each ring is a beat behind the one in front, which is
+            // exactly what a wave of parapodia looks like going down a worm.
+            const float row = std::sin(body.beat * Tau - static_cast<float>(i) * 0.8f);
+
+            for (const float flank : { -1.0f, 1.0f })
+            {
+                const sf::Vector2f root = at + side * (flank * link.girth * 0.75f);
+                const sf::Angle lean = link.angle + sf::degrees(flank * (74.0f + row * 16.0f));
+
+                // The lobe.
+                ribbon(skinned, root, lean, link.girth * 1.25f, link.girth * 0.44f,
+                       link.girth * 0.20f, 0.0f, 2, worm::along(t, alpha),
+                       fade(worm::Under, alpha), skin);
+
+                // And the bundle of chaetae out of the end of it, which is the
+                // part that actually holds a burrow wall.
+                for (int k = -1; k <= 1; ++k)
+                {
+                    const sf::Angle spread = lean + sf::degrees(static_cast<float>(k) * 15.0f);
+
+                    sweep(plain, root + unit(lean) * (link.girth * 1.1f),
+                          root + unit(spread) * (link.girth * 2.0f),
+                          link.girth * 0.07f, link.girth * 0.02f,
+                          fade(worm::Bristle, alpha * 0.75f), Skin{});
+                }
+            }
+        }
+
+        // Then the rings, tail first so each overlaps the one behind it the way
+        // a worm's segments actually do.
+        for (std::size_t i = count; i-- > 1;)
+        {
+            const bossart::Link& link = body.links[i];
+            const bossart::Link& front = body.links[i - 1];
+            const sf::Vector2f out = unit(link.angle);
+            const sf::Vector2f side = across(out);
+            const sf::Vector2f sideFront = across(unit(front.angle));
+            const sf::Vector2f at = link.at + kick;
+            const Skin skin{ at, out, 0.0f, tile };
+            const float t = static_cast<float>(i) / static_cast<float>(count);
+
+            quad(skinned, at - side * link.girth,
+                 front.at + kick - sideFront * front.girth,
+                 front.at + kick + sideFront * front.girth,
+                 at + side * link.girth, worm::along(t, alpha), skin);
+
+            disc(skinned, at, link.girth, worm::along(t, alpha), skin, 12);
+
+            // The annulus: the raised band at the front of every segment, which
+            // is what makes a worm read as a worm and not as a tube.
+            sweep(skinned, at - side * (link.girth * 0.92f), at + side * (link.girth * 0.92f),
+                  link.girth * 0.16f, link.girth * 0.16f, fade(worm::Under, alpha * 0.8f), skin);
+        }
+
+        // The head: a prostomium, five antennae, and the jaws.
+        {
+            const bossart::Link& head = body.links.front();
+            const sf::Vector2f nose = unit(head.angle);
+            const sf::Vector2f side = across(nose);
+            const sf::Vector2f at = head.at + kick;
+            const Skin skin{ at, nose, 0.0f, tile };
+            const float wide = head.girth;
+
+            shape(skinned, { at + nose * (wide * 1.5f),
+                             at + nose * (wide * 0.5f) - side * (wide * 0.95f),
+                             at - nose * (wide * 1.1f) - side * (wide * 1.05f),
+                             at - nose * (wide * 1.1f) + side * (wide * 1.05f),
+                             at + nose * (wide * 0.5f) + side * (wide * 0.95f) },
+                  worm::along(0.0f, alpha), skin);
+
+            // Five antennae, which is how many a eunicid has, waving.
+            for (int i = -2; i <= 2; ++i)
+            {
+                const float t = static_cast<float>(i);
+                const sf::Angle a = head.angle + sf::degrees(t * 26.0f
+                                                             + std::sin(body.breath * Tau + t) * 9.0f);
+
+                ribbon(plain, at + nose * (wide * 1.2f), a, wide * (2.3f - std::abs(t) * 0.35f),
+                       wide * 0.13f, wide * 0.02f, std::sin(body.breath * Tau + t) * 5.0f, 5,
+                       worm::along(0.1f, alpha), fade(worm::Bristle, alpha * 0.5f), Skin{});
+            }
+
+            // The jaws. Five hooked pieces that swing out sideways, which is
+            // the one thing everybody has seen a bobbit worm do.
+            const float swing = 34.0f * body.jaw;
+
+            for (const float flank : { -1.0f, 1.0f })
+            {
+                for (int k = 0; k < 2; ++k)
+                {
+                    const float lean = flank * (swing + static_cast<float>(k) * 16.0f);
+                    const sf::Angle a = head.angle + sf::degrees(lean);
+                    const sf::Vector2f root = at + nose * (wide * 0.7f)
+                                              + side * (flank * wide * 0.4f);
+
+                    ribbon(plain, root, a, wide * (1.9f - 0.3f * static_cast<float>(k)),
+                           wide * 0.22f, wide * 0.02f, -flank * 13.0f, 4,
+                           fade(worm::Jaw, alpha), fade(worm::Jaw, alpha), Skin{});
+                }
+            }
+        }
+
+        // The gills. On a worm these are the soft tufts along the back, and on
+        // this one they are the only thing worth shooting.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Organ || !limb.alive || !limb.shown)
+                continue;
+
+            const sf::Vector2f at = limb.at + kick;
+            const float beat = 1.0f + 0.18f * std::sin(body.breath * Tau * 2.2f);
+
+            for (int i = 0; i < 9; ++i)
+            {
+                const sf::Angle a = sf::degrees(40.0f * static_cast<float>(i)
+                                                + std::sin(body.breath * Tau) * 12.0f);
+
+                ribbon(plain, at, a, limb.size * 1.5f * beat, limb.size * 0.20f, 0.0f,
+                       9.0f, 4, fade(flashed(worm::GillLit, limb.flash), alpha),
+                       fade(worm::Gill, alpha * 0.4f), Skin{});
+            }
+
+            disc(plain, at, limb.size * 0.45f, fade(flashed(worm::Gill, limb.flash), alpha),
+                 Skin{}, 12);
+        }
+
+        sf::RenderStates states;
+        states.texture = &hide;
+
+        target.draw(skinned, states);
+        target.draw(plain);
+    }
+
+    // ==================================================================
+    //  THE HOLLOW  -  a whale fall
+    //
+    //  Not an animal any more. A whale fall is a skeleton on the floor with a
+    //  community living in it: bare vertebrae, a rib cage, a cranium picked
+    //  clean, and something pale and soft that has moved into the space where
+    //  the organs used to be. The crown is a crinoid - a stalked feather star,
+    //  which is a real animal that really does sit on bone and really does
+    //  hold its arms up into the current.
+    //
+    //  Everything here is drawn with a gap down the middle of it, because that
+    //  is what a skeleton is: a thing you can see through.
+    // ==================================================================
+    namespace hollow
+    {
+        constexpr sf::Color Bone{ 172, 178, 160 };
+        constexpr sf::Color BoneLo{ 104, 112, 104 };
+        constexpr sf::Color BoneHi{ 214, 218, 200 };
+        constexpr sf::Color Marrow{ 62, 66, 60 };
+        constexpr sf::Color Soft{ 206, 190, 200 };
+        constexpr sf::Color SoftLit{ 236, 224, 230 };
+        constexpr sf::Color Lamp{ 196, 244, 226 };
+        constexpr sf::Color LampLo{ 66, 156, 140 };
+
+        // One vertebra: a centrum with a neural spine up the back and a pair of
+        // transverse processes out of the sides. Three shapes, and it reads as
+        // bone from right across the basin.
+        void vertebra(sf::VertexArray& into, sf::Vector2f at, sf::Angle angle, float size,
+                      const Skin& skin, float alpha, float flash)
+        {
+            const sf::Vector2f out = unit(angle);
+            const sf::Vector2f side = across(out);
+
+            for (const float flank : { -1.0f, 1.0f })
+            {
+                sweep(into, at, at + side * (flank * size * 1.5f) + out * (size * 0.2f),
+                      size * 0.30f, size * 0.14f, fade(flashed(BoneLo, flash), alpha), skin);
+            }
+
+            shape(into, { at + out * (size * 0.9f),
+                          at + side * (size * 0.62f),
+                          at - out * (size * 0.9f),
+                          at - side * (size * 0.62f) },
+                  fade(flashed(Bone, flash), alpha), skin);
+
+            disc(into, at, size * 0.26f, fade(Marrow, alpha), skin, 10);
+        }
+    }
+
+    void drawHollow(sf::RenderTarget& target, const bossart::Body& body, const sf::Texture& hide)
+    {
+        const float tile = static_cast<float>(hide.getSize().x);
+        const float alpha = std::clamp(body.alpha, 0.0f, 1.0f);
+        const std::size_t count = body.links.size();
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+        sf::VertexArray plain(sf::PrimitiveType::Triangles);
+
+        const sf::Vector2f kick = -unit(body.links.front().angle) * (body.flinch * 6.0f);
+
+        // The column, tail first. There is no flesh between the vertebrae, so
+        // the cord is drawn as a thin dark line and the bone sits on it.
+        for (std::size_t i = count; i-- > 1;)
+        {
+            const bossart::Link& link = body.links[i];
+            const bossart::Link& front = body.links[i - 1];
+
+            sweep(skinned, link.at + kick, front.at + kick, link.girth * 0.22f,
+                  front.girth * 0.22f, fade(hollow::Marrow, alpha),
+                  Skin{ link.at + kick, unit(link.angle), 0.0f, tile });
+        }
+
+        for (std::size_t i = count; i-- > 1;)
+        {
+            const bossart::Link& link = body.links[i];
+            const Skin skin{ link.at + kick, unit(link.angle), 0.0f, tile };
+
+            hollow::vertebra(skinned, link.at + kick, link.angle, link.girth, skin, alpha, 0.0f);
+        }
+
+        // The rib cage, on whichever links carry armour. Ribs curve forward and
+        // meet nothing at the front, because the sternum went a long time ago.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Armour || !limb.alive)
+                continue;
+
+            const sf::Vector2f at = limb.at + kick;
+            const sf::Vector2f out = unit(limb.angle);
+            const sf::Vector2f side = across(out);
+            const Skin skin{ at, out, 0.0f, tile };
+
+            for (int i = -2; i <= 2; ++i)
+            {
+                const float t = static_cast<float>(i) / 2.0f;
+                const sf::Vector2f root = at + out * (t * limb.size * 0.9f);
+
+                for (const float flank : { -1.0f, 1.0f })
+                {
+                    ribbon(skinned, root, limb.angle + sf::degrees(flank * 96.0f),
+                           limb.size * (1.5f - std::abs(t) * 0.4f),
+                           limb.size * 0.16f, limb.size * 0.07f, -flank * 15.0f, 5,
+                           fade(flashed(hollow::Bone, limb.flash), alpha),
+                           fade(flashed(hollow::BoneLo, limb.flash), alpha), skin);
+                }
+            }
+        }
+
+        // Whatever moved in. A whale fall grows a mat of pale soft things over
+        // the bone, and this one has grown something with a pulse.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Organ || !limb.alive || !limb.shown)
+                continue;
+
+            const sf::Vector2f at = limb.at + kick;
+            const float beat = 1.0f + 0.14f * std::sin(body.breath * Tau * 2.0f)
+                               + 0.08f * body.rage;
+
+            disc(plain, at, limb.size * 1.2f * beat,
+                 fade(flashed(hollow::Soft, limb.flash), alpha * 0.55f), Skin{}, 16);
+            disc(plain, at, limb.size * 0.78f * beat,
+                 fade(flashed(hollow::SoftLit, limb.flash), alpha), Skin{}, 16);
+
+            // Lobes, so it is a colony rather than a ball.
+            for (int i = 0; i < 6; ++i)
+            {
+                const sf::Angle a = sf::degrees(60.0f * static_cast<float>(i)
+                                                + body.breath * 30.0f);
+                disc(plain, at + unit(a) * (limb.size * 0.62f), limb.size * 0.34f * beat,
+                     fade(flashed(hollow::Soft, limb.flash), alpha * 0.8f), Skin{}, 10);
+            }
+        }
+
+        // The cranium, and the crown of feather-star arms growing out of it.
+        {
+            const bossart::Link& head = body.links.front();
+            const sf::Vector2f nose = unit(head.angle);
+            const sf::Vector2f side = across(nose);
+            const sf::Vector2f at = head.at + kick;
+            const Skin skin{ at, nose, 0.0f, tile };
+            const float wide = head.girth;
+
+            // The skull: a long rostrum and a braincase, with the sockets cut
+            // right through it.
+            shape(skinned, { at + nose * (wide * 2.1f),
+                             at + nose * (wide * 0.6f) - side * (wide * 0.52f),
+                             at - nose * (wide * 0.9f) - side * (wide * 1.05f),
+                             at - nose * (wide * 1.4f),
+                             at - nose * (wide * 0.9f) + side * (wide * 1.05f),
+                             at + nose * (wide * 0.6f) + side * (wide * 0.52f) },
+                  fade(hollow::Bone, alpha), skin);
+
+            for (const float flank : { -1.0f, 1.0f })
+            {
+                disc(plain, at - nose * (wide * 0.45f) + side * (flank * wide * 0.56f),
+                     wide * 0.34f, fade(hollow::Marrow, alpha), Skin{}, 12);
+            }
+
+            // The jaw, hinged the way a whale's is: one long piece each side
+            // that swings out rather than down.
+            const float swing = 20.0f * body.jaw;
+
+            for (const float flank : { -1.0f, 1.0f })
+            {
+                ribbon(skinned, at - nose * (wide * 0.2f) + side * (flank * wide * 0.5f),
+                       head.angle + sf::degrees(flank * swing), wide * 2.4f,
+                       wide * 0.24f, wide * 0.10f, -flank * 6.0f, 4,
+                       fade(hollow::BoneHi, alpha), fade(hollow::Bone, alpha), skin);
+            }
+        }
+
+        // The lamps. On a crinoid the arms are feeding arms held into the
+        // current; on this one they hold the lights it aims with.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Eye)
+                continue;
+
+            const sf::Vector2f at = limb.at + kick;
+            const sf::Vector2f root = body.links.front().at + kick;
+            const sf::Angle out = (at - root).lengthSquared() > 1.0f
+                                      ? (at - root).angle()
+                                      : limb.angle;
+
+            // The arm, with pinnules down both sides of it the way a feather
+            // star's arms actually branch.
+            ribbon(skinned, root, out, (at - root).length() * 1.15f,
+                   limb.size * 0.34f, limb.size * 0.16f,
+                   std::sin(body.breath * Tau + limb.angle.asRadians()) * 4.0f, 5,
+                   fade(hollow::Bone, alpha), fade(hollow::BoneLo, alpha),
+                   Skin{ root, unit(body.links.front().angle), 0.0f, tile });
+
+            for (int i = 1; i < 5; ++i)
+            {
+                const float t = static_cast<float>(i) / 5.0f;
+                const sf::Vector2f on = root + unit(out) * ((at - root).length() * t);
+
+                for (const float flank : { -1.0f, 1.0f })
+                {
+                    sweep(plain, on, on + unit(out + sf::degrees(flank * 62.0f)) * (limb.size * 0.7f),
+                          limb.size * 0.09f, limb.size * 0.02f, fade(hollow::BoneLo, alpha), Skin{});
+                }
+            }
+
+            if (!limb.alive)
+            {
+                disc(plain, at, limb.size * 0.5f, fade(hollow::Marrow, alpha), Skin{}, 10);
+                continue;
+            }
+
+            // The light itself: a bloom, a core, and a pinpoint, which is how
+            // every other lit thing in this game is drawn.
+            const float flare = 0.8f + 0.2f * std::sin(body.breath * Tau * 3.0f)
+                                + 0.4f * body.tell;
+
+            disc(plain, at, limb.size * 1.15f * flare,
+                 fade(hollow::LampLo, alpha * 0.26f), Skin{}, 14);
+            disc(plain, at, limb.size * 0.50f * flare,
+                 fade(flashed(hollow::Lamp, limb.flash), alpha), Skin{}, 12);
+            disc(plain, at, limb.size * 0.20f, fade(sf::Color::White, alpha * 0.9f), Skin{}, 8);
+        }
+
+        sf::RenderStates states;
+        states.texture = &hide;
+
+        target.draw(skinned, states);
+        target.draw(plain);
+    }
+
+    // ==================================================================
+    //  THE FURNACE  -  a vent chimney
+    //
+    //  A black smoker with a colony on it. The chimney is mineral, built out
+    //  of what the water drops as it cools, so it is layered crust with the
+    //  heat showing through the cracks. Growing off it are Riftia: white
+    //  chitin tubes with a red branchial plume out of the top, which retracts
+    //  into the tube the instant anything comes near.
+    //
+    //  Nothing on it is an animal shape. That is the point of it.
+    // ==================================================================
+    namespace furnace
+    {
+        constexpr sf::Color Crust{ 74 , 60, 54 };
+        constexpr sf::Color CrustLo{ 40, 30, 28 };
+        constexpr sf::Color CrustHi{ 116, 96, 84 };
+        constexpr sf::Color Ember{ 236, 128, 54 };
+        constexpr sf::Color EmberHi{ 255, 214, 138 };
+        constexpr sf::Color Tube{ 214, 208, 194 };
+        constexpr sf::Color TubeLo{ 140, 134, 122 };
+        constexpr sf::Color Plume{ 198, 62, 66 };
+        constexpr sf::Color PlumeHi{ 244, 116, 104 };
+    }
+
+    void drawFurnace(sf::RenderTarget& target, const bossart::Body& body, const sf::Texture& hide)
+    {
+        const float tile = static_cast<float>(hide.getSize().x);
+        const float alpha = std::clamp(body.alpha, 0.0f, 1.0f);
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+        sf::VertexArray plain(sf::PrimitiveType::Triangles);
+
+        const bossart::Link& head = body.links.front();
+        const sf::Vector2f at = head.at;
+        const Skin skin{ at, unit(head.angle), 0.0f, tile };
+        const float radius = head.girth * 2.0f;
+
+        // The mound: layered crust, each layer a ragged ring, because a chimney
+        // is built a millimetre at a time out of what the water drops.
+        for (int layer = 0; layer < 4; ++layer)
+        {
+            const float t = static_cast<float>(layer) / 4.0f;
+            const float size = radius * (1.0f - t * 0.62f);
+
+            std::vector<sf::Vector2f> rim;
+            for (int i = 0; i < 15; ++i)
+            {
+                const sf::Angle a = sf::degrees(360.0f * static_cast<float>(i) / 15.0f);
+                const float wobble = 0.88f + 0.16f * std::sin(a.asRadians() * 3.0f
+                                                              + static_cast<float>(layer) * 2.1f);
+                rim.push_back(at + unit(a) * (size * wobble));
+            }
+
+            shape(skinned, rim, fade(layer == 0 ? furnace::CrustLo
+                                     : layer == 3 ? furnace::CrustHi
+                                                  : furnace::Crust, alpha), skin);
+        }
+
+        // Cracks, with the heat under them. They breathe with the thing.
+        for (int i = 0; i < 8; ++i)
+        {
+            const sf::Angle a = sf::degrees(45.0f * static_cast<float>(i) + 12.0f);
+            const float glow = 0.6f + 0.4f * std::sin(body.breath * Tau
+                                                      + static_cast<float>(i));
+
+            sweep(plain, at + unit(a) * (radius * 0.22f),
+                  at + unit(a + sf::degrees(14.0f)) * (radius * 0.94f),
+                  radius * 0.05f, radius * 0.012f,
+                  fade(furnace::Ember, alpha * 0.55f * glow), Skin{});
+        }
+
+        // The throat at the top, which is the hole the whole thing is built
+        // around and the only part of it that is soft.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Organ || !limb.alive || !limb.shown)
+                continue;
+
+            const float shimmer = 1.0f + 0.16f * std::sin(body.breath * Tau * 3.0f);
+
+            disc(plain, limb.at, limb.size * 1.5f * shimmer,
+                 fade(furnace::Ember, alpha * 0.30f), Skin{}, 14);
+            disc(plain, limb.at, limb.size * 0.86f * shimmer,
+                 fade(flashed(furnace::Ember, limb.flash), alpha), Skin{}, 14);
+            disc(plain, limb.at, limb.size * 0.40f * shimmer,
+                 fade(flashed(furnace::EmberHi, limb.flash), alpha), Skin{}, 12);
+
+            // The water going up out of it, which is the only thing on this
+            // creature that moves on its own.
+            for (int i = 0; i < 5; ++i)
+            {
+                const float t = std::fmod(body.breath + static_cast<float>(i) * 0.2f, 1.0f);
+                const sf::Angle a = sf::degrees(72.0f * static_cast<float>(i));
+
+                disc(plain, limb.at + unit(a) * (limb.size * (0.6f + 1.6f * t)),
+                     limb.size * 0.22f * (1.0f - t),
+                     fade(furnace::EmberHi, alpha * 0.4f * (1.0f - t)), Skin{}, 8);
+            }
+        }
+
+        // And the colony. Every flue is a tube worm: a hard white tube with a
+        // red plume out of the end, and the plume pulls in when the thing is
+        // winding up to do something.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (!limb.alive)
+                continue;
+            if (limb.role != PartRole::Tentacle)
+                continue;
+
+            const sf::Vector2f out = unit(limb.angle);
+            const sf::Vector2f root = limb.at - out * (limb.size * 0.6f);
+            const Skin tubeSkin{ root, out, 0.0f, tile };
+
+            // The tube, leaning a little and ridged the way they really are.
+            const float lean = std::sin(body.breath * Tau + limb.angle.asRadians()) * 5.0f;
+
+            ribbon(skinned, root, limb.angle + sf::degrees(lean), limb.size * 3.4f,
+                   limb.size * 0.62f, limb.size * 0.40f, lean * 0.6f, 5,
+                   fade(flashed(furnace::Tube, limb.flash), alpha),
+                   fade(flashed(furnace::TubeLo, limb.flash), alpha), tubeSkin);
+
+            // The plume: out when it is calm, pulled into the tube when it is
+            // about to commit to something.
+            const float outAmount = 1.0f - body.tell * 0.85f;
+            const sf::Vector2f mouth = root + unit(limb.angle + sf::degrees(lean))
+                                              * (limb.size * 3.2f);
+
+            for (int i = -2; i <= 2; ++i)
+            {
+                const float spread = static_cast<float>(i) * 17.0f;
+                const sf::Angle a = limb.angle + sf::degrees(lean + spread);
+
+                ribbon(plain, mouth, a, limb.size * 1.9f * outAmount,
+                       limb.size * 0.26f, limb.size * 0.06f, spread * 0.18f, 4,
+                       fade(flashed(furnace::PlumeHi, limb.flash), alpha),
+                       fade(furnace::Plume, alpha * 0.5f), Skin{});
+            }
+        }
+
+        sf::RenderStates states;
+        states.texture = &hide;
+
+        target.draw(skinned, states);
+        target.draw(plain);
+    }
+
+    // ==================================================================
+    //  THE MOTHER  -  a brooding octopus
+    //
+    //  A giant Pacific octopus lays once, guards the eggs, and does not eat
+    //  again. By the end she is translucent and falling apart and she will
+    //  still come at anything that gets near the clutch, which is the entire
+    //  fight this creature is.
+    //
+    //  Mantle, eyes with a horizontal slit, four arms with two rows of suckers
+    //  down each, and the eggs themselves in strings under her.
+    // ==================================================================
+    namespace mother
+    {
+        constexpr sf::Color Skin_{ 168, 142, 138 };
+        constexpr sf::Color SkinLo{ 104, 84, 86 };
+        constexpr sf::Color SkinHi{ 214, 190, 182 };
+        constexpr sf::Color Spot{ 128, 78, 88 };
+        constexpr sf::Color Sucker{ 226, 206, 196 };
+        constexpr sf::Color Egg{ 232, 224, 204 };
+        constexpr sf::Color EggLit{ 255, 248, 230 };
+        constexpr sf::Color Pupil_{ 14, 12, 10 };
+        constexpr sf::Color Eye_{ 224, 208, 158 };
+    }
+
+    void drawMother(sf::RenderTarget& target, const bossart::Body& body, const sf::Texture& hide)
+    {
+        const float tile = static_cast<float>(hide.getSize().x);
+        const float alpha = std::clamp(body.alpha, 0.0f, 1.0f);
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+        sf::VertexArray plain(sf::PrimitiveType::Triangles);
+
+        const bossart::Link& head = body.links.front();
+        const sf::Vector2f nose = unit(head.angle);
+        const sf::Vector2f side = across(nose);
+        const sf::Vector2f kick = -nose * (body.flinch * 7.0f);
+        const sf::Vector2f at = head.at + kick;
+        const Skin skin{ at, nose, 0.0f, tile };
+
+        // A mantle is a bag, and it jets by squeezing that bag, so the clench
+        // narrows it across and stretches it along.
+        const float len = head.girth * (2.1f + 0.26f * body.pulse);
+        const float wide = head.girth * (1.55f - 0.20f * body.pulse);
+
+        // The arms go down first: they come out from under the mantle.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Tentacle || !limb.alive)
+                continue;
+
+            const float curl = std::sin(body.beat * Tau + limb.angle.asRadians()) * 9.0f
+                               + body.tell * 14.0f;
+            // An arm comes out from under the mantle, not off the end of it.
+            // The hitbox stays where the fight put it; the drawing starts back
+            // under the body so the animal is one piece.
+            const float reach = limb.size * 6.2f;
+            const sf::Vector2f root = at + (limb.at - head.at) * 0.25f;
+            const Skin armSkin{ root, unit(limb.angle), 0.0f, tile };
+
+            ribbon(skinned, root, limb.angle, reach, limb.size * 1.05f, limb.size * 0.14f,
+                   curl, 8, fade(flashed(mother::Skin_, limb.flash), alpha),
+                   fade(flashed(mother::SkinLo, limb.flash), alpha), armSkin);
+
+            // Two rows of suckers down the underside, shrinking to the tip.
+            for (int i = 1; i < 9; ++i)
+            {
+                const float t = static_cast<float>(i) / 9.0f;
+                const sf::Angle a = limb.angle + sf::degrees(curl * static_cast<float>(i) * 0.5f);
+                const sf::Vector2f on = root + unit(a) * (reach * t);
+                const sf::Vector2f rim = across(unit(a));
+                const float size = limb.size * 0.26f * (1.0f - t * 0.7f);
+
+                for (const float flank : { -1.0f, 1.0f })
+                {
+                    disc(plain, on + rim * (flank * limb.size * 0.42f * (1.0f - t * 0.6f)),
+                         size, fade(mother::Sucker, alpha * 0.85f), Skin{}, 8);
+                }
+            }
+        }
+
+        // The clutch. Strings of eggs hung under her, which is the thing she is
+        // standing over and the reason she will not leave.
+        for (const bossart::Limb& limb : body.limbs)
+        {
+            if (limb.role != PartRole::Organ || !limb.alive || !limb.shown)
+                continue;
+
+            const sf::Vector2f on = limb.at + kick;
+
+            for (int strand = 0; strand < 3; ++strand)
+            {
+                const sf::Angle a = sf::degrees(120.0f * static_cast<float>(strand)
+                                                + std::sin(body.breath * Tau) * 8.0f);
+
+                for (int i = 0; i < 5; ++i)
+                {
+                    const float t = static_cast<float>(i) / 5.0f;
+                    const sf::Vector2f egg = on + unit(a) * (limb.size * (0.3f + 1.1f * t));
+                    const float size = limb.size * 0.30f * (1.0f - t * 0.35f);
+
+                    disc(plain, egg, size, fade(flashed(mother::Egg, limb.flash), alpha),
+                         Skin{}, 9);
+                    disc(plain, egg - unit(a) * (size * 0.25f), size * 0.45f,
+                         fade(mother::EggLit, alpha * 0.8f), Skin{}, 7);
+                }
+            }
+        }
+
+        // The mantle.
+        shape(skinned, { at + nose * (len * 0.55f),
+                         at + nose * (len * 0.10f) - side * (wide * 0.92f),
+                         at - nose * (len * 0.55f) - side * (wide * 0.78f),
+                         at - nose * (len * 1.00f) - side * (wide * 0.26f),
+                         at - nose * (len * 1.00f) + side * (wide * 0.26f),
+                         at - nose * (len * 0.55f) + side * (wide * 0.78f),
+                         at + nose * (len * 0.10f) + side * (wide * 0.92f) },
+              fade(mother::Skin_, alpha), skin);
+
+        // Papillae: the little raised bumps an octopus puts up to match rock.
+        // They come and go, because that is exactly what they do.
+        for (int i = 0; i < 11; ++i)
+        {
+            const float t = static_cast<float>(i) / 11.0f;
+            const sf::Angle a = sf::degrees(360.0f * t * 3.0f);
+            const float raise = 0.5f + 0.5f * std::sin(body.breath * Tau * 0.6f
+                                                       + static_cast<float>(i) * 1.3f);
+
+            disc(skinned, at + nose * (std::cos(a.asRadians()) * len * 0.42f)
+                             + side * (std::sin(a.asRadians()) * wide * 0.52f),
+                 head.girth * 0.14f * (0.5f + raise),
+                 fade(mother::SkinHi, alpha * 0.55f), skin, 8);
+        }
+
+        // Chromatophores. They flush dark when she is about to move, which is
+        // the one tell an octopus actually gives.
+        {
+            const float flush = 0.25f + 0.65f * body.tell + 0.2f * body.rage;
+
+            for (int i = 0; i < 14; ++i)
+            {
+                const float t = static_cast<float>(i) / 14.0f;
+                const sf::Angle a = sf::degrees(360.0f * t * 5.0f + 40.0f);
+
+                disc(plain, at + nose * (std::sin(a.asRadians()) * len * 0.48f)
+                               + side * (std::cos(a.asRadians()) * wide * 0.58f),
+                     head.girth * 0.16f * flush,
+                     fade(mother::Spot, alpha * flush), Skin{}, 7);
+            }
+        }
+
+        // The eyes, on top of the head where an octopus keeps them, with the
+        // horizontal slit that stays level however the animal is turned. It is
+        // the single most recognisable thing about the animal and it is also
+        // how you can tell she is watching you.
+        for (const float flank : { -1.0f, 1.0f })
+        {
+            const sf::Vector2f eye = at + nose * (len * 0.14f) + side * (flank * wide * 0.66f);
+            const float size = head.girth * 0.34f;
+
+            disc(plain, eye, size * 1.12f, fade(mother::SkinLo, alpha), Skin{}, 12);
+            disc(plain, eye, size, fade(mother::Eye_, alpha), Skin{}, 12);
+
+            // The slit lies along the look direction, and it is a bar rather
+            // than a dot, which is what makes it read as an octopus and not as
+            // a fish.
+            const sf::Vector2f look = body.look;
+
+            sweep(plain, eye - look * (size * 0.74f), eye + look * (size * 0.74f),
+                  size * 0.26f, size * 0.26f, fade(mother::Pupil_, alpha), Skin{});
+            disc(plain, eye + look * (size * 0.3f) - across(look) * (size * 0.3f),
+                 size * 0.16f, fade(sf::Color(255, 255, 255, 140), alpha), Skin{}, 7);
+        }
+
+        // The siphon, under the mantle edge, pointing wherever she is about to
+        // go. It is how she steers and it is the only warning of a charge.
+        {
+            const sf::Vector2f mouth = at - nose * (len * 0.30f);
+
+            ribbon(skinned, mouth, (-body.look).angle(), head.girth * (0.9f + 0.5f * body.pulse),
+                   head.girth * 0.36f, head.girth * 0.22f, 0.0f, 3,
+                   fade(mother::SkinLo, alpha), fade(mother::Skin_, alpha), skin);
+        }
+
+        sf::RenderStates states;
+        states.texture = &hide;
+
+        target.draw(skinned, states);
+        target.draw(plain);
+    }
+}
+
+namespace bossart
+{
+    void draw(sf::RenderTarget& target, BossSkin skin, const Body& body, const sf::Texture& hide)
+    {
+        if (body.links.empty() || body.alpha <= 0.01f)
+            return;
+
+        switch (skin)
+        {
+            case BossSkin::Leviathan: drawLeviathan(target, body, hide); break;
+            case BossSkin::Medusa:    drawMedusa(target, body, hide);    break;
+            case BossSkin::Worm:      drawWorm(target, body, hide);      break;
+            case BossSkin::Hollow:    drawHollow(target, body, hide);    break;
+            case BossSkin::Furnace:   drawFurnace(target, body, hide);   break;
+            case BossSkin::Mother:    drawMother(target, body, hide);    break;
+            case BossSkin::Sprites:   break; // not ours to draw
+        }
     }
 }

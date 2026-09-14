@@ -89,77 +89,9 @@ function GradBlob($g, $pts, $top, $bottom, $y0, $y1, $edge, $width) {
 # The leviathan's tail went with the rest of its textures: that animal is
 # drawn from a pose now, fluke and all. What follows still needs one.
 
+# The worm and the hollow are drawn from a pose now, tail and all. The
+# coilworm is a creature rather than a boss, so it still wears one.
 
-# =====================================================================
-#  TRENCH WORM  -  no fluke on a worm. It narrows through a few more
-#  rings and finishes on a point, with the last pair of parapodia small
-#  enough to read as the end rather than as another link.
-# =====================================================================
-$grub   = C 118 74 46
-$grubLo = C 64 38 24
-
-$outW = 116; $outH = 116
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $cy = $outH * $SS / 2.0
-
-foreach ($side in @(-1, 1)) {
-    Blob $g @( (P ($W * 0.74) ($cy + $side * 28)),
-               (P ($W * 0.66) ($cy + $side * 126)),
-               (P ($W * 0.50) ($cy + $side * 148)),
-               (P ($W * 0.54) ($cy + $side * 58)) ) $grubLo (C 40 24 16) 6 0.3
-}
-
-$cone = @( (P ($W * 0.97) ($cy - 154)), (P ($W * 0.60) ($cy - 118)),
-           (P ($W * 0.22) ($cy - 42)), (P ($W * 0.03) $cy),
-           (P ($W * 0.22) ($cy + 42)), (P ($W * 0.60) ($cy + 118)),
-           (P ($W * 0.97) ($cy + 154)) )
-Blob $g $cone $grubLo $null 0 0.3
-
-$inner = @( (P ($W * 0.95) ($cy - 130)), (P ($W * 0.58) ($cy - 98)),
-            (P ($W * 0.24) ($cy - 32)), (P ($W * 0.09) $cy),
-            (P ($W * 0.24) ($cy + 32)), (P ($W * 0.58) ($cy + 98)),
-            (P ($W * 0.95) ($cy + 130)) )
-Blob $g $inner $grub $null 0 0.3
-
-# The rings that make it a worm rather than a tube, tightening to the tip.
-foreach ($t in @(0.86, 0.70, 0.54, 0.38, 0.24)) {
-    $half = 150 * $t * $t + 12
-    Stroke $g (C 74 44 28 180) ($W * $t) ($cy - $half) ($W * $t) ($cy + $half) 8
-}
-Finish $bmp $g $outW $outH "worm_tail.png"
-
-# =====================================================================
-#  THE HOLLOW  -  it is a column of bone, so the end of it is the last
-#  vertebra drawn out into a spine.
-# =====================================================================
-$bone   = C 156 166 152
-$boneLo = C 96 108 104
-$boneInk = C 10 14 16
-
-$outW = 96; $outH = 96
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $cy = $outH * $SS / 2.0
-
-$spine = @( (P ($W * 0.92) ($cy - 114)), (P ($W * 0.52) ($cy - 90)),
-            (P ($W * 0.06) $cy),
-            (P ($W * 0.52) ($cy + 90)), (P ($W * 0.92) ($cy + 114)) )
-Blob $g $spine $boneLo $boneInk 7 0.35
-
-$spineIn = @( (P ($W * 0.88) ($cy - 84)), (P ($W * 0.52) ($cy - 62)),
-              (P ($W * 0.15) $cy),
-              (P ($W * 0.52) ($cy + 62)), (P ($W * 0.88) ($cy + 84)) )
-Blob $g $spineIn $bone $null 0 0.35
-
-# Spines off the edge rather than plates cut into it, the same way a live
-# joint carries them - shorter here, because this is the end of the column.
-foreach ($t in @(0.74, 0.54, 0.34)) {
-    foreach ($side in @(-1, 1)) {
-        $edgeY = $cy + $side * (84 * $t + 6)
-        Stroke $g $boneLo ($W * $t) $edgeY ($W * $t - 16) ($edgeY + $side * (46 * $t + 10)) 11
-    }
-}
-Disc $g (C 8 12 14 200) ($W * 0.80) $cy 32
-Finish $bmp $g $outW $outH "hol_tail.png"
 
 # =====================================================================
 #  COILWORM  -  the body it tows is rings, and rings have to stop
