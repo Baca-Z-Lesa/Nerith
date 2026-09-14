@@ -153,6 +153,23 @@ private:
         bool         alive;
     };
 
+    // Something down here that is not the job: a hull nobody ever got open, a
+    // rig off a diver who did not come back, an egg mass that is awake. Three
+    // kinds, one struct, because the only real difference between them is what
+    // they want doing and what they pay for it.
+    struct Offer
+    {
+        config::OfferKind kind;
+        sf::Vector2f      position;
+        int               health;
+        int               maxHealth;
+        float             flash;
+        float             timer;   // a brood hatching, and nothing else
+        float             seen;    // how long the player has been near it
+        bool              open;    // done with, one way or the other
+        std::size_t       log;     // which last words it carries
+    };
+
     void processEvents();
     void render(float alpha);
 
@@ -282,6 +299,25 @@ private:
     void placeFinds();
     void updateFinds();
     void drawFinds();
+
+    // Whatever this basin is stocked with, for the things that call rather
+    // than being scripted.
+    EnemyType localCreature() const;
+
+    // What else is in the water, and what taking it costs.
+    void placeOffers();
+    void updateOffers(float deltaTime);
+    void drawOffers();
+    void takeOffer(Offer& offer);
+
+    // Which kind of salvage this depth turns up, by weight. Shared by the
+    // floor and by everything that pays out in pieces rather than in money.
+    std::size_t rollSalvage(int depth, int floorKind) const;
+
+    // One line, low on the screen, for a few seconds. What a thing was, what
+    // a dead man wrote, what just opened.
+    void say(const std::string& line);
+    void drawNotice();
 
     // The bell at the mouth and the shaft at the bottom. Sitting in either one
     // long enough is how a dive ends or how it gets a floor deeper.
@@ -597,6 +633,11 @@ private:
     std::vector<Nest>       m_nests;
     std::vector<Cargo>      m_cargo;
     std::vector<Find>       m_finds;
+    std::vector<Offer>      m_offers;
+
+    // The one line of text the water is currently saying.
+    std::string m_notice;
+    float       m_noticeTimer = 0.0f;
 
     // What is in the hold, by kind. It is worth nothing until it is on the
     // deck and nothing at all if the sub does not come back, which is the

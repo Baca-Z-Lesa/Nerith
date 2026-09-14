@@ -1066,6 +1066,7 @@ void Game::beginLevel(int number, bool fresh)
     placeVents();
     placeNests();
     placeFinds();
+    placeOffers();
     placeLifts();
     placeCargo();
 
@@ -1224,6 +1225,7 @@ void Game::onLevelComplete()
 
     m_audio.play(Sfx::LevelClear);
     addFlash(config::HudSalvageColor, 0.35f);
+    say("THE WAY DOWN IS OPEN - OR TAKE THE BELL UP WITH WHAT YOU HAVE");
 
     if (m_level.getNumber() >= authoredLevelCount() && !m_save.campaignBeaten)
     {
@@ -2794,6 +2796,14 @@ void Game::updateLifts(float deltaTime)
         return;
 
     m_ride = 0.0f;
+
+    if (!m_rideDown)
+    {
+        const int carried = worthOf(m_hold);
+        say(carried > 0 ? "UP WITH " + std::to_string(carried) + " IN THE HOLD"
+                        : "UP WITH NOTHING");
+    }
+
     takeLift(m_rideDown);
 }
 
@@ -2824,6 +2834,352 @@ void Game::takeLift(bool down)
     playFilm(Cinematic::Reel::Up, State::Deck, false, "SURFACING");
 }
 
+EnemyType Game::localCreature() const
+{
+    // Whatever this basin is stocked with. A hull being cut open is answered
+    // by the things that live in the water it is lying in, not by a roster
+    // picked somewhere else.
+    const LevelDef& def = m_level.getDef();
+
+    EnemyType picks[MaxSpawnGroups];
+    int count = 0;
+
+    for (const SpawnGroup& group : def.script)
+    {
+        if (group.count > 0 && count < static_cast<int>(MaxSpawnGroups))
+            picks[count++] = group.type;
+    }
+
+    if (count == 0)
+        return EnemyType::Lurker;
+
+    return picks[static_cast<int>(rng::range(0.0f, static_cast<float>(count) - 0.001f))];
+}
+
+void Game::say(const std::string& line)
+{
+    m_notice = line;
+    m_noticeTimer = config::NoticeDuration;
+}
+
+void Game::placeOffers()
+{
+    m_offers.clear();
+
+    const int depth = m_level.getDepth();
+    const int wanted = std::min(config::OffersMost,
+                                config::OffersBase + config::OffersPerDepth * (depth - 1));
+
+    for (int i = 0; i < wanted; ++i)
+    {
+        // Somewhere the objective would never have sent anybody: well away
+        // from the mouth, and well away from the others, so finding one is
+        // always its own decision to go and look.
+        sf::Vector2f at = m_arena.randomPointInside();
+
+        for (int attempt = 0; attempt < 24; ++attempt)
+        {
+            bool clear = (at - m_arena.getStart()).length() > config::OfferFromMouth;
+
+            for (const Offer& other : m_offers)
+            {
+                if ((at - other.position).length() < config::OfferApart)
+                    clear = false;
+            }
+
+            if (clear)
+                break;
+
+            at = m_arena.randomPointInside();
+        }
+
+        // A brood is the dangerous one, so it is held out of the shallows
+        // rather than being the first thing anybody ever finds.
+        const int kinds = depth >= 2 ? 3 : 2;
+        const auto kind = static_cast<config::OfferKind>(
+            static_cast<int>(rng::range(0.0f, static_cast<float>(kinds) - 0.001f)));
+
+        const config::OfferDef& def = config::OfferTable[static_cast<std::size_t>(kind)];
+
+        m_offers.push_back({ kind, at, def.health, def.health, 0.0f,
+                             rng::range(1.0f, config::HiveHatch), 0.0f, false,
+                             static_cast<std::size_t>(rng::range(
+                                 0.0f, static_cast<float>(config::DiverLogs.size()) - 0.001f)) });
+    }
+}
+
+void Game::takeOffer(Offer& offer)
+{
+    const config::OfferDef& def = config::OfferTable[static_cast<std::size_t>(offer.kind)];
+
+    offer.open = true;
+
+    for (int piece = 0; piece < def.pieces; ++piece)
+        ++m_hold[rollSalvage(m_level.getDepth(), def.floor)];
+
+    addHitRing(offer.position, def.radius * 3.0f, def.colour);
+    effects::ventBurst(m_effects, offer.position, def.radius);
+    m_audio.playAt(Sfx::Hatch, offer.position, 1.0f, occlusionAt(offer.position));
+
+    switch (offer.kind)
+    {
+        case config::OfferKind::Cache:
+            // The only place in the game where anybody says what happened down
+            // here, and it is said by somebody who did not get out. Worth
+            // crossing a basin for; worth nothing on a menu screen.
+            say(config::DiverLogs[offer.log % config::DiverLogs.size()]);
+            break;
+
+        case config::OfferKind::Wreck:
+            // Cutting a hull is the loudest thing a sub can do, and the water
+            // was never empty. That is the bargain: the good salvage is behind
+            // a noise, and the noise gets answered.
+            say("THE HULL IS OPEN - AND SOMETHING HEARD IT");
+            addShake(config::ShakeBossPart);
+
+            for (int caller = 0; caller < config::WreckCallers; ++caller)
+                spawnEnemy(localCreature());
+            break;
+
+        case config::OfferKind::Hive:
+            say("THE BROOD IS BURNED OUT");
+            addShake(config::ShakeBossPart * 0.6f);
+            break;
+
+        default:
+            break;
+    }
+}
+
+void Game::updateOffers(float deltaTime)
+{
+    if (m_offers.empty())
+        return;
+
+    const sf::Vector2f me = m_player.getPosition();
+
+    for (Offer& offer : m_offers)
+    {
+        if (offer.open)
+            continue;
+
+        const config::OfferDef& def = config::OfferTable[static_cast<std::size_t>(offer.kind)];
+
+        if (offer.flash > 0.0f)
+            offer.flash = std::max(0.0f, offer.flash - deltaTime);
+
+        const float range = (offer.position - me).length();
+
+        // Announced once, the first time it comes into the light. After that
+        // it is a thing on the floor like any other thing on the floor.
+        if (range < config::OfferNoticeRange && offer.seen <= 0.0f)
+        {
+            offer.seen = 1.0f;
+            say(std::string(def.name) + " - " + def.what);
+        }
+
+        // A rig is taken by swimming into it. There is nothing to fight and
+        // nothing to cut: somebody else already did the hard part, and it
+        // killed them.
+        if (def.health <= 0)
+        {
+            if (m_player.isAlive() && range < def.radius + config::FindPickupRange)
+                takeOffer(offer);
+
+            continue;
+        }
+
+        if (offer.kind != config::OfferKind::Hive)
+            continue;
+
+        // A brood that has been found keeps hatching until it is dealt with,
+        // which is what stops it being a pile of salvage with a health bar in
+        // front of it.
+        offer.timer -= deltaTime;
+        if (offer.timer > 0.0f)
+            continue;
+
+        offer.timer = config::HiveHatch;
+
+        if (m_enemies.size() >= config::MaxSpawnlings * 2
+            || range > config::OfferNoticeRange * 3.0f)
+        {
+            continue;
+        }
+
+        const sf::Vector2f offset(rng::range(40.0f, 70.0f),
+                                  sf::degrees(rng::range(0.0f, 360.0f)));
+
+        m_enemies.emplace_back(EnemyType::Spawnling, m_assets.forEnemy(EnemyType::Spawnling),
+                               offer.position + offset, m_level.getScaling());
+        m_enemies.back().markHatched();
+
+        effects::enemyDeath(m_effects, offer.position + offset);
+        m_audio.playAt(Sfx::Hatch, offer.position, 0.7f, occlusionAt(offer.position));
+    }
+}
+
+void Game::drawOffers()
+{
+    if (m_offers.empty())
+        return;
+
+    sf::VertexArray mesh(sf::PrimitiveType::Triangles);
+
+    for (const Offer& offer : m_offers)
+    {
+        if (offer.open)
+            continue;
+
+        const config::OfferDef& def = config::OfferTable[static_cast<std::size_t>(offer.kind)];
+        const sf::Vector2f at = offer.position;
+
+        const auto disc = [&mesh, &at](float radius, sf::Color colour, int steps = 18) {
+            for (int i = 0; i < steps; ++i)
+            {
+                const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / steps);
+                const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / steps);
+
+                mesh.append(sf::Vertex{ at, colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a0), colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a1), colour });
+            }
+        };
+
+        sf::Color halo = def.colour;
+        halo.a = 40;
+        disc(def.radius * 2.2f, halo, 14);
+
+        switch (offer.kind)
+        {
+            case config::OfferKind::Wreck:
+            {
+                // Buckled plate lying on its side with a cut started in it.
+                const sf::Color hull(74, 78, 82);
+                const sf::Color lip = offer.flash > 0.0f ? sf::Color(240, 230, 210) : def.colour;
+
+                for (int i = 0; i < 7; ++i)
+                {
+                    const sf::Angle a0 = sf::degrees(-40.0f + 24.0f * static_cast<float>(i));
+                    const sf::Angle a1 = sf::degrees(-40.0f + 24.0f * static_cast<float>(i + 1));
+                    const float r0 = def.radius * (0.82f + 0.18f * ((i % 2) ? 1.0f : 0.0f));
+
+                    mesh.append(sf::Vertex{ at, hull });
+                    mesh.append(sf::Vertex{ at + sf::Vector2f(r0, a0), hull });
+                    mesh.append(sf::Vertex{ at + sf::Vector2f(def.radius, a1), hull });
+                }
+
+                disc(def.radius * 0.62f, hull, 12);
+                disc(def.radius * 0.26f, lip, 10);
+                break;
+            }
+
+            case config::OfferKind::Cache:
+            {
+                // A helmet and a tank, half in the silt.
+                disc(def.radius * 0.9f, sf::Color(52, 56, 58), 12);
+                disc(def.radius * 0.55f, def.colour, 12);
+                disc(def.radius * 0.24f, sf::Color(232, 244, 248), 8);
+                break;
+            }
+
+            case config::OfferKind::Hive:
+            {
+                const sf::Color sac = offer.flash > 0.0f ? sf::Color(240, 230, 210) : def.colour;
+
+                for (int i = 0; i < 6; ++i)
+                {
+                    const sf::Angle spoke = sf::degrees(60.0f * static_cast<float>(i));
+                    const sf::Vector2f lobe = at + sf::Vector2f(def.radius * 0.62f, spoke);
+
+                    for (int step = 0; step < 10; ++step)
+                    {
+                        const sf::Angle b0 = sf::degrees(36.0f * static_cast<float>(step));
+                        const sf::Angle b1 = sf::degrees(36.0f * static_cast<float>(step + 1));
+                        const float r = def.radius * 0.46f;
+
+                        mesh.append(sf::Vertex{ lobe, sac });
+                        mesh.append(sf::Vertex{ lobe + sf::Vector2f(r, b0), sac });
+                        mesh.append(sf::Vertex{ lobe + sf::Vector2f(r, b1), sac });
+                    }
+                }
+
+                disc(def.radius * 0.5f, sf::Color(90, 40, 54), 12);
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        // How far through it is, as a ring that tightens - the same language
+        // the nests speak, so a player already knows how to read it.
+        if (offer.maxHealth > 0 && offer.health < offer.maxHealth)
+        {
+            const float part = static_cast<float>(offer.health)
+                               / static_cast<float>(offer.maxHealth);
+
+            for (int i = 0; i < 24; ++i)
+            {
+                if (static_cast<float>(i) / 24.0f > part)
+                    break;
+
+                const sf::Angle a0 = sf::degrees(-90.0f + 15.0f * static_cast<float>(i));
+                const sf::Angle a1 = sf::degrees(-90.0f + 15.0f * static_cast<float>(i + 1));
+                const float inner = def.radius * 1.3f;
+                const float outer = def.radius * 1.42f;
+
+                mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a0), def.colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a0), def.colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a1), def.colour });
+
+                mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a0), def.colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a1), def.colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a1), def.colour });
+            }
+        }
+    }
+
+    m_window.draw(mesh);
+}
+
+std::size_t Game::rollSalvage(int depth, int floorKind) const
+{
+    // Which kind, by weight, out of everything this deep and no worse than
+    // floorKind. Rolled per piece rather than per basin: a floor where every
+    // single thing is scrap is a floor nobody searches twice.
+    const auto allowed = [depth, floorKind](std::size_t kind) {
+        return config::SalvageTable[kind].fromDepth <= depth
+               && kind >= static_cast<std::size_t>(std::max(0, floorKind));
+    };
+
+    float total = 0.0f;
+    for (std::size_t k = 0; k < config::SalvageKinds; ++k)
+    {
+        if (allowed(k))
+            total += config::SalvageTable[k].share;
+    }
+
+    // Nothing this deep is good enough to meet the floor, so the floor gives
+    // way rather than the payout being nothing at all.
+    if (total <= 0.0f)
+        return floorKind > 0 ? rollSalvage(depth, floorKind - 1) : 0;
+
+    float roll = rng::range(0.0f, total);
+
+    for (std::size_t k = 0; k < config::SalvageKinds; ++k)
+    {
+        if (!allowed(k))
+            continue;
+
+        roll -= config::SalvageTable[k].share;
+        if (roll <= 0.0f)
+            return k;
+    }
+
+    return 0;
+}
+
 void Game::placeFinds()
 {
     // The hold is not touched here: it belongs to the dive rather than to the
@@ -2835,31 +3191,7 @@ void Game::placeFinds()
 
     for (int i = 0; i < wanted; ++i)
     {
-        // Which kind, by weight, out of everything this deep. Rolled per piece
-        // rather than per basin: a floor where every single thing is scrap is
-        // a floor nobody searches twice.
-        float total = 0.0f;
-        for (std::size_t k = 0; k < config::SalvageKinds; ++k)
-        {
-            if (config::SalvageTable[k].fromDepth <= depth)
-                total += config::SalvageTable[k].share;
-        }
-
-        float roll = rng::range(0.0f, total);
-        std::size_t picked = 0;
-
-        for (std::size_t k = 0; k < config::SalvageKinds; ++k)
-        {
-            if (config::SalvageTable[k].fromDepth > depth)
-                continue;
-
-            roll -= config::SalvageTable[k].share;
-            if (roll <= 0.0f)
-            {
-                picked = k;
-                break;
-            }
-        }
+        const std::size_t picked = rollSalvage(depth, 0);
 
         // Anywhere the sub can actually get to, and not on top of the mouth:
         // salvage you can reach without leaving the first room is salvage that
@@ -4413,6 +4745,38 @@ void Game::handleCollisions()
                 }
             }
 
+            // A sealed hull and a live brood take the same jet a creature
+            // does. There is no separate cutting tool: what opens a wreck is
+            // the gun you already have and the noise it makes doing it.
+            for (Offer& offer : m_offers)
+            {
+                if (offer.open || offer.maxHealth <= 0)
+                    continue;
+
+                const config::OfferDef& def =
+                    config::OfferTable[static_cast<std::size_t>(offer.kind)];
+
+                const float reach = shot.getRadius() + def.radius;
+                if ((offer.position - shot.getPosition()).lengthSquared() > reach * reach)
+                    continue;
+
+                offer.health -= shot.getDamage();
+                offer.flash = config::EnemyHitFlashDuration;
+
+                effects::impact(m_effects, shot.getPosition(), shot.getDirection());
+                m_audio.play(Sfx::Impact);
+                addHitRing(shot.getPosition(), config::JetRingRadius, def.colour);
+
+                if (offer.health <= 0)
+                    takeOffer(offer);
+
+                if (torpedo || shot.spendPierce())
+                {
+                    spent = true;
+                    break;
+                }
+            }
+
             if (spent || !shot.isAlive())
                 continue;
 
@@ -5179,6 +5543,16 @@ void Game::drawMinimap()
     {
         if (nest.alive)
             pip(nest.position, 4.0f, config::HudSalvageColor);
+    }
+
+    // Anything found down here and not yet dealt with stays on the map. A
+    // player who saw a sealed hull on the way past and decided to come back
+    // for it has to be able to find it again, or the decision was not real.
+    for (const Offer& offer : m_offers)
+    {
+        if (!offer.open)
+            pip(offer.position, 4.0f,
+                config::OfferTable[static_cast<std::size_t>(offer.kind)].colour);
     }
 
     // The two ways out. These are on the map wherever you are, seen or not:
@@ -6095,6 +6469,9 @@ void Game::presentUpdate(float deltaTime)
     if (m_hitStop > 0.0f)
         m_hitStop = std::max(0.0f, m_hitStop - deltaTime);
 
+    if (m_noticeTimer > 0.0f)
+        m_noticeTimer = std::max(0.0f, m_noticeTimer - deltaTime);
+
     if (upgradesVisible())
     {
         // The tree lives in screen space, so the cursor has to be mapped through
@@ -6216,6 +6593,7 @@ void Game::step(float deltaTime)
                 updateNests(deltaTime);
                 updateCargo(deltaTime);
                 updateFinds();
+                updateOffers(deltaTime);
                 updateLifts(deltaTime);
 
                 if (m_modeTimer > 0.0f)
@@ -6381,6 +6759,7 @@ void Game::render(float alpha)
     // Under everything alive: a vent is a hole in the floor, not an object.
     drawVents();
     drawNests();
+    drawOffers();
     drawCargo();
 
     for (const Mine& mine : m_mines)
@@ -6711,12 +7090,43 @@ void Game::render(float alpha)
         }
     }
 
+    drawNotice();
+
     if (m_paused)
         drawPauseOverlay();
 
     drawFrameRate();
     drawBrightness();
     m_window.display();
+}
+
+void Game::drawNotice()
+{
+    // One line, low, over a strip of black, fading at both ends. It carries
+    // what a thing on the floor turned out to be and what a dead man wrote,
+    // and it is the only prose in the game that is not on a title card.
+    if (m_noticeTimer <= 0.0f || m_notice.empty())
+        return;
+
+    const float fade = std::min(1.0f, m_noticeTimer / 0.8f)
+                       * std::min(1.0f, (config::NoticeDuration - m_noticeTimer) / 0.35f);
+
+    const float scale = 1.5f;
+    const float width = pixelfont::measure(m_notice, scale);
+    const float x = (static_cast<float>(config::WindowWidth) - width) / 2.0f;
+    const float y = static_cast<float>(config::WindowHeight) - 132.0f;
+
+    sf::RectangleShape strip({ width + 44.0f, 30.0f });
+    strip.setPosition({ x - 22.0f, y - 9.0f });
+    strip.setFillColor(sf::Color(0, 0, 0, static_cast<std::uint8_t>(150.0f * fade)));
+    m_window.draw(strip);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    sf::Color ink = config::HudTextColor;
+    ink.a = static_cast<std::uint8_t>(255.0f * fade);
+
+    pixelfont::append(text, m_notice, { x, y }, scale, ink);
+    m_window.draw(text);
 }
 
 void Game::drawFrameRate()

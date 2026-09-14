@@ -1133,6 +1133,75 @@ namespace config
     // the save is dead - so the first level goes on the slate.
     inline constexpr int DiveFreeBelow = 2;
 
+    // =====================================================================
+    //  WHAT ELSE IS DOWN THERE
+    //
+    //  The level's objective is the job. These are not the job. They are
+    //  three kinds of thing lying about in the water that are worth money or
+    //  worth knowing, and every one of them is in a room the objective would
+    //  never have sent anybody into.
+    //
+    //  That is the point of them. A basin with one task in it is a corridor;
+    //  a basin with a task and four reasons to go the other way is a place
+    //  somebody has to make decisions in.
+    // =====================================================================
+    enum class OfferKind
+    {
+        Wreck, // a hull nobody ever got open. Cut it, and be heard doing it.
+        Cache, // a rig off a diver who did not come back, and their last log.
+        Hive,  // an egg mass that is awake and will stay awake until it is not.
+        Count,
+    };
+
+    struct OfferDef
+    {
+        const char* name;
+        const char* what;    // the one line under it that says what it wants
+        sf::Color   colour;
+        int         health;  // zero means you take it by swimming into it
+        int         pieces;  // how much salvage it is worth
+        int         floor;   // and the worst kind it is allowed to pay in
+        float       radius;
+    };
+
+    inline constexpr std::array<OfferDef, 3> OfferTable{ {
+        { "A SEALED HULL", "CUT IT OPEN",      { 198, 172,  96 }, 260, 5, 1, 44.0f },
+        { "A DIVER",       "TAKE WHAT IS LEFT",{ 140, 188, 210 },   0, 2, 0, 26.0f },
+        { "AN OPEN BROOD", "BURN IT OUT",      { 214, 128, 148 }, 340, 6, 2, 40.0f },
+    } };
+
+    inline constexpr int   OffersBase = 2;
+    inline constexpr int   OffersPerDepth = 1;
+    inline constexpr int   OffersMost = 5;
+    inline constexpr float OfferFromMouth = 620.0f;
+    inline constexpr float OfferApart = 460.0f;
+    inline constexpr float OfferNoticeRange = 260.0f;  // when its name appears
+    inline constexpr float HiveHatch = 3.4f;           // seconds between spawns
+    inline constexpr int   WreckCallers = 5;           // what cutting one brings
+
+    // What a dead diver had time to write down. One per rig, and the only
+    // place in the game anybody says anything about what happened here - a
+    // player reads these because they walked across a basin to get them,
+    // which is the only way a wall of lore ever gets read.
+    inline constexpr std::array<const char*, 14> DiverLogs{ {
+        "HIS LOG: \"STATION SAYS HOLD AT NINE HUNDRED. STATION IS NOT AT NINE HUNDRED.\"",
+        "HIS LOG: \"THE SECOND SUB WENT PAST US GOING UP. NOBODY WAS DRIVING IT.\"",
+        "HER LOG: \"IT COPIES THE LAMP. TURN THE LAMP OFF AND IT WAITS.\"",
+        "HER LOG: \"WE ARE NOT THE FIRST. THERE IS RIGGING DOWN HERE OLDER THAN THE COMPANY.\"",
+        "HIS LOG: \"THE ORE IS WARM. NOTHING AT THIS DEPTH IS WARM.\"",
+        "HIS LOG: \"IT DOES NOT HUNT. IT COLLECTS.\"",
+        "HER LOG: \"COUNTED ELEVEN ON THE SONAR. COUNTED ONE WHEN THE LAMP CAME ON.\"",
+        "HER LOG: \"THE STATION IS INTACT. EVERY HATCH IS OPEN FROM THE INSIDE.\"",
+        "HIS LOG: \"DAY SIX. THE WATER IS GETTING SHALLOWER AND WE ARE GOING DOWN.\"",
+        "HIS LOG: \"IT ANSWERED THE SONAR. USE THE SONAR AND IT ANSWERS.\"",
+        "HER LOG: \"WHATEVER IS AT THE BOTTOM IS NOT THE THING THAT IS KILLING US.\"",
+        "HER LOG: \"IF YOU ARE READING THIS ON THE WAY DOWN, GO BACK UP.\"",
+        "HIS LOG: \"THEY SENT A FOURTH. THEY ALWAYS SEND A FOURTH.\"",
+        "HIS LOG: \"IT IS NOT DEEP. IT IS OPEN AT THE BOTTOM.\"",
+    } };
+
+    inline constexpr float NoticeDuration = 5.2f;
+
     // --- The way out, and the way further in ---
     //
     //  The bell you were lowered in stays in the mouth of the basin and will
