@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Drawing
+﻿Add-Type -AssemblyName System.Drawing
 . "$PSScriptRoot\organic.ps1"
 
 # The four creatures that guard a depth, drawn as four different kinds of
@@ -68,77 +68,8 @@ $boneHi = C 120 156 148
 $hideL  = C 38 60 58
 $gum    = C 92 44 52
 
-# --- head: a long skull, jaws apart, seen from above-behind ----------
-$outW = 176; $outH = 126
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $H = $outH * $SS; $cy = $H / 2.0
-
-# The gullet: drawn first so everything else stands in front of a hole.
-Blob $g @( (P ($W * 0.52) ($cy - $H * 0.20)), (P ($W * 0.92) ($cy - $H * 0.11)),
-           (P ($W * 0.96) ($cy + $H * 0.11)), (P ($W * 0.52) ($cy + $H * 0.20)) ) `
-    (C 30 10 14) 0.3
-
-# The two jaws, hinged at the back of the skull and open.
-foreach ($side in @(-1, 1)) {
-    $jaw = @()
-    for ($i = 0; $i -le 8; $i++) {
-        $t = $i / 8.0
-        $x = $W * (0.50 + 0.48 * $t)
-        $y = $cy + $side * ($H * (0.16 + 0.16 * $t))
-        $jaw += , @($x, $y, ($H * (0.085 - 0.045 * $t)))
-    }
-    Body $g $jaw $bone $boneLo $boneHi 0.4
-    Teeth $g ($W * 0.54) ($cy + $side * $H * 0.13) ($W * 0.95) ($cy + $side * $H * 0.27) `
-        9 ($H * 0.10) (-$side) (C 236 240 226)
-}
-
-# The skull itself: a broad braincase tapering into the neck.
-$spine = @()
-for ($i = 0; $i -le 10; $i++) {
-    $t = $i / 10.0
-    $x = $W * (0.62 - 0.60 * $t)
-    $half = $H * (0.16 + 0.24 * [math]::Sin([math]::PI * [math]::Pow(1.0 - $t, 0.7)))
-    $spine += , @($x, $cy, $half)
-}
-Body $g $spine $hideL $boneLo (C 96 130 124) 0.45
-Mottle $g $spine (C 20 34 34 150) 24 5
-
-# Ridges over the brow, and the nostrils.
-for ($i = 0; $i -lt 4; $i++) {
-    $x = $W * (0.20 + 0.10 * $i)
-    Stroke $g (C 88 118 112 160) $x ($cy - $H * 0.26) $x ($cy + $H * 0.26) 7
-}
-Disc $g (C 14 22 22) ($W * 0.56) ($cy - $H * 0.10) 9
-Disc $g (C 14 22 22) ($W * 0.56) ($cy + $H * 0.10) 9
-
-# The eyes sit high on the sides of the skull, well clear of the teeth: this
-# is the thing that used to be wrong with it.
-Eye $g ($W * 0.42) ($cy - $H * 0.30) 22 (C 236 178 72) $true
-Eye $g ($W * 0.42) ($cy + $H * 0.30) 22 (C 236 178 72) $true
-Finish $bmp $g $outW $outH "lev_head.png"
-
-# --- body segment: a ribbed trunk with paddle stubs ------------------
-$outW = 126; $outH = 106
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $H = $outH * $SS; $cy = $H / 2.0
-
-$spine = @()
-for ($i = 0; $i -le 8; $i++) {
-    $t = $i / 8.0
-    $spine += , @(($W * (0.88 - 0.76 * $t)), $cy, ($H * (0.30 + 0.10 * [math]::Sin([math]::PI * $t))))
-}
-Body $g $spine $hideL $boneLo (C 92 126 120) 0.45
-Mottle $g $spine (C 18 32 32 140) 20 9
-for ($i = 0; $i -lt 5; $i++) {
-    $x = $W * (0.22 + 0.15 * $i)
-    Stroke $g (C 26 42 42 150) $x ($cy - $H * 0.32) $x ($cy + $H * 0.32) 8
-    Stroke $g (C 102 138 130 90) ($x + 7) ($cy - $H * 0.30) ($x + 7) ($cy + $H * 0.30) 3
-}
-foreach ($side in @(-1, 1)) {
-    Fin $g ($W * 0.50) ($cy + $side * $H * 0.28) ($W * 0.30) ($cy + $side * $H * 0.60) `
-        22 (C 32 52 50 220) $boneHi 4
-}
-Finish $bmp $g $outW $outH "lev_body.png"
+# Head, body, eye, plate and organ are drawn by BossArt now. Only the flipper
+# is still a texture, and only because the trench worm wears a pair.
 
 # --- flipper: a real limb, with finger bones through the web --------
 $outW = 108; $outH = 74
@@ -156,54 +87,6 @@ for ($i = 0; $i -lt 5; $i++) {
 }
 Stroke $g (C 22 36 36 170) 12 $cy ($W * 0.92) ($cy - $H * 0.10) 9
 Finish $bmp $g $outW $outH "lev_fin.png"
-
-# --- eye part: what you shoot off ------------------------------------
-$outW = 52; $outH = 52
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$c = $outW * $SS / 2.0
-Disc $g (C 26 40 40) $c $c ($c * 0.96)
-Eye $g $c $c ($c * 0.74) (C 240 176 66) $true
-Finish $bmp $g $outW $outH "lev_eye.png"
-
-# --- dorsal scute: armour that grew, with a keel down it ------------
-$outW = 128; $outH = 84
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $H = $outH * $SS; $cy = $H / 2.0
-
-Blob $g @( (P ($W * 0.06) $cy), (P ($W * 0.26) ($cy - $H * 0.40)),
-           (P ($W * 0.74) ($cy - $H * 0.42)), (P ($W * 0.96) $cy),
-           (P ($W * 0.74) ($cy + $H * 0.42)), (P ($W * 0.26) ($cy + $H * 0.40)) ) `
-    (C 52 76 72) 0.45
-# The keel, and the growth rings either side of it.
-Poly $g @( (P ($W * 0.10) $cy), (P ($W * 0.50) ($cy - $H * 0.16)),
-           (P ($W * 0.92) $cy), (P ($W * 0.50) ($cy + $H * 0.16)) ) (C 108 142 134)
-for ($i = 0; $i -lt 4; $i++) {
-    $t = ($i + 1) / 5.0
-    $pen = New-Object System.Drawing.Pen -ArgumentList (C 30 46 46 160), 5.0
-    $g.DrawArc($pen, (RectF ($W * (0.12 + 0.09 * $i)) ($cy - $H * (0.36 - 0.06 * $i)) `
-                            ($W * (0.76 - 0.18 * $i)) ($H * (0.72 - 0.12 * $i))), 0, 360)
-    $pen.Dispose()
-}
-Finish $bmp $g $outW $outH "lev_plate.png"
-
-# --- the heart: what is under the scute -----------------------------
-$outW = 82; $outH = 82
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$c = $outW * $SS / 2.0
-
-Disc $g (C 92 18 26 150) $c $c ($c * 0.98)
-Blob $g @( (P $c ($c - $c * 0.78)), (P ($c + $c * 0.72) ($c - $c * 0.30)),
-           (P ($c + $c * 0.46) ($c + $c * 0.68)), (P $c ($c + $c * 0.86)),
-           (P ($c - $c * 0.46) ($c + $c * 0.68)), (P ($c - $c * 0.72) ($c - $c * 0.30)) ) `
-    (C 186 44 52) 0.55
-# Great vessels going in and out of the top of it.
-foreach ($off in @(-0.34, 0.0, 0.34)) {
-    Stroke $g (C 132 26 34) ($c + $c * $off) ($c - $c * 0.40) ($c + $c * $off * 1.5) ($c - $c * 0.95) 16
-    Stroke $g (C 224 96 96 170) ($c + $c * $off) ($c - $c * 0.40) ($c + $c * $off * 1.5) ($c - $c * 0.95) 6
-}
-Disc $g (C 240 140 128 150) ($c - $c * 0.16) ($c - $c * 0.10) ($c * 0.30)
-Lamp $g $c $c ($c * 0.16) (C 255 210 190)
-Finish $bmp $g $outW $outH "lev_organ.png"
 
 # =====================================================================
 #  THE BLOOM SOVEREIGN  -  a siphonophore the size of a house

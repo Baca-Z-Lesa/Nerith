@@ -804,6 +804,22 @@ namespace config
 
     // A beam swept across the hall. Slow enough to walk out of, long enough
     // that standing still is not an option.
+    // The tail coming round, thrown from the tail rather than the head: in
+    // front of the animal is the safe place, which is the opposite of every
+    // other move it has.
+    inline constexpr float ThreshArc = 280.0f;   // degrees the tail covers
+    inline constexpr int   ThreshSteps = 22;
+    inline constexpr float ThreshDelay = 0.05f;
+    inline constexpr float ThreshReach = 120.0f;
+    inline constexpr float ThreshSpeed = 250.0f;
+
+    // And the roar: three walls straight down its own line, widening.
+    inline constexpr int   SoundWaves = 3;
+    inline constexpr int   SoundPerWave = 7;
+    inline constexpr float SoundSpread = 230.0f;
+    inline constexpr float SoundGap = 0.22f;
+    inline constexpr float SoundSpeed = 420.0f;
+
     inline constexpr int   RakeSteps = 26;
     inline constexpr float RakeArc = 190.0f;          // degrees swept
     inline constexpr float RakeDelay = 0.07f;
@@ -881,6 +897,22 @@ namespace config
     // multiplied by aggression, so it comes round faster as the thing is hurt;
     // open widens with the act, so the last third of the fight is the part
     // where the player finally gets to land something.
+    // --- a boss that is drawn rather than stamped ---
+    // How wide the body is at a link of scale one, and how the rest of the
+    // animal behaves while it is being an animal. None of these are read by
+    // anything that decides what happens: they are what a living thing does
+    // between decisions.
+    inline constexpr float BossDrawnGirth = 29.0f;
+    inline constexpr float BossBreathRate = 0.34f;  // cycles a second, unhurt
+    inline constexpr float BossBreathRage = 0.22f;  // added per act
+    inline constexpr float BossBeatRate = 0.95f;    // fin strokes a second
+    inline constexpr float BossFlinchFade = 3.4f;
+    inline constexpr float BossLookLimit = 52.0f;   // degrees a head can turn
+    inline constexpr float BossLookEase = 7.0f;
+
+    // How hard it rolls its open side away from the sub, in degrees a second.
+    inline constexpr float BossGuardTurn = 95.0f;
+
     inline constexpr float BossBellShut = 4.6f;
     inline constexpr float BossBellOpen = 2.2f;
 

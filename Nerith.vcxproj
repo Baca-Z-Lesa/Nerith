@@ -110,6 +110,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClCompile Include="src\core\SaveGame.cpp" />
     <ClCompile Include="src\effects\ParticleSystem.cpp" />
     <ClCompile Include="src\entities\Boss.cpp" />
+    <ClCompile Include="src\entities\BossArt.cpp" />
     <ClCompile Include="src\entities\BossDef.cpp" />
     <ClCompile Include="src\entities\ShipVisuals.cpp" />
     <ClCompile Include="src\entities\Enemy.cpp" />
@@ -144,6 +145,7 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClInclude Include="src\core\SaveGame.h" />
     <ClInclude Include="src\effects\ParticleSystem.h" />
     <ClInclude Include="src\entities\Boss.h" />
+    <ClInclude Include="src\entities\BossArt.h" />
     <ClInclude Include="src\entities\BossDef.h" />
     <ClInclude Include="src\entities\ShipVisuals.h" />
     <ClInclude Include="src\entities\Enemy.h" />

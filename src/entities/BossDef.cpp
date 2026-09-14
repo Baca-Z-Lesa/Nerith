@@ -16,22 +16,25 @@ namespace
         // =================================================================
         {
             "THE LEVIATHAN", "IT HAS BEEN CIRCLING SINCE YOU ARRIVED.",
-            BossBody::Serpent, BossMind::Prowler,
-            "assets/textures/lev_head.png", "assets/textures/shot_leviathan.png",
-            "assets/textures/lev_body.png", "assets/textures/lev_tail.png",
-            1.0f, 0.92f, 0.88f, 4, 46.0f, 46.0f,
+            BossBody::Serpent, BossMind::Prowler, BossSkin::Leviathan,
+            // Not a texture in it. Every part below is a hitbox and a role;
+            // what the player sees is drawn from the pose in BossArt, which is
+            // why this one can look at you.
+            nullptr, "assets/textures/shot_leviathan.png",
+            nullptr, nullptr,
+            1.0f, 0.92f, 0.90f, 6, 56.0f, 46.0f,
             2, 40,
             78.0f, 240.0f,
             2.2f, 3, 26.0f,
             { 0.55f, 1.35f, 3, 1.4f },
             6,
             { {
-                { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  11.0f, -20.0f, 20.0f, 0.62f,   0.0f, 18 },
-                { PartRole::Eye,    "assets/textures/lev_eye.png",   0,  11.0f,  20.0f, 20.0f, 0.62f,   0.0f, 18 },
-                { PartRole::Fin,    "assets/textures/lev_fin.png",   2,  -4.0f, -32.0f, 24.0f, 0.8f,  -58.0f, 26 },
-                { PartRole::Fin,    "assets/textures/lev_fin.png",   2,  -4.0f,  32.0f, 24.0f, 0.8f,   58.0f, 26 },
-                { PartRole::Armour, "assets/textures/lev_plate.png", 1,   0.0f,   0.0f, 42.0f, 1.0f ,   0.0f, 46 },
-                { PartRole::Organ,  "assets/textures/lev_organ.png", 1,   0.0f,   0.0f, 30.0f, 1.05f,    0.0f, 90 },
+                { PartRole::Eye,    nullptr, 0, -30.0f, -22.0f, 19.0f, 0.62f,   0.0f, 18 },
+                { PartRole::Eye,    nullptr, 0, -30.0f,  22.0f, 19.0f, 0.62f,   0.0f, 18 },
+                { PartRole::Fin,    nullptr, 2,   2.0f, -22.0f, 24.0f, 0.8f,  -82.0f, 26 },
+                { PartRole::Fin,    nullptr, 2,   2.0f,  22.0f, 24.0f, 0.8f,   82.0f, 26 },
+                { PartRole::Armour, nullptr, 1,   0.0f,   0.0f, 36.0f, 1.0f ,   0.0f, 46 },
+                { PartRole::Organ,  nullptr, 1,   0.0f,   0.0f, 26.0f, 1.05f,   0.0f, 90 },
             } }
         },
 
@@ -43,7 +46,7 @@ namespace
         // =================================================================
         {
             "THE BLOOM SOVEREIGN", "IT DOES NOT HUNT. IT SIMPLY FILLS THE WATER.",
-            BossBody::Bell, BossMind::Drifter,
+            BossBody::Bell, BossMind::Drifter, BossSkin::Sprites,
             "assets/textures/med_bell.png", "assets/textures/shot_sovereign.png",
             "assets/textures/med_bell.png", nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 84.0f,
@@ -71,7 +74,7 @@ namespace
         // =================================================================
         {
             "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
-            BossBody::Serpent, BossMind::Burrower,
+            BossBody::Serpent, BossMind::Burrower, BossSkin::Sprites,
             "assets/textures/worm_head.png", "assets/textures/shot_worm.png",
             "assets/textures/worm_seg.png", "assets/textures/worm_tail.png",
             0.95f, 0.9f, 0.94f, 6, 44.0f, 44.0f,
@@ -102,7 +105,7 @@ namespace
         // =================================================================
         {
             "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
-            BossBody::Serpent, BossMind::Spiral,
+            BossBody::Serpent, BossMind::Spiral, BossSkin::Sprites,
             "assets/textures/hol_crown.png", "assets/textures/shot_hollow.png",
             "assets/textures/hol_vertebra.png", "assets/textures/hol_tail.png",
             1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
@@ -141,7 +144,7 @@ namespace
         // =================================================================
         {
             "THE FURNACE", "IT IS SITTING ON THE HOLE IN THE FLOOR.",
-            BossBody::Bell, BossMind::Spiral,
+            BossBody::Bell, BossMind::Spiral, BossSkin::Sprites,
             "assets/textures/fur_body.png", "assets/textures/shot_furnace.png",
             "assets/textures/fur_body.png", nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 92.0f,
@@ -174,7 +177,7 @@ namespace
         // =================================================================
         {
             "THE MOTHER", "IT IS WHERE THEY ALL CAME FROM.",
-            BossBody::Bell, BossMind::Prowler,
+            BossBody::Bell, BossMind::Prowler, BossSkin::Sprites,
             "assets/textures/mot_bell.png", "assets/textures/shot_mother.png",
             "assets/textures/mot_bell.png", nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 96.0f,

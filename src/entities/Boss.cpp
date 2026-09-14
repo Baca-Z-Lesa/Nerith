@@ -1,6 +1,7 @@
 #include "entities/Boss.h"
 
 #include "core/Assets.h"
+#include "entities/BossArt.h"
 #include "core/Config.h"
 #include "core/Random.h"
 
@@ -71,17 +72,22 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
                            : tail ? m_def->tailTexture
                                   : m_def->segmentTexture;
 
-        const sf::Texture& texture = assets.boss(path);
-
         float scale = head ? m_def->headScale : m_def->segmentScale;
         for (int t = 1; t < i; ++t)
             scale *= m_def->segmentTaper;
 
         Segment segment{ position - m_heading * (m_def->segmentSpacing * static_cast<float>(i)),
-                         sf::degrees(0.0f), scale, sf::Sprite(texture) };
+                         sf::degrees(0.0f), scale, std::nullopt };
 
-        segment.sprite.setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
-        segment.sprite.setScale({ scale, scale });
+        if (path != nullptr)
+        {
+            const sf::Texture& texture = assets.boss(path);
+
+            segment.sprite.emplace(texture);
+            segment.sprite->setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
+            segment.sprite->setScale({ scale, scale });
+        }
+
         m_segments.push_back(std::move(segment));
     }
 
@@ -90,20 +96,27 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     for (std::size_t i = 0; i < m_def->partCount; ++i)
     {
         const BossPartDef& def = m_def->parts[i];
-        const sf::Texture& texture = assets.boss(def.texture);
         const int health = scaled(def.health, scaling.health);
 
         Part part{ def, health, health, 0.0f, true, position, position,
-                   sf::degrees(0.0f), sf::Sprite(texture) };
+                   sf::degrees(0.0f), std::nullopt };
 
-        const sf::Vector2f size(texture.getSize());
-        switch (def.role)
+        // A drawn creature's parts are roles and hitboxes and nothing else.
+        if (def.texture != nullptr)
         {
-            case PartRole::Tentacle: part.sprite.setOrigin({ size.x / 2.0f, 0.0f }); break;
-            case PartRole::Fin:      part.sprite.setOrigin({ 0.0f, size.y / 2.0f }); break;
-            default:                 part.sprite.setOrigin(size / 2.0f); break;
+            const sf::Texture& texture = assets.boss(def.texture);
+
+            part.sprite.emplace(texture);
+
+            const sf::Vector2f size(texture.getSize());
+            switch (def.role)
+            {
+                case PartRole::Tentacle: part.sprite->setOrigin({ size.x / 2.0f, 0.0f }); break;
+                case PartRole::Fin:      part.sprite->setOrigin({ 0.0f, size.y / 2.0f }); break;
+                default:                 part.sprite->setOrigin(size / 2.0f); break;
+            }
+            part.sprite->setScale({ def.scale, def.scale });
         }
-        part.sprite.setScale({ def.scale, def.scale });
 
         if (def.role == PartRole::Organ)
             m_startingOrganHealth += health;
@@ -159,7 +172,13 @@ void Boss::steer(float deltaTime, sf::Vector2f target, float turnScale)
     const float delta = (wanted - current).wrapSigned().asDegrees();
 
     const float allowed = config::BossTurnRate * m_vitals.mobility * turnScale * deltaTime;
-    const float step = std::clamp(delta, -allowed, allowed);
+    float step = std::clamp(delta, -allowed, allowed);
+
+    // And then the flinch: with its plating off it keeps the open side turned
+    // away from the sub, so it is answering the player rather than only
+    // following them. Added on top of the steer rather than replacing it, so
+    // it still gets where it was going - it just arrives side on.
+    step += guardBias(m_playerPosition) * deltaTime;
 
     m_heading = m_heading.rotatedBy(sf::degrees(step));
     m_segments[0].angle = m_heading.angle();
@@ -183,8 +202,12 @@ void Boss::followChain()
     };
 
     Segment& head = m_segments[0];
-    head.sprite.setPosition(head.position);
-    head.sprite.setRotation(head.angle + flex(0) * 0.4f);
+
+    if (head.sprite)
+    {
+        head.sprite->setPosition(head.position);
+        head.sprite->setRotation(head.angle + flex(0) * 0.4f);
+    }
 
     for (std::size_t i = 1; i < m_segments.size(); ++i)
     {
@@ -209,8 +232,11 @@ void Boss::followChain()
             segment.position = previous.position - (delta / distance) * spacing;
         }
 
-        segment.sprite.setPosition(segment.position);
-        segment.sprite.setRotation(segment.angle + flex(i));
+        if (segment.sprite)
+        {
+            segment.sprite->setPosition(segment.position);
+            segment.sprite->setRotation(segment.angle + flex(i));
+        }
     }
 }
 
@@ -224,12 +250,15 @@ void Boss::placeParts(float deltaTime)
 
     for (Segment& segment : m_segments)
     {
+        if (!segment.sprite)
+            continue;
+
         float scale = segment.scale;
         if (m_def->body == BossBody::Bell)
             scale *= 1.0f - 0.16f * m_bellPulse; // the bell visibly clenches
 
-        segment.sprite.setScale({ scale, scale });
-        segment.sprite.setColor(tint(0.0f));
+        segment.sprite->setScale({ scale, scale });
+        segment.sprite->setColor(tint(0.0f));
     }
 
     for (Part& part : m_parts)
@@ -254,19 +283,23 @@ void Boss::placeParts(float deltaTime)
 
             const sf::Vector2f outward = unit(part.angle);
             part.world = part.anchor + outward * config::BossTentacleHitOffset;
-            part.sprite.setRotation(part.angle - sf::degrees(90.0f));
         }
         else
         {
             part.world = part.anchor;
-            part.sprite.setRotation(part.angle);
         }
 
-        part.sprite.setPosition(part.anchor);
+        if (!part.sprite)
+            continue;
+
+        part.sprite->setRotation(part.def.role == PartRole::Tentacle
+                                     ? part.angle - sf::degrees(90.0f)
+                                     : part.angle);
+        part.sprite->setPosition(part.anchor);
 
         const float punch = 1.0f + 0.18f * (part.flash / config::BossFlashDuration);
-        part.sprite.setScale({ part.def.scale * punch, part.def.scale * punch });
-        part.sprite.setColor(tint(part.flash));
+        part.sprite->setScale({ part.def.scale * punch, part.def.scale * punch });
+        part.sprite->setColor(tint(part.flash));
     }
 }
 
@@ -731,7 +764,8 @@ void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
 
     // Two moves each, alternating, so neither becomes the thing the player
     // waits for and the other becomes a surprise.
-    const bool second = (m_specialTurn++ % 2) != 0;
+    const int turn = m_specialTurn++;
+    const bool second = (turn % 2) != 0;
 
     // Hurt badly enough, it stops repeating itself. Each mind keeps a move it
     // has not shown you, and it only comes out in the second half of the
@@ -767,23 +801,50 @@ void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
     switch (m_def->mind)
     {
         case BossMind::Prowler:
-            if (second)
+        {
+            // Two moves while it is whole, three once it is hurt, four once it
+            // is cornered. A creature that has been backed into the last third
+            // of its health does not do the same two things faster, it starts
+            // doing things it was not willing to do.
+            const int owned = 2 + std::min(2, m_act);
+
+            switch (turn % owned)
             {
-                // The tail. It does not need to be looking at you.
-                m_moves.push_back({ BossSpecial::Sweep, head, m_heading, 0.0f });
-            }
-            else
-            {
-                // The lunge that follows is the grab. Announced as a charge,
-                // because being caught by something you did not see coming is
-                // not a fight, it is a punishment.
-                m_strikeTarget = head + toPlayer * 2.2f;
-                m_phase = Phase::Wind;
-                m_phaseTimer = config::BossWindTime;
-                beginTell(config::BossWindTime, toPlayer, true);
-                m_moves.push_back({ BossSpecial::Grab, head, toPlayer, 1.0f });
+                case 0:
+                    // The lunge that follows is the grab. Announced as a
+                    // charge, because being caught by something you did not
+                    // see coming is not a fight, it is a punishment.
+                    m_strikeTarget = head + toPlayer * 2.2f;
+                    m_phase = Phase::Wind;
+                    m_phaseTimer = config::BossWindTime;
+                    beginTell(config::BossWindTime, toPlayer, true);
+                    m_moves.push_back({ BossSpecial::Grab, head, toPlayer, 1.0f });
+                    break;
+
+                case 1:
+                    // The tail. It does not need to be looking at you.
+                    m_moves.push_back({ BossSpecial::Sweep, head, m_heading, 0.0f });
+                    break;
+
+                case 2:
+                    // The whole animal comes round at once, from the tail
+                    // forward. Behind it has been the safe place for the whole
+                    // fight up to here, and this is the move that takes it.
+                    m_moves.push_back({ BossSpecial::Thresh,
+                                        m_segments.back().position, m_heading, 0.0f });
+                    beginTell(config::BossTellTime, toPlayer, false);
+                    break;
+
+                default:
+                    // It stops, opens all the way, and the water in front of
+                    // it goes. Nothing to dodge sideways: the answer is to not
+                    // be on the line at all.
+                    m_moves.push_back({ BossSpecial::Sound, head, toPlayer, 0.0f });
+                    beginTell(config::BossTellTime * 1.3f, toPlayer, false);
+                    break;
             }
             break;
+        }
 
         case BossMind::Drifter:
             m_moves.push_back(second
@@ -878,6 +939,85 @@ void Boss::checkRage()
 //  Frame
 // ---------------------------------------------------------------------------
 
+float Boss::guardBias(sf::Vector2f player) const
+{
+    // With the plating off, the soft part is on one flank and the creature
+    // knows it. It rolls that side away from the sub, which turns the second
+    // half of the fight into a chase round the outside of an animal rather
+    // than more of the first half - and the moment the last plate is gone it
+    // has nothing left to protect and stops giving ground.
+    for (const Part& part : m_parts)
+    {
+        if (!part.alive || part.def.role != PartRole::Organ || !organExposed(part))
+            continue;
+
+        const sf::Vector2f toward = player - part.world;
+        if (toward.lengthSquared() < 1.0f)
+            continue;
+
+        const sf::Vector2f flank{ -unit(m_segments[0].angle).y, unit(m_segments[0].angle).x };
+        const float facing = toward.normalized().dot(flank);
+
+        // Only while the sub is actually on the open side, so it does not spin
+        // for no reason the player can see.
+        return -facing * config::BossGuardTurn;
+    }
+
+    return 0.0f;
+}
+
+void Boss::updateLife(float deltaTime, sf::Vector2f player)
+{
+    // None of this is the fight. It is what a thing that is alive does while
+    // it fights, and the fight cannot read any of it back.
+    m_flinch = std::max(0.0f, m_flinch - deltaTime * config::BossFlinchFade);
+
+    // Breathing, and faster the worse it is doing: at full health it is a slow
+    // swell and by the last act it is panting.
+    m_breath += deltaTime * (config::BossBreathRate
+                             + config::BossBreathRage * static_cast<float>(m_act));
+    if (m_breath > 1.0f)
+        m_breath -= std::floor(m_breath);
+
+    // The fins beat in time with how hard it is actually swimming.
+    m_beat += deltaTime * config::BossBeatRate
+              * (0.4f + 0.6f * m_vitals.mobility)
+              * (m_phase == Phase::Strike ? 2.4f : 1.0f);
+    if (m_beat > 1.0f)
+        m_beat -= std::floor(m_beat);
+
+    // The jaw. Open on the wind-up and all the way through the strike, shut
+    // the rest of the time, so the bite is announced by the mouth rather than
+    // only by a ring on the floor.
+    const float wanted = m_phase == Phase::Strike ? 1.0f
+                         : m_tellTimer > 0.0f ? 0.30f + 0.70f * getTell()
+                         : m_act >= 2 ? 0.22f  // by the last act it cannot shut it
+                                      : 0.0f;
+
+    m_jaw += std::clamp(wanted - m_jaw, -deltaTime * 3.0f, deltaTime * 7.0f);
+
+    // And where it is looking. It watches the sub, but only as far round as a
+    // head can turn - past that it has to turn the whole animal, which is the
+    // whole reason getting behind one is worth anything.
+    const sf::Vector2f nose = unit(m_segments[0].angle);
+    const sf::Vector2f toward = player - m_segments[0].position;
+
+    sf::Vector2f wantedLook = nose;
+    if (toward.lengthSquared() > 1.0f)
+    {
+        const sf::Vector2f aim = toward.normalized();
+        const float off = (aim.angle() - nose.angle()).wrapSigned().asDegrees();
+
+        wantedLook = nose.rotatedBy(sf::degrees(std::clamp(off, -config::BossLookLimit,
+                                                           config::BossLookLimit)));
+    }
+
+    m_look += (wantedLook - m_look) * std::min(1.0f, deltaTime * config::BossLookEase);
+
+    if (m_look.lengthSquared() > 0.0001f)
+        m_look = m_look.normalized();
+}
+
 void Boss::updateBellRhythm(float deltaTime)
 {
     // Clenched, then open, on a clock of its own. Hurt, it has to hang open
@@ -915,6 +1055,11 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
         case BossMind::Burrower: thinkBurrower(deltaTime, playerPosition); break;
         case BossMind::Spiral:   thinkSpiral(deltaTime, playerPosition); break;
     }
+
+    // What the body is doing, as opposed to what it has decided. Run after the
+    // mind so the jaw and the eyes are reacting to the phase the mind has just
+    // picked rather than to the one before it.
+    updateLife(deltaTime, playerPosition);
 
     // A bell is sealed except while it is open, and until there were bells
     // that were not drifters, the only thing that ever opened one was the
@@ -1033,6 +1178,7 @@ Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float we
 
         part.health -= dealt;
         part.flash = config::BossFlashDuration;
+        m_flinch = 1.0f;
 
         result.hit = true;
         result.at = part.world;
@@ -1298,26 +1444,69 @@ void Boss::draw(sf::RenderTarget& target) const
     if (m_visibility <= 0.02f)
         return;
 
+    if (m_def->skin != BossSkin::Sprites)
+    {
+        bossart::Body pose;
+
+        pose.links.reserve(m_segments.size());
+        for (const Segment& segment : m_segments)
+        {
+            // Girth rather than a sprite scale: what the drawing wants to know
+            // is how wide the animal is here, and the taper down the chain is
+            // already in the scale the chain was built with.
+            pose.links.push_back({ segment.position, segment.angle,
+                                   config::BossDrawnGirth * segment.scale });
+        }
+
+        pose.limbs.reserve(m_parts.size());
+        for (const Part& part : m_parts)
+        {
+            pose.limbs.push_back({ part.def.role, part.anchor, part.angle, part.def.radius,
+                                   part.flash / config::BossFlashDuration,
+                                   part.def.lateral < 0.0f ? -1.0f : 1.0f,
+                                   part.alive,
+                                   part.def.role != PartRole::Organ || organExposed(part) });
+        }
+
+        pose.jaw = m_jaw;
+        pose.breath = m_breath;
+        pose.beat = std::sin(m_beat * 6.283185307f);
+        pose.rage = std::clamp(static_cast<float>(m_act) * 0.5f, 0.0f, 1.0f);
+        pose.tell = getTell();
+        pose.flinch = m_flinch;
+        pose.look = m_look;
+        pose.alpha = std::clamp(m_visibility, 0.0f, 1.0f);
+
+        bossart::drawLeviathan(target, pose);
+        return;
+    }
+
     // Arms hang behind the body, the body hides the tail, and the organs sit on
     // top so the thing the player is aiming at is never buried.
     for (const Part& part : m_parts)
     {
-        if (part.alive && part.def.role == PartRole::Tentacle)
-            target.draw(part.sprite);
+        if (part.alive && part.sprite && part.def.role == PartRole::Tentacle)
+            target.draw(*part.sprite);
     }
 
     for (std::size_t i = m_segments.size(); i-- > 0;)
-        target.draw(m_segments[i].sprite);
-
-    for (const Part& part : m_parts)
     {
-        if (part.alive && part.def.role != PartRole::Tentacle && part.def.role != PartRole::Organ)
-            target.draw(part.sprite);
+        if (m_segments[i].sprite)
+            target.draw(*m_segments[i].sprite);
     }
 
     for (const Part& part : m_parts)
     {
-        if (part.alive && part.def.role == PartRole::Organ && organExposed(part))
-            target.draw(part.sprite);
+        if (part.alive && part.sprite
+            && part.def.role != PartRole::Tentacle && part.def.role != PartRole::Organ)
+        {
+            target.draw(*part.sprite);
+        }
+    }
+
+    for (const Part& part : m_parts)
+    {
+        if (part.alive && part.sprite && part.def.role == PartRole::Organ && organExposed(part))
+            target.draw(*part.sprite);
     }
 }

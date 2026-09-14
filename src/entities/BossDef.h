@@ -25,6 +25,20 @@ enum class BossBody
     Bell,    // a single pulsing dome with tentacles hanging off it
 };
 
+// What actually gets put on the screen. A sprite is the right answer for
+// something twenty pixels across that there are fifteen of; it is the wrong
+// answer for two hundred pixels of animal the player looks at for a minute and
+// a half, because a picture held at the right angle cannot breathe, cannot
+// open its jaws before it bites, and cannot look at you.
+//
+// Anything with its own skin is drawn by BossArt out of shapes, and its
+// textures do not exist.
+enum class BossSkin
+{
+    Sprites,   // the textures named in the definition
+    Leviathan, // drawn: a spine, a hinged jaw, fins that beat, eyes that track
+};
+
 // How it thinks. One of these plus the numbers below is a whole fight.
 enum class BossMind
 {
@@ -78,6 +92,7 @@ struct BossDef
 
     BossBody body;
     BossMind mind;
+    BossSkin skin;
 
     const char* headTexture;
     const char* shotTexture; // what this animal throws

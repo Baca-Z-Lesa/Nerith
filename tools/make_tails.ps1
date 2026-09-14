@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Drawing
+﻿Add-Type -AssemblyName System.Drawing
 
 # Tails. Everything in this game that is built out of a head plus a chain of
 # links used to stop rather than end: the last ring was the same ring as all
@@ -86,44 +86,9 @@ function GradBlob($g, $pts, $top, $bottom, $y0, $y1, $edge, $width) {
 }
 
 "generating tails..."
+# The leviathan's tail went with the rest of its textures: that animal is
+# drawn from a pose now, fluke and all. What follows still needs one.
 
-# =====================================================================
-#  LEVIATHAN  -  the same hide as its body, narrowing to a peduncle and
-#  opening again into a two lobed fluke.
-# =====================================================================
-$hide  = C 34 58 60
-$belly = C 74 104 100
-$ink   = C 8 16 18
-$ridge = C 22 40 42
-
-$outW = 124; $outH = 104
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$W = $outW * $SS; $cy = $outH * $SS / 2.0
-
-# The body carrying on out of the last link and thinning as it goes.
-$stalk = @( (P ($W * 0.98) ($cy - 128)), (P ($W * 0.62) ($cy - 94)),
-            (P ($W * 0.34) ($cy - 38)), (P ($W * 0.34) ($cy + 38)),
-            (P ($W * 0.62) ($cy + 94)), (P ($W * 0.98) ($cy + 128)) )
-GradBlob $g $stalk $hide $belly ($cy - 150) ($cy + 150) $ink 9
-
-# The fluke: two lobes off the end, swept back the way a tail trails.
-foreach ($side in @(-1, 1)) {
-    Blob $g @( (P ($W * 0.36) ($cy + $side * 24)),
-               (P ($W * 0.20) ($cy + $side * 118)),
-               (P ($W * 0.04) ($cy + $side * 164)),
-               (P ($W * 0.03) ($cy + $side * 94)),
-               (P ($W * 0.22) ($cy + $side * 14)) ) $hide $ink 8 0.45
-    Stroke $g $ridge ($W * 0.32) ($cy + $side * 20) ($W * 0.08) ($cy + $side * 128) 7
-}
-
-# The grain of the hide running back into the notch, so the stalk does not
-# read as a flat wedge. Lines rather than plates: the ridge plates on a body
-# link sit on a back that is still wide, and there is no back left out here.
-foreach ($t in @(0.30, 0.55, 0.80)) {
-    Stroke $g $ridge ($W * 0.92) ($cy - 96 * $t + 48 * $t) ($W * 0.36) ($cy - 26 * $t) 7
-    Stroke $g $ridge ($W * 0.92) ($cy + 96 * $t - 48 * $t) ($W * 0.36) ($cy + 26 * $t) 7
-}
-Finish $bmp $g $outW $outH "lev_tail.png"
 
 # =====================================================================
 #  TRENCH WORM  -  no fluke on a worm. It narrows through a few more

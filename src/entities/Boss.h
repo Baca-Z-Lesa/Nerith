@@ -9,6 +9,7 @@
 #include <SFML/System/Vector2.hpp>
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,12 @@ enum class BossSpecial
     Curtain, // a wall crosses the hall with one gap in it
     Fissure, // the floor tears open in a line, and the line keeps coming
     Rake,    // a beam sweeps the hall, and standing still is standing on it
+
+    // What a prowler learns as the fight goes on. It starts the fight with two
+    // moves; by the last act it has four, so the second half is new things to
+    // read rather than the same two arriving sooner.
+    Thresh,  // the whole tail comes round, and it sweeps from behind forward
+    Sound,   // it stops, opens wide, and the water in front of it leaves
 };
 
 // What a special wants doing, drained by the caller the same way the shots
@@ -123,6 +130,16 @@ public:
     // is a creature nothing can reach the inside of.
     void updateBellRhythm(float deltaTime);
 
+    // Everything a drawn body does that the fight does not care about: the
+    // jaw, the breath, the beat of the fins, where it is looking, and the rock
+    // back after something lands on it.
+    void updateLife(float deltaTime, sf::Vector2f player);
+
+    // Which flank its exposed organ is on, so it can turn that side away from
+    // the sub. Zero once nothing is exposed, which is the moment it stops
+    // giving ground and comes at you instead.
+    float guardBias(sf::Vector2f player) const;
+
     // True when any part of the body is close enough to maul the player.
     bool touches(sf::Vector2f position, float radius) const;
 
@@ -158,12 +175,16 @@ private:
         Rising,    // coming back up
     };
 
+    // The sprite is optional because a drawn boss has no textures at all, and
+    // sf::Sprite cannot be made without one. Everything else about a link -
+    // where it is, which way it points, how big it is - is what the fight uses
+    // and is there either way.
     struct Segment
     {
         sf::Vector2f position;
         sf::Angle    angle;
         float        scale;
-        sf::Sprite   sprite;
+        std::optional<sf::Sprite> sprite;
     };
 
     struct Part
@@ -176,7 +197,7 @@ private:
         sf::Vector2f anchor; // where the sprite sits; tentacles hang from their root
         sf::Vector2f world;
         sf::Angle    angle;
-        sf::Sprite   sprite;
+        std::optional<sf::Sprite> sprite;
     };
 
     // Everything the surviving parts add up to. Recomputed whenever one dies,
@@ -263,6 +284,13 @@ private:
     float m_closeTimer;   // the last act's inward volley
     bool  m_rhythmOpen;   // Bell body: the nucleus is showing
     float m_rhythmTimer = 0.0f; // a bell that is not a drifter runs its own
+
+    // --- what a drawn body is doing, as opposed to what it is deciding ---
+    float m_jaw = 0.0f;     // 0 shut, 1 wide
+    float m_breath = 0.0f;  // a clock of its own, quicker as it tires
+    float m_beat = 0.0f;    // where the fins are in their stroke
+    float m_flinch = 0.0f;  // it has just been hurt
+    sf::Vector2f m_look{ 1.0f, 0.0f };
     bool  m_enraged;
     bool  m_hasEntered;
     bool  m_dead;

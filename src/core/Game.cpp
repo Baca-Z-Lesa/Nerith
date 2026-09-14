@@ -515,6 +515,62 @@ void Game::applyBossMove(const BossMove& move)
             break;
         }
 
+        case BossSpecial::Thresh:
+        {
+            // The tail comes round through most of a circle, and the water it
+            // shifts goes with it. Thrown from the tail rather than from the
+            // head, so the safe place is in front of the thing - which is the
+            // exact opposite of everywhere else in this fight.
+            const float from = move.direction.angle().asDegrees() + 180.0f
+                               - config::ThreshArc * 0.5f;
+            const float turn = rng::range(0.0f, 1.0f) < 0.5f ? 1.0f : -1.0f;
+
+            for (int i = 0; i < config::ThreshSteps; ++i)
+            {
+                const float t = static_cast<float>(i)
+                                / static_cast<float>(config::ThreshSteps - 1);
+                const float angle = from + config::ThreshArc * (turn > 0.0f ? t : 1.0f - t);
+                const sf::Vector2f out = unit(sf::degrees(angle));
+
+                scheduleVolley(config::ThreshDelay * static_cast<float>(i),
+                               move.at + out * config::ThreshReach, out,
+                               config::ThreshSpeed);
+            }
+
+            addShake(config::ShakeBossPart);
+            m_audio.play(Sfx::Vent, 0.9f);
+            break;
+        }
+
+        case BossSpecial::Sound:
+        {
+            // Three walls of water down its own line, one after another, each
+            // wider than the last. Sideways is not an answer to a cone; being
+            // somewhere else is.
+            const sf::Vector2f across{ -move.direction.y, move.direction.x };
+
+            for (int wave = 0; wave < config::SoundWaves; ++wave)
+            {
+                const float spread = config::SoundSpread * (0.5f + 0.5f * static_cast<float>(wave));
+                const int count = config::SoundPerWave + wave * 2;
+
+                for (int i = 0; i < count; ++i)
+                {
+                    const float t = static_cast<float>(i) / static_cast<float>(count - 1) - 0.5f;
+
+                    scheduleVolley(config::SoundGap * static_cast<float>(wave),
+                                   move.at + across * (t * spread * 0.4f),
+                                   move.direction.rotatedBy(sf::degrees(t * spread * 0.22f)),
+                                   config::SoundSpeed);
+                }
+            }
+
+            addFlash(config::HudBossColor, 0.35f);
+            addShake(config::ShakeDeath * 0.6f);
+            m_audio.play(Sfx::BossPhase, 0.75f);
+            break;
+        }
+
         case BossSpecial::Grab:
             // Armed rather than applied: the bite only lands if the lunge it
             // was announced with actually connects, which is checked where

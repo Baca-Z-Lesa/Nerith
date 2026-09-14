@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Drawing
+﻿Add-Type -AssemblyName System.Drawing
 
 # Boss creatures. Each boss is drawn as body parts that belong to one animal:
 # a head plus trailing segments, or a bell plus tentacles. Nothing here is a
@@ -88,85 +88,9 @@ $belly   = C 74 104 100
 $ink     = C 8 16 18
 $ridge   = C 22 40 42
 
-# --- head, facing right -------------------------------------------------
-$outW = 172; $outH = 122
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$cy = $outH * $SS / 2.0
-
-$skull = @(
-    (P 668 $cy), (P 606 ($cy - 66)), (P 476 ($cy - 110)), (P 322 ($cy - 118)),
-    (P 160 ($cy - 92)),  (P 40 ($cy - 46)), (P 40 ($cy + 46)), (P 160 ($cy + 92)),
-    (P 322 ($cy + 118)), (P 476 ($cy + 110)), (P 606 ($cy + 66))
-)
-GradBlob $g $skull $hide $belly ($cy - 130) ($cy + 130) $ink 9
-
-# gill slits, mirrored so the head reads as a top down animal
-foreach ($gx in @(118, 168, 218)) {
-    foreach ($side in @(-1, 1)) {
-        # Windows PowerShell 5.1 has no ternary operator.
-        $start = -70
-        if ($side -gt 0) { $start = 110 }
-        $pen = New-Object System.Drawing.Pen -ArgumentList $ridge, 9.0
-        $g.DrawArc($pen, (RectF ($gx - 46) ($cy - 62) 92 124), $start, 140)
-        $pen.Dispose()
-    }
-}
-
-# The maw opens at the FRONT and is symmetric about the spine. This is a top
-# down view: a jaw drawn on one side only put the lower eye socket inside the
-# teeth, which is exactly where the eye part used to end up.
-$maw = @( (P 676 $cy), (P 596 ($cy - 74)), (P 470 ($cy - 66)), (P 452 $cy),
-          (P 470 ($cy + 66)), (P 596 ($cy + 74)) )
-Blob $g $maw (C 6 10 12) $ink 7
-
-# teeth around the rim of the opening, both sides
-for ($i = 0; $i -lt 7; $i++) {
-    $t = $i / 6.0
-    $x = 480 + $t * 180
-    $spread = 66 - $t * 40
-    foreach ($side in @(-1, 1)) {
-        $y = $cy + $side * $spread
-        $tri = @( (P ($x - 13) $y), (P $x ($y - $side * 30)), (P ($x + 13) $y) )
-        Blob $g $tri (C 214 224 214) $null 0 0.0
-    }
-}
-
-# brow ridges, one over each eye socket
-foreach ($side in @(-1, 1)) {
-    Blob $g @( (P 300 ($cy + $side * 106)), (P 470 ($cy + $side * 92)),
-               (P 486 ($cy + $side * 52)), (P 312 ($cy + $side * 58)) ) $ridge $null 0
-    # the socket itself, so the eye part has somewhere to sit
-    Disc $g (C 14 26 28) 390 ($cy + $side * 80) 40
-}
-Finish $bmp $g $outW $outH "lev_head.png"
-
-# --- body segment -------------------------------------------------------
-$outW = 124; $outH = 104
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$cy = $outH * $SS / 2.0
-
-$seg = @( (P 466 $cy), (P 400 ($cy - 128)), (P 236 ($cy - 168)), (P 92 ($cy - 128)),
-          (P 26 $cy), (P 92 ($cy + 128)), (P 236 ($cy + 168)), (P 400 ($cy + 128)) )
-GradBlob $g $seg $hide $belly ($cy - 180) ($cy + 180) $ink 9
-
-# dorsal ridge plates, so the chain reads as one spine
-foreach ($sx in @(150, 236, 322)) {
-    Blob $g @( (P ($sx - 40) ($cy - 118)), (P $sx ($cy - 166)), (P ($sx + 40) ($cy - 118)) ) $ridge $ink 6 0.1
-}
-Blob $g @( (P 120 ($cy + 60)), (P 350 ($cy + 60)), (P 350 ($cy + 118)), (P 120 ($cy + 118)) ) (C 92 124 118 90) $null 0
-Finish $bmp $g $outW $outH "lev_body.png"
-
-# --- eye ----------------------------------------------------------------
-$outW = 48; $outH = 48
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$c = $outW * $SS / 2.0
-Disc $g (C 255 190 90 60)  $c $c 92
-Disc $g $ink               $c $c 76
-Disc $g (C 255 176 60)     $c $c 62
-Disc $g (C 255 226 150)    $c $c 40
-Blob $g @( (P ($c - 13) ($c - 54)), (P ($c + 13) ($c - 54)), (P ($c + 13) ($c + 54)), (P ($c - 13) ($c + 54)) ) (C 12 8 6) $null 0 0.1
-Disc $g (C 255 255 255 200) ($c - 22) ($c - 24) 13
-Finish $bmp $g $outW $outH "lev_eye.png"
+# The leviathan is drawn rather than stamped now - see BossArt - so its head,
+# body, eye, plate and organ have no textures at all. The side fin stays,
+# because the trench worm still bolts a pair of them onto itself.
 
 # --- side fin, root at the left edge ------------------------------------
 $outW = 104; $outH = 70
@@ -180,38 +104,6 @@ foreach ($t in @(0.25, 0.5, 0.75)) {
     $pen.Dispose()
 }
 Finish $bmp $g $outW $outH "lev_fin.png"
-
-# --- carapace plate -----------------------------------------------------
-$outW = 124; $outH = 80
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$cy = $outH * $SS / 2.0
-$plate = @( (P 40 ($cy - 78)), (P 456 ($cy - 62)), (P 476 $cy), (P 456 ($cy + 62)), (P 40 ($cy + 78)), (P 16 $cy) )
-GradBlob $g $plate (C 96 122 118) (C 40 62 62) ($cy - 90) ($cy + 90) $ink 9
-foreach ($rx in @(140, 230, 320)) {
-    $pen = New-Object System.Drawing.Pen -ArgumentList (C 26 44 44), 10.0
-    $g.DrawLine($pen, $rx, ($cy - 62), $rx, ($cy + 62))
-    $pen.Dispose()
-}
-Finish $bmp $g $outW $outH "lev_plate.png"
-
-# --- exposed organ ------------------------------------------------------
-$outW = 78; $outH = 78
-$r = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $r[0]; $g = $r[1]
-$c = $outW * $SS / 2.0
-Disc $g (C 255 90 60 70)   $c $c 150
-Disc $g (C 190 40 46)      $c $c 116
-Disc $g (C 236 76 62)      $c $c 92
-# veins
-for ($i = 0; $i -lt 7; $i++) {
-    $a = 2 * [math]::PI * $i / 7.0
-    $pen = New-Object System.Drawing.Pen -ArgumentList (C 140 24 34), 9.0
-    $g.DrawLine($pen, ($c + [math]::Cos($a) * 34), ($c + [math]::Sin($a) * 34),
-                      ($c + [math]::Cos($a) * 104), ($c + [math]::Sin($a) * 104))
-    $pen.Dispose()
-}
-Disc $g (C 255 150 110)    $c $c 52
-Disc $g (C 255 232 200)    $c $c 24
-Finish $bmp $g $outW $outH "lev_organ.png"
 
 # =====================================================================
 #  MEDUSA  -  the bloom sovereign. A bell that pulses, with long tentacles.
