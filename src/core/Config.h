@@ -877,6 +877,13 @@ namespace config
 
     // Act three: the basin closes. Shots come inward off the rim, so backing
     // off stops being an answer.
+    // How long a bell that is not a drifter stays shut and then open. Shut is
+    // multiplied by aggression, so it comes round faster as the thing is hurt;
+    // open widens with the act, so the last third of the fight is the part
+    // where the player finally gets to land something.
+    inline constexpr float BossBellShut = 4.6f;
+    inline constexpr float BossBellOpen = 2.2f;
+
     inline constexpr float BossClosingInterval = 3.1f;
     inline constexpr float BossClosingRadius = 760.0f;
     inline constexpr int   BossClosingArms = 22;

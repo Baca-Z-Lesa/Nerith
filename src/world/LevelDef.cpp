@@ -94,14 +94,14 @@ LevelDef levelFor(int number)
             { EnemyType::Warden, std::min(4, deep) },
             { EnemyType::Weaver, std::min(6, 2 + beyond / 3) },
             { EnemyType::Lurker, std::min(9, wave) },
-            { EnemyType::Bloom, std::min(5, deep + 1) },
+            { EnemyType::Effigy, std::min(5, deep + 1) },
         } };
     }
     else if (beyond < 9)
     {
         def.script = { {
             { EnemyType::Revenant, std::min(5, deep) },
-            { EnemyType::Bloom, std::min(6, deep + 2) },
+            { EnemyType::Moth, std::min(6, deep + 1) },
             { EnemyType::Herald, std::min(3, 1 + beyond / 6) },
             { EnemyType::Lancer, std::min(8, wave) },
             { EnemyType::Warden, std::min(4, deep) },
@@ -110,9 +110,13 @@ LevelDef levelFor(int number)
     }
     else
     {
+        // Past here the water is whatever the bottom two depths were made of.
+        // Both of the deep answers are asked at once and neither of them lets
+        // the other work: the moths want the lamp out and the effigies want
+        // the sub still, and everything else in the mix kills you for both.
         def.script = { {
-            { EnemyType::Lancer, std::min(8, wave) },
-            { EnemyType::Bloom, std::min(5, deep - 1) },
+            { EnemyType::Moth, std::min(7, deep + 2) },
+            { EnemyType::Effigy, std::min(6, deep) },
             { EnemyType::Herald, std::min(4, 1 + beyond / 6) },
             { EnemyType::Warden, std::min(6, deep) },
             { EnemyType::Revenant, std::min(6, deep) },

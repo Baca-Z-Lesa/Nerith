@@ -878,6 +878,27 @@ void Boss::checkRage()
 //  Frame
 // ---------------------------------------------------------------------------
 
+void Boss::updateBellRhythm(float deltaTime)
+{
+    // Clenched, then open, on a clock of its own. Hurt, it has to hang open
+    // longer to recharge and it does it more often, so the window the player
+    // is fighting for widens exactly as the fight goes on.
+    m_rhythmTimer -= deltaTime;
+
+    if (m_rhythmTimer > 0.0f)
+    {
+        const float target = m_rhythmOpen ? 1.0f : 0.0f;
+        m_bellPulse += std::clamp(target - m_bellPulse, -deltaTime * 2.0f, deltaTime * 3.0f);
+        return;
+    }
+
+    m_rhythmOpen = !m_rhythmOpen;
+
+    m_rhythmTimer = m_rhythmOpen
+                        ? config::BossBellOpen * (1.0f + 0.5f * static_cast<float>(m_act))
+                        : config::BossBellShut * aggression();
+}
+
 void Boss::update(float deltaTime, sf::Vector2f playerPosition)
 {
     m_time += deltaTime;
@@ -894,6 +915,15 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
         case BossMind::Burrower: thinkBurrower(deltaTime, playerPosition); break;
         case BossMind::Spiral:   thinkSpiral(deltaTime, playerPosition); break;
     }
+
+    // A bell is sealed except while it is open, and until there were bells
+    // that were not drifters, the only thing that ever opened one was the
+    // drifter's own ring burst. A bell that never opens is a boss that cannot
+    // be killed, so the window belongs to the body rather than to one mind.
+    // The drifter still runs its own, because its window is the recoil of the
+    // burst and that is the whole shape of that fight.
+    if (m_def->body == BossBody::Bell && m_def->mind != BossMind::Drifter)
+        updateBellRhythm(deltaTime);
 
     // After the mind, not before: a special can override the phase the mind
     // just chose, and it has to be the one that wins.

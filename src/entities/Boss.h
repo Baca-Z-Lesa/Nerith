@@ -119,6 +119,10 @@ public:
     bool  isTellLunge() const { return m_tellLunge; } // a charge, rather than a volley
     void confine(sf::Vector2f center, float maxDistance);
 
+    // A bell whose mind does not open it opens itself, because a sealed bell
+    // is a creature nothing can reach the inside of.
+    void updateBellRhythm(float deltaTime);
+
     // True when any part of the body is close enough to maul the player.
     bool touches(sf::Vector2f position, float radius) const;
 
@@ -258,6 +262,7 @@ private:
     float m_summonTimer;
     float m_closeTimer;   // the last act's inward volley
     bool  m_rhythmOpen;   // Bell body: the nucleus is showing
+    float m_rhythmTimer = 0.0f; // a bell that is not a drifter runs its own
     bool  m_enraged;
     bool  m_hasEntered;
     bool  m_dead;
