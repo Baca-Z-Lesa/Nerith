@@ -1057,6 +1057,7 @@ void Game::beginLevel(int number)
     m_hitRings.clear();
     placeVents();
     placeNests();
+    placeFinds();
     placeCargo();
 
     // And whatever came down with you. A boss hall is the one place it does
@@ -2445,6 +2446,136 @@ void Game::updateDrones(float deltaTime)
         m_playerShots.emplace_back(m_assets.waterJet, position, facing,
                                    config::WaterJet, bite, 0);
     }
+}
+
+void Game::placeFinds()
+{
+    m_finds.clear();
+    m_hold.fill(0);
+
+    const int depth = m_level.getDepth();
+    const int wanted = config::FindsBase + config::FindsPerDepth * (depth - 1);
+
+    for (int i = 0; i < wanted; ++i)
+    {
+        // Which kind, by weight, out of everything this deep. Rolled per piece
+        // rather than per basin: a floor where every single thing is scrap is
+        // a floor nobody searches twice.
+        float total = 0.0f;
+        for (std::size_t k = 0; k < config::SalvageKinds; ++k)
+        {
+            if (config::SalvageTable[k].fromDepth <= depth)
+                total += config::SalvageTable[k].share;
+        }
+
+        float roll = rng::range(0.0f, total);
+        std::size_t picked = 0;
+
+        for (std::size_t k = 0; k < config::SalvageKinds; ++k)
+        {
+            if (config::SalvageTable[k].fromDepth > depth)
+                continue;
+
+            roll -= config::SalvageTable[k].share;
+            if (roll <= 0.0f)
+            {
+                picked = k;
+                break;
+            }
+        }
+
+        // Anywhere the sub can actually get to, and not on top of the mouth:
+        // salvage you can reach without leaving the first room is salvage that
+        // is not worth anything to the fight.
+        sf::Vector2f at = m_arena.randomPointInside();
+        for (int attempt = 0; attempt < 12; ++attempt)
+        {
+            if ((at - m_arena.getStart()).lengthSquared() > 420.0f * 420.0f)
+                break;
+
+            at = m_arena.randomPointInside();
+        }
+
+        m_finds.push_back({ at, picked, rng::range(0.0f, 6.28f), false });
+    }
+}
+
+void Game::updateFinds()
+{
+    if (m_finds.empty() || !m_player.isAlive())
+        return;
+
+    const sf::Vector2f me = m_player.getPosition();
+
+    for (Find& find : m_finds)
+    {
+        if (find.taken)
+            continue;
+
+        if ((find.position - me).lengthSquared()
+            > config::FindPickupRange * config::FindPickupRange)
+        {
+            continue;
+        }
+
+        find.taken = true;
+        ++m_hold[find.kind];
+
+        const config::SalvageDef& def = config::SalvageTable[find.kind];
+
+        // Straight into the hold, which is the thing that is only yours once
+        // the sub is back on the surface.
+        awardSalvage(def.value);
+
+        addHitRing(find.position, config::FindPickupRange * 1.4f, def.colour);
+        m_audio.play(Sfx::Hatch, 1.25f);
+        effects::impact(m_effects, find.position, { 0.0f, -1.0f });
+    }
+}
+
+void Game::drawFinds()
+{
+    if (m_finds.empty())
+        return;
+
+    sf::VertexArray mesh(sf::PrimitiveType::Triangles);
+
+    for (const Find& find : m_finds)
+    {
+        if (find.taken)
+            continue;
+
+        const config::SalvageDef& def = config::SalvageTable[find.kind];
+
+        // Lit by its own worth: the better it is the further the glow carries,
+        // which in water this dark is the only way anybody finds any of it.
+        const float lift = std::sin(m_stateTimer * 1.7f + find.bob) * config::FindBob;
+        const sf::Vector2f at = find.position + sf::Vector2f{ 0.0f, lift };
+        const float size = config::FindRadius
+                           * (0.8f + 0.4f * static_cast<float>(def.value) / 370.0f);
+
+        const auto ring = [&](float radius, sf::Color colour) {
+            constexpr int Steps = 12;
+            for (int i = 0; i < Steps; ++i)
+            {
+                const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / Steps);
+                const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / Steps);
+
+                mesh.append(sf::Vertex{ at, colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a0), colour });
+                mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a1), colour });
+            }
+        };
+
+        sf::Color halo = def.colour;
+        halo.a = 44;
+
+        ring(size * 2.4f, halo);
+        ring(size, def.colour);
+        ring(size * 0.42f, sf::Color(255, 255, 255, 190));
+    }
+
+    m_window.draw(mesh);
 }
 
 void Game::placeNests()
@@ -5531,6 +5662,7 @@ void Game::step(float deltaTime)
                 updateVents(deltaTime);
                 updateNests(deltaTime);
                 updateCargo(deltaTime);
+                updateFinds();
 
                 if (m_modeTimer > 0.0f)
                     m_modeTimer -= deltaTime;
@@ -5858,6 +5990,12 @@ void Game::render(float alpha)
     // dimmed, it is painted out - which is the only reason running with the
     // lamp off costs anything.
     m_arena.drawDark(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
+
+    // And then the salvage, over the dark rather than under it. Dead metal does
+    // not glow, but a floor you cannot see is a floor with nothing findable on
+    // it: the pinprick in the black is the only reason to swim into a room the
+    // lamp has not reached.
+    drawFinds();
 
     // Everything from here is pinned to the screen: the darkness closing in is
     // a vignette around the viewer, not a ring painted on the seabed.

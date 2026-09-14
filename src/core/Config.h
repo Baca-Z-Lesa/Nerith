@@ -1055,6 +1055,45 @@ namespace config
     inline constexpr const char* BossHidePath = "assets/textures/boss_hide.png";
     inline constexpr float BossHideTile = 74.0f;
 
+    // =====================================================================
+    //  SALVAGE
+    //  What is actually down there and what it is worth on the deck. Killing
+    //  things pays, but killing things has never been why anybody goes into a
+    //  trench: they go in because there is something in it, and they come out
+    //  when what they are carrying is worth more than the next room is.
+    //
+    //  Everything here is picked up by swimming over it, carried in the hold,
+    //  and lost in one piece if the sub does not come back up. Nothing is
+    //  yours until it is on the deck.
+    // =====================================================================
+    struct SalvageDef
+    {
+        const char* name;
+        sf::Color   colour;
+        int         value;
+        float       share;     // how often it is the one that turns up
+        int         fromDepth; // and how deep you have to be before it does
+    };
+
+    inline constexpr std::array<SalvageDef, 6> SalvageTable{ {
+        { "SCRAP",       { 132, 142, 148 },  14, 1.00f, 1 },
+        { "COPPER LINE", { 190, 128,  86 },  30, 0.72f, 1 },
+        { "CORE ROD",    { 126, 200, 184 },  62, 0.48f, 2 },
+        { "BLACK GLASS", { 118, 102, 168 }, 125, 0.30f, 3 },
+        { "GRAVID SAC",  { 216, 152, 162 }, 210, 0.18f, 4 },
+        { "NERITH ORE",  { 240, 178,  98 }, 370, 0.10f, 5 },
+    } };
+
+    inline constexpr std::size_t SalvageKinds = SalvageTable.size();
+
+    // How much of it a basin holds. More the deeper you are, because the whole
+    // reason to take the next lift down is that the next floor pays better.
+    inline constexpr int   FindsBase = 7;
+    inline constexpr int   FindsPerDepth = 3;
+    inline constexpr float FindRadius = 17.0f;
+    inline constexpr float FindPickupRange = 44.0f;
+    inline constexpr float FindBob = 1.6f;
+
     // --- Hauling ---
     // A pod is dropped at the far end of the basin and has to be dragged back
     // to the mouth. Carrying one costs speed and lights you up, and a landed

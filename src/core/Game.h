@@ -130,6 +130,16 @@ private:
         float        bob;
     };
 
+    // One piece of salvage lying in the water. It is not a pickup that walks
+    // into the hold: it is a thing in a room, and the room is dark.
+    struct Find
+    {
+        sf::Vector2f position;
+        std::size_t  kind = 0;
+        float        bob = 0.0f;
+        bool         taken = false;
+    };
+
     struct Nest
     {
         sf::Sprite   sprite;
@@ -262,6 +272,12 @@ private:
     void updateCargo(float deltaTime);
     void drawCargo();
     void dropCargo();
+
+    // What is lying about down here, how it gets into the hold, and what the
+    // hold is worth on the way up.
+    void placeFinds();
+    void updateFinds();
+    void drawFinds();
 
     void placeNests();
     void updateNests(float deltaTime);
@@ -544,6 +560,11 @@ private:
     std::vector<Vent>       m_vents;
     std::vector<Nest>       m_nests;
     std::vector<Cargo>      m_cargo;
+    std::vector<Find>       m_finds;
+
+    // What is in the hold, by kind. The value of it is m_diveSalvage, which is
+    // already the thing that only becomes yours on the surface.
+    std::array<int, config::SalvageKinds> m_hold{};
     std::vector<HitRing>    m_hitRings;
     // What last hurt the sub, kept so a death can say what killed it.
     Wound                   m_lastWound;
