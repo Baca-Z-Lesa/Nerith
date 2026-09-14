@@ -223,7 +223,9 @@ private:
     sf::Vector2f randomVisiblePoint() const;
 
     // --- campaign flow ---
-    void beginLevel(int number);
+    // fresh is a new dive off the deck; a level reached by riding the shaft
+    // down is not one, and does not get a repaired hull with it.
+    void beginLevel(int number, bool fresh = true);
     void onLevelComplete();
 
     // Decides what is still in the water when a level ends, and whether one
@@ -280,6 +282,13 @@ private:
     void placeFinds();
     void updateFinds();
     void drawFinds();
+
+    // The bell at the mouth and the shaft at the bottom. Sitting in either one
+    // long enough is how a dive ends or how it gets a floor deeper.
+    void placeLifts();
+    void updateLifts(float deltaTime);
+    void drawLifts();
+    void takeLift(bool down);
 
     // --- the surface ---
     // Where a dive starts and ends. The deck itself is a place to walk about
@@ -501,7 +510,10 @@ private:
 
     // Shows a chapter if it has never been seen, otherwise goes straight on.
     // The two cutscenes, each shown once ever and skippable from frame one.
-    void playFilm(Cinematic::Reel reel, State next);
+    // once is for the two long reels, which are story and are shown a single
+    // time ever; the short ones ride on every trip and say where they landed.
+    void playFilm(Cinematic::Reel reel, State next, bool once = true,
+                  const std::string& caption = {});
 
     void openMenu();
     void activateMenuChoice();
@@ -594,6 +606,20 @@ private:
     // And what made it to the surface, waiting at the crane to be sold. Kept
     // apart from the hold so a dive cannot spend what it has not landed.
     std::array<int, config::SalvageKinds> m_landed{};
+
+    // Where the two ways out of a basin are, and how long the sub has been
+    // sitting in one of them.
+    sf::Vector2f m_liftAt;
+    sf::Vector2f m_shaftAt;
+    bool         m_shaftOpen = false;
+    bool         m_cleared = false;   // the objective is done, once
+    float        m_ride = 0.0f;
+    bool         m_rideDown = false;
+
+    // A dive starts inside the bell. Until the sub has been out of it once,
+    // sitting in it does nothing at all - otherwise every dive would end one
+    // second after it began, which is a short game.
+    bool         m_liftArmed = false;
     std::vector<HitRing>    m_hitRings;
     // What last hurt the sub, kept so a death can say what killed it.
     Wound                   m_lastWound;

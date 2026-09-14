@@ -1009,7 +1009,7 @@ int Game::getDepth() const
     return m_level.getDepth();
 }
 
-void Game::beginLevel(int number)
+void Game::beginLevel(int number, bool fresh)
 {
     m_level.start(number);
 
@@ -1066,6 +1066,7 @@ void Game::beginLevel(int number)
     placeVents();
     placeNests();
     placeFinds();
+    placeLifts();
     placeCargo();
 
     // And whatever came down with you. A boss hall is the one place it does
@@ -1074,10 +1075,16 @@ void Game::beginLevel(int number)
     if (m_save.stalkerAlive && !m_level.isBoss())
         spawnStalker();
 
-    // Every dive starts in a whole sub. What a beating costs lasts the dive
-    // and not a minute longer: the pressure is meant to be inside a level.
-    m_player.repairHull();
-    m_hullLost = 0;
+    // Every dive starts in a whole sub - a dive, not a level. Riding the shaft
+    // down is the same dive going further, so it arrives in whatever state the
+    // last floor left it in, and that is the price of greed: the hull you have
+    // when you decide to go one deeper is the hull you are going to have.
+    if (fresh)
+    {
+        m_player.repairHull();
+        m_hullLost = 0;
+    }
+
     m_haveWound = false;
 
     m_volleys.clear();
@@ -1106,7 +1113,7 @@ void Game::beginLevel(int number)
     m_player.onLevelStart();
 
     // The refit crew works between dives, not during one.
-    if (m_playerStats.has(Trait::Refit))
+    if (fresh && m_playerStats.has(Trait::Refit))
         m_player.heal(m_playerStats.getInt(Stat::RepairPerLevel, 0));
 
     // A bought lamp is worth the same at every depth, so it is applied on top
@@ -1197,13 +1204,15 @@ void Game::followedDown()
 
 void Game::onLevelComplete()
 {
-    followedDown();
-
-    for (const Enemy& enemy : m_enemies)
-        effects::enemyDeath(m_effects, enemy.getPosition());
-
-    m_enemies.clear();
-    m_enemyShots.clear();
+    // The work of this floor is done. That used to end the dive; it does not
+    // any more. The water is still the water, whatever is left in it is still
+    // in it, and all that has changed is that the shaft down has unlocked and
+    // the bell at the mouth has stopped being the only thing you can do.
+    //
+    // That is the whole rework in one place: nobody decides when a dive is
+    // over except the player, and they decide it while carrying something.
+    m_cleared = true;
+    m_shaftOpen = true;
 
     // The bonus is for opening water, so a repeat pays nothing for the clear
     // itself and only a fraction for what was in it.
@@ -1213,9 +1222,8 @@ void Game::onLevelComplete()
                          + config::FirstClearPerLevel * m_level.getNumber();
     }
 
-    bankSalvage();
-
     m_audio.play(Sfx::LevelClear);
+    addFlash(config::HudSalvageColor, 0.35f);
 
     if (m_level.getNumber() >= authoredLevelCount() && !m_save.campaignBeaten)
     {
@@ -1226,12 +1234,26 @@ void Game::onLevelComplete()
     // Clearing a level is the only thing that opens the next one. Beating it
     // again later is always allowed, which is what makes grinding possible.
     m_save.unlockedLevel = std::max(m_save.unlockedLevel, m_level.getNumber() + 1);
-    m_save.selectedLevel = m_save.unlockedLevel;
-
-    m_state = State::LevelClear;
-    m_stateTimer = config::LevelClearDuration;
 
     persist();
+
+    // The one exception. Finishing the last authored level is the end of the
+    // story rather than the end of a floor, so that one does still stop the
+    // dive where it stands.
+    if (m_justBeatCampaign)
+    {
+        for (const Enemy& enemy : m_enemies)
+            effects::enemyDeath(m_effects, enemy.getPosition());
+
+        m_enemies.clear();
+        m_enemyShots.clear();
+
+        followedDown();
+        bankSalvage();
+
+        m_state = State::LevelClear;
+        m_stateTimer = config::LevelClearDuration;
+    }
 }
 
 void Game::advanceLevel()
@@ -1532,8 +1554,18 @@ void Game::drawDeck()
 //  Upgrades
 // ---------------------------------------------------------------------------
 
-void Game::playFilm(Cinematic::Reel reel, State next)
+void Game::playFilm(Cinematic::Reel reel, State next, bool once, const std::string& caption)
 {
+    if (!once)
+    {
+        // The short reels. Two seconds each, every time, because the ride is
+        // part of the game rather than a thing that happened to the story.
+        m_film.begin(reel, caption);
+        m_afterFilm = next;
+        m_state = State::Film;
+        return;
+    }
+
     // Once each, ever. A player who has watched the descent does not want to
     // watch it again every time they reload, and one who wants it again can
     // start a new run.
@@ -1864,6 +1896,18 @@ void Game::processEvents()
             // to be trapped in a menu.
             const sf::Keyboard::Scancode pressed = keyPressed->scancode;
 
+            // The deck has exactly one key, and it is checked before the
+            // bindings: cycling the gun is bound to E out of the box, and a
+            // dive binding must not eat the only button on the surface.
+            if (m_state == State::Deck
+                && (pressed == sf::Keyboard::Scancode::E
+                    || pressed == sf::Keyboard::Scancode::Enter
+                    || pressed == sf::Keyboard::Scancode::Space))
+            {
+                useStation();
+                continue;
+            }
+
             if (pressed == keyFor(Action::Pause) || pressed == sf::Keyboard::Scancode::Escape
                 || pressed == sf::Keyboard::Scancode::P)
             {
@@ -1890,12 +1934,19 @@ void Game::processEvents()
 
             if (pressed == keyFor(Action::Surface))
             {
-                // Surfacing on purpose. It is the only way to keep what a dive
-                // has earned without finishing it, which is what turns a bad
-                // run into a decision instead of a write-off.
+                // Blowing the tanks. The bell at the mouth is the way up that
+                // keeps what you are carrying; this is the way up from
+                // anywhere, and everything in the hold is the price of it.
+                //
+                // It exists so a dive can always be abandoned - a sub pinned
+                // in the far end of a basin with two plates of hull left has
+                // to have an out - and it costs exactly the thing that made
+                // going out there worth it.
                 if (m_paused)
                 {
+                    m_hold.fill(0);
                     bankSalvage();
+                    followedDown();
                     m_save.selectedLevel = m_level.getNumber();
                     openDeck();
                 }
@@ -2011,16 +2062,6 @@ void Game::processEvents()
                         m_state = State::Deck;
                         updateDeckSigns();
                     }
-                    else if (m_state == State::Deck)
-                        useStation();
-                    break;
-
-                case sf::Keyboard::Scancode::E:
-                    // The one key the deck has. It is read raw rather than
-                    // through a binding because nothing down in the water uses
-                    // it for this, and "press E" is what a prompt says.
-                    if (m_state == State::Deck)
-                        useStation();
                     break;
 
                 case sf::Keyboard::Scancode::M:
@@ -2693,6 +2734,96 @@ void Game::updateDrones(float deltaTime)
     }
 }
 
+void Game::placeLifts()
+{
+    // The bell is left where it put you down. It is the one fixed point in a
+    // basin that is different every dive, which is exactly what a way out has
+    // to be.
+    m_liftAt = m_arena.getStart();
+    m_shaftOpen = false;
+    m_cleared = false;
+    m_ride = 0.0f;
+    m_rideDown = false;
+    m_liftArmed = false;
+
+    // And the way down is a long way from it, so that "one floor deeper" is
+    // never a decision made in the room you arrived in.
+    m_shaftAt = m_arena.randomPointInside();
+
+    for (int attempt = 0; attempt < 24; ++attempt)
+    {
+        if ((m_shaftAt - m_liftAt).length() > config::ShaftFromMouth)
+            break;
+
+        m_shaftAt = m_arena.randomPointInside();
+    }
+}
+
+void Game::updateLifts(float deltaTime)
+{
+    if (!m_player.isAlive())
+        return;
+
+    const sf::Vector2f me = m_player.getPosition();
+    const bool inBell = (me - m_liftAt).lengthSquared()
+                        < config::LiftRadius * config::LiftRadius;
+    const bool inShaft = m_shaftOpen
+                         && (me - m_shaftAt).lengthSquared()
+                                < config::LiftRadius * config::LiftRadius;
+
+    if (!inBell && !inShaft)
+    {
+        // Out of both. That is what arms them: the sub is lowered in the bell,
+        // and a bell that took you straight back up would be a dive that ended
+        // a second after it started.
+        m_liftArmed = true;
+
+        // Backing out of one cancels it quickly but not instantly, so clipping
+        // the edge of the bell while running away does not cost the dive.
+        m_ride = std::max(0.0f, m_ride - deltaTime * config::LiftForget);
+        return;
+    }
+
+    if (!m_liftArmed)
+        return;
+
+    m_rideDown = inShaft;
+    m_ride += deltaTime;
+
+    if (m_ride < config::LiftHold)
+        return;
+
+    m_ride = 0.0f;
+    takeLift(m_rideDown);
+}
+
+void Game::takeLift(bool down)
+{
+    if (down)
+    {
+        // One floor further from air, with everything still in the hold and
+        // every dent still in the hull.
+        const int next = m_level.getNumber() + 1;
+
+        m_save.selectedLevel = next;
+        followedDown();
+        beginLevel(next, false);
+        persist();
+
+        playFilm(Cinematic::Reel::Down, State::LevelIntro, false,
+                 "LEVEL " + std::to_string(next) + ",  DEPTH " + std::to_string(depthOf(next)));
+        return;
+    }
+
+    // Up. Surfacing is the only thing that makes a hold yours, and walking
+    // away from water you have not finished is allowed to be the right call.
+    followedDown();
+    bankSalvage();
+    m_save.selectedLevel = m_level.getNumber();
+
+    playFilm(Cinematic::Reel::Up, State::Deck, false, "SURFACING");
+}
+
 void Game::placeFinds()
 {
     // The hold is not touched here: it belongs to the dive rather than to the
@@ -2795,7 +2926,7 @@ void Game::drawFinds()
 
         // Lit by its own worth: the better it is the further the glow carries,
         // which in water this dark is the only way anybody finds any of it.
-        const float lift = std::sin(m_stateTimer * 1.7f + find.bob) * config::FindBob;
+        const float lift = std::sin(m_presentTime * 1.7f + find.bob) * config::FindBob;
         const sf::Vector2f at = find.position + sf::Vector2f{ 0.0f, lift };
         const float size = config::FindRadius
                            * (0.8f + 0.4f * static_cast<float>(def.value) / 370.0f);
@@ -2819,6 +2950,149 @@ void Game::drawFinds()
         ring(size * 2.4f, halo);
         ring(size, def.colour);
         ring(size * 0.42f, sf::Color(255, 255, 255, 190));
+    }
+
+    m_window.draw(mesh);
+}
+
+void Game::drawLifts()
+{
+    sf::VertexArray mesh(sf::PrimitiveType::Triangles);
+
+    const auto ring = [&mesh](sf::Vector2f at, float inner, float outer, sf::Color colour,
+                              int steps = 26) {
+        for (int i = 0; i < steps; ++i)
+        {
+            const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / steps);
+            const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / steps);
+
+            mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a0), colour });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a0), colour });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a1), colour });
+
+            mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a0), colour });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a1), colour });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a1), colour });
+        }
+    };
+
+    const auto disc = [&mesh](sf::Vector2f at, float radius, sf::Color colour, int steps = 22) {
+        for (int i = 0; i < steps; ++i)
+        {
+            const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / steps);
+            const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / steps);
+
+            mesh.append(sf::Vertex{ at, colour });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a0), colour });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a1), colour });
+        }
+    };
+
+    const float beat = m_presentTime * 2.2f;
+
+    // --- the bell, at the mouth --------------------------------------------
+    // Drawn over the dark rather than under it. It has its own lamps on it and
+    // it is the way home: a way home you cannot find is not one.
+    // The middle of it is left nearly clear: the sub parks in there, and a
+    // solid lid over it would hide the thing the player is driving.
+    disc(m_liftAt, config::LiftRadius, sf::Color(14, 26, 32, 70));
+    ring(m_liftAt, config::LiftRadius * 0.74f, config::LiftRadius * 0.88f,
+         sf::Color(14, 26, 32, 190));
+    ring(m_liftAt, config::LiftRadius * 0.86f, config::LiftRadius, sf::Color(104, 116, 122));
+
+    for (int i = 0; i < 6; ++i)
+    {
+        const sf::Angle spoke = sf::degrees(60.0f * static_cast<float>(i));
+        const sf::Vector2f at = m_liftAt + sf::Vector2f(config::LiftRadius * 0.66f, spoke);
+        disc(at, 7.0f, sf::Color(96, 108, 114), 8);
+    }
+
+    const float lamp = 0.55f + 0.45f * std::sin(beat);
+    ring(m_liftAt, config::LiftRadius * 0.40f, config::LiftRadius * 0.46f,
+         sf::Color(140, 216, 224, static_cast<std::uint8_t>(90.0f + 60.0f * lamp)));
+
+    // --- the shaft down ----------------------------------------------------
+    if (m_shaftOpen)
+    {
+        // A hole with nothing in it and a light coming up out of it.
+        disc(m_shaftAt, config::LiftRadius, sf::Color(4, 8, 10, 235));
+        ring(m_shaftAt, config::LiftRadius * 0.88f, config::LiftRadius,
+             sf::Color(122, 104, 60));
+
+        const float pulse = 0.5f + 0.5f * std::sin(beat * 0.8f);
+        ring(m_shaftAt, config::LiftRadius * (0.22f + 0.5f * pulse),
+             config::LiftRadius * (0.28f + 0.5f * pulse),
+             sf::Color(232, 176, 92, static_cast<std::uint8_t>(150.0f * (1.0f - pulse))));
+    }
+    else
+    {
+        // Shut: a grate over it, and a red lamp saying why.
+        disc(m_shaftAt, config::LiftRadius * 0.92f, sf::Color(20, 22, 24, 190));
+        ring(m_shaftAt, config::LiftRadius * 0.86f, config::LiftRadius,
+             sf::Color(78, 70, 66));
+
+        for (int i = -2; i <= 2; ++i)
+        {
+            const float offset = static_cast<float>(i) * 18.0f;
+            const sf::Vector2f along{ 0.0f, 1.0f };
+            const sf::Vector2f side{ 1.0f, 0.0f };
+            const float half = std::sqrt(std::max(
+                0.0f, config::LiftRadius * config::LiftRadius * 0.74f - offset * offset));
+
+            const sf::Vector2f a = m_shaftAt + side * offset - along * half;
+            const sf::Vector2f b = m_shaftAt + side * offset + along * half;
+            const sf::Color bar(64, 58, 54);
+
+            mesh.append(sf::Vertex{ a - side * 3.0f, bar });
+            mesh.append(sf::Vertex{ b - side * 3.0f, bar });
+            mesh.append(sf::Vertex{ b + side * 3.0f, bar });
+            mesh.append(sf::Vertex{ a - side * 3.0f, bar });
+            mesh.append(sf::Vertex{ b + side * 3.0f, bar });
+            mesh.append(sf::Vertex{ a + side * 3.0f, bar });
+        }
+
+        disc(m_shaftAt, 9.0f,
+             sf::Color(212, 78, 70, static_cast<std::uint8_t>(90.0f + 70.0f * lamp)), 12);
+    }
+
+    // The beacon each one carries, which is what makes it findable from across
+    // a basin you cannot see across.
+    const sf::Vector2f marks[] = { m_liftAt, m_shaftAt };
+    const sf::Color tint[] = { sf::Color(120, 206, 216), sf::Color(232, 176, 92) };
+
+    for (int i = 0; i < 2; ++i)
+    {
+        if (i == 1 && !m_shaftOpen)
+            continue;
+
+        sf::Color halo = tint[i];
+        halo.a = static_cast<std::uint8_t>(30.0f + 26.0f * lamp);
+        disc(marks[i], config::LiftBeacon * 2.6f, halo, 16);
+    }
+
+    // And how far through the ride the sub is, as a ring closing round it.
+    if (m_ride > 0.0f)
+    {
+        const float part = std::clamp(m_ride / config::LiftHold, 0.0f, 1.0f);
+        const sf::Vector2f at = m_rideDown ? m_shaftAt : m_liftAt;
+        const sf::Color ink = m_rideDown ? tint[1] : tint[0];
+        const int steps = std::max(1, static_cast<int>(part * 30.0f));
+
+        for (int i = 0; i < steps; ++i)
+        {
+            const sf::Angle a0 = sf::degrees(-90.0f + 12.0f * static_cast<float>(i));
+            const sf::Angle a1 = sf::degrees(-90.0f + 12.0f * static_cast<float>(i + 1));
+            const float inner = config::LiftRadius * 1.12f;
+            const float outer = config::LiftRadius * 1.22f;
+
+            mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a0), ink });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a0), ink });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a1), ink });
+
+            mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a0), ink });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(outer, a1), ink });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(inner, a1), ink });
+        }
     }
 
     m_window.draw(mesh);
@@ -4907,18 +5181,33 @@ void Game::drawMinimap()
             pip(nest.position, 4.0f, config::HudSalvageColor);
     }
 
+    // The two ways out. These are on the map wherever you are, seen or not:
+    // everything else here is a thing you found, but a man deciding whether to
+    // push one more room needs to know how far the bell is from him, and the
+    // answer must not depend on whether he happened to look that way.
+    m_sonarMark.setRadius(6.0f);
+    m_sonarMark.setOrigin({ 6.0f, 6.0f });
+    m_sonarMark.setPosition(toMap(m_liftAt));
+    m_sonarMark.setOutlineColor(config::CargoHomeColor);
+    m_sonarMark.setOutlineThickness(2.0f);
+    m_window.draw(m_sonarMark);
+
+    if (m_shaftOpen)
+    {
+        m_sonarMark.setRadius(5.0f);
+        m_sonarMark.setOrigin({ 5.0f, 5.0f });
+        m_sonarMark.setPosition(toMap(m_shaftAt));
+        m_sonarMark.setOutlineColor(config::HudSalvageColor);
+        m_window.draw(m_sonarMark);
+    }
+
     // A haul is navigation, so the map has to carry it: where the pods still
     // are, and where home is. Without this the level is a search rather than a
     // decision about which way to run.
-    if (!m_cargo.empty())
+    for (const Cargo& pod : m_cargo)
     {
-        pip(m_arena.getStart(), 5.0f, config::CargoHomeColor);
-
-        for (const Cargo& pod : m_cargo)
-        {
-            if (!pod.delivered && !pod.carried)
-                pip(pod.position, 4.0f, config::CargoMarkColor);
-        }
+        if (!pod.delivered && !pod.carried)
+            pip(pod.position, 4.0f, config::CargoMarkColor);
     }
 
     if (m_boss && m_boss->isAlive())
@@ -5023,7 +5312,7 @@ void Game::drawPauseOverlay()
         { "M",       "MUTE", false },
         { "F",       "LAMP ON OR OFF", false },
         { "F11",     "FULLSCREEN", false },
-        { "Q",       "SURFACE WITH WHAT IS IN THE HOLD", true },
+        { "Q",       "BLOW THE TANKS - THE HOLD GOES WITH THEM", true },
     };
 
     const float scale = 1.8f;
@@ -5039,15 +5328,18 @@ void Game::drawPauseOverlay()
         y += 30.0f;
     }
 
-    // What surfacing is currently worth, so the choice on this screen is a
-    // number rather than a shrug.
-    if (m_diveSalvage > 0)
+    // What running for it would cost, so the choice on this screen is a number
+    // rather than a shrug. The bell at the mouth is the way up that keeps the
+    // hold; this key is the way up that does not.
+    const int carried = worthOf(m_hold);
+
+    if (carried > 0)
     {
-        const std::string hold = std::to_string(m_diveSalvage) + " IN THE HOLD";
+        const std::string hold = std::to_string(carried) + " IN THE HOLD, AND IT STAYS DOWN HERE";
         pixelfont::append(text, hold,
-                          { (config::WindowWidth - pixelfont::measure(hold, 2.0f)) / 2.0f,
+                          { (config::WindowWidth - pixelfont::measure(hold, 1.8f)) / 2.0f,
                             y + 26.0f },
-                          2.0f, config::HudBossColor);
+                          1.8f, config::HudBossColor);
     }
 
     m_window.draw(text);
@@ -5087,35 +5379,36 @@ void Game::drawControls()
 
     struct Row { const char* key; const char* what; };
     const Row rows[] = {
-        { "W A S D",      "DRIVE" },
+        { "W A S D",      "DRIVE, AND WALK THE DECK" },
         { "MOUSE",        "AIM. THE HULL TURNS TO FOLLOW IT" },
         { "LEFT MOUSE",   "WATER JET, HELD DOWN" },
         { "RIGHT MOUSE",  "TORPEDO, ONCE THE TUBE IS FITTED" },
         { "SHIFT",        "DASH, ONCE THE ENGINE TAKES IT" },
         { "F",            "KILL THE LAMP. RUN DARK." },
+        { "E",            "CYCLE THE GUNS - AND USE A STATION ON DECK" },
         { "TAB",          "THE UPGRADE TREE, MID DIVE" },
-        { "E",            "CYCLE THE FITTED GUNS" },
-        { "ARROWS",       "WALK THE ROOTS, IN THE TREE" },
+        { "SIT IN THE BELL", "RIDE UP WITH THE HOLD, WHENEVER YOU LIKE" },
+        { "SIT IN THE SHAFT", "ONE FLOOR DEEPER, ONCE THE WORK IS DONE" },
+        { "Q",            "BLOW THE TANKS. THE HOLD STAYS DOWN THERE." },
+        { "ARROWS",       "WALK THE ROOTS, OR PICK THE DIVE AT THE BELL" },
         { "SPACE",        "INSTALL WHAT THE ROOTS LANDED ON" },
-        { ",  .",         "PICK THE DIVE, IN THE HUB" },
         { "WHEEL  + -",   "ZOOM THE TREE" },
-        { "R",            "STRIP THE HULL BACK, IN THE HUB" },
+        { "R",            "STRIP THE HULL BACK, AT THE BENCH" },
         { "ESC  OR  P",   "HOLD AT DEPTH" },
-        { "M",            "MUTE" },
-        { "F11",          "FULLSCREEN" },
+        { "M   F11",      "MUTE, FULLSCREEN" },
     };
 
-    const float keyX = static_cast<float>(config::WindowWidth) / 2.0f - 300.0f;
-    const float whatX = keyX + 250.0f;
+    const float keyX = static_cast<float>(config::WindowWidth) / 2.0f - 330.0f;
+    const float whatX = keyX + 270.0f;
 
-    // Fifteen rows now, so the step is tightened to keep the last one on
+    // Seventeen rows now, so the step is tightened to keep the last one on
     // screen rather than letting it slide off the bottom.
-    float y = 158.0f;
+    float y = 150.0f;
     for (const Row& row : rows)
     {
-        appendRow(text, row.key, row.what, y, 1.8f, config::HudSalvageColor,
+        appendRow(text, row.key, row.what, y, 1.6f, config::HudSalvageColor,
                   config::HudTextColor, keyX, whatX);
-        y += 35.0f;
+        y += 31.0f;
     }
 
     m_window.draw(text);
@@ -5191,7 +5484,7 @@ namespace
         { "DASH",         Opt::Bind, Action::Dash },
         { "LAMP",         Opt::Bind, Action::Lamp },
         { "CYCLE GUN",    Opt::Bind, Action::FireMode },
-        { "SURFACE",      Opt::Bind, Action::Surface },
+        { "BLOW TANKS",   Opt::Bind, Action::Surface },
         { "PAUSE",        Opt::Bind, Action::Pause },
         { "UPGRADES",     Opt::Bind, Action::Upgrades },
 
@@ -5923,6 +6216,7 @@ void Game::step(float deltaTime)
                 updateNests(deltaTime);
                 updateCargo(deltaTime);
                 updateFinds();
+                updateLifts(deltaTime);
 
                 if (m_modeTimer > 0.0f)
                     m_modeTimer -= deltaTime;
@@ -5943,7 +6237,7 @@ void Game::step(float deltaTime)
 
                 if (!m_player.isAlive())
                     onPlayerDied();
-                else if (m_level.isComplete())
+                else if (m_level.isComplete() && !m_cleared)
                     onLevelComplete();
             }
             break;
@@ -5959,13 +6253,8 @@ void Game::step(float deltaTime)
                 // Clearing the last authored level is the end of the campaign,
                 // and it only lands once: everything past it is the trench
                 // building its own water.
-                if (m_justBeatCampaign)
-                {
-                    m_justBeatCampaign = false;
-                    playFilm(Cinematic::Reel::Surface, State::Victory);
-                }
-                else
-                    openDeck();
+                m_justBeatCampaign = false;
+                playFilm(Cinematic::Reel::Surface, State::Victory);
             }
             break;
 
@@ -6251,6 +6540,7 @@ void Game::render(float alpha)
     // it: the pinprick in the black is the only reason to swim into a room the
     // lamp has not reached.
     drawFinds();
+    drawLifts();
 
     // Everything from here is pinned to the screen: the darkness closing in is
     // a vignette around the viewer, not a ring painted on the seabed.
@@ -6333,7 +6623,8 @@ void Game::render(float alpha)
         info.depth = m_level.getDepth();
         info.levelInDepth = m_level.getLevelInDepth();
         info.number = m_level.getNumber();
-        info.objective = m_level.getObjectiveLabel();
+        info.objective = m_cleared ? "THE WAY DOWN IS OPEN"
+                                   : m_level.getObjectiveLabel();
         info.progress = m_level.getProgress();
         info.isBoss = m_level.isBoss();
         info.shieldCharges = m_player.getShieldCharges();
@@ -6346,7 +6637,10 @@ void Game::render(float alpha)
         // thing the player starts protecting.
         info.streak = m_streak >= config::StreakNotable ? m_streak : 0;
         info.streakLoud = m_streak >= config::StreakLoud;
-        info.held = m_diveSalvage;
+        // What the dive is worth if it gets home: the money it has earned and
+        // the rock it is carrying, which is the number the decision to push
+        // one more room is actually made against.
+        info.held = m_diveSalvage + worthOf(m_hold);
         info.broken = m_player.getBrokenMask();
         info.mode = modeCount() > 1 ? modeName(modeAt(m_fireSlot)) : nullptr;
         info.streakBonus = static_cast<int>(std::lround(

@@ -21,7 +21,7 @@ enum class Action
     Dash,
     Lamp,
     FireMode,
-    Surface,    // leave with what is in the hold
+    Surface,    // blow the tanks and run, leaving the hold behind
     Pause,
     Upgrades,
     Count
@@ -52,7 +52,7 @@ inline constexpr std::array<const char*, ActionCount> ActionNames{ {
     "DASH",
     "LAMP",
     "CYCLE GUN",
-    "SURFACE",
+    "BLOW TANKS",
     "PAUSE",
     "UPGRADES",
 } };

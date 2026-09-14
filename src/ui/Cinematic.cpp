@@ -66,11 +66,26 @@ Cinematic::Cinematic()
     m_fill.setFillColor(sf::Color::Black);
 }
 
-void Cinematic::begin(Reel reel)
+void Cinematic::begin(Reel reel, const std::string& caption)
 {
     m_shots.clear();
+    m_caption = caption;
 
-    if (reel == Reel::Descent)
+    if (reel == Reel::Down)
+    {
+        // Two seconds of rock going past. Anything longer than that between
+        // one floor and the next is a loading screen with ambitions.
+        m_shots = {
+            { Scene::Fall, 2.3f, nullptr },
+        };
+    }
+    else if (reel == Reel::Up)
+    {
+        m_shots = {
+            { Scene::Climb, 2.3f, nullptr },
+        };
+    }
+    else if (reel == Reel::Descent)
     {
         m_shots = {
             { Scene::Winch,   5.0f, "NERITH STATION STOPPED ANSWERING ELEVEN DAYS AGO." },
@@ -545,12 +560,12 @@ void Cinematic::draw(sf::RenderTarget& target)
     target.draw(m_fill);
 
     // The line, in the lower bar, fading at both ends of its shot.
-    if (current().line != nullptr)
+    if (current().line != nullptr || !m_caption.empty())
     {
         const float say = std::min(std::clamp(t * 5.0f, 0.0f, 1.0f),
                                    std::clamp((1.0f - t) * 5.0f, 0.0f, 1.0f));
 
-        const std::string line = current().line;
+        const std::string line = current().line != nullptr ? current().line : m_caption;
         const float width = pixelfont::measure(line, 1.7f);
 
         pixelfont::append(m_text, line, { (W - width) * 0.5f, H - Letterbox + 32.0f }, 1.7f,

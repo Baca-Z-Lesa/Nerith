@@ -32,11 +32,20 @@ public:
     {
         Descent, // before the first dive
         Surface, // after the thing at the bottom stops getting up
+
+        // The two short ones, played every single time rather than once ever:
+        // the ride down the shaft and the ride back up to the deck. They are a
+        // beat rather than a story, which is the only way a transition a
+        // player will see fifty times is allowed to be a cutscene at all.
+        Down,
+        Up,
     };
 
     Cinematic();
 
-    void begin(Reel reel);
+    // caption replaces the reel's own line when it is given, which is how the
+    // short reels say which floor they are arriving at.
+    void begin(Reel reel, const std::string& caption = {});
     void update(float deltaTime);
 
     // Any key, any time. There is no "hold to skip" and no unskippable first
@@ -69,6 +78,9 @@ private:
         float       seconds;
         const char* line; // null on a title card
     };
+
+    // Only the short reels use this: it stands in for the first shot's line.
+    std::string m_caption;
 
     const Shot& current() const;
     float shotTime() const; // 0..1 through the shot on screen

@@ -1133,6 +1133,22 @@ namespace config
     // the save is dead - so the first level goes on the slate.
     inline constexpr int DiveFreeBelow = 2;
 
+    // --- The way out, and the way further in ---
+    //
+    //  The bell you were lowered in stays in the mouth of the basin and will
+    //  take you up whenever you have had enough - that is the whole shape of a
+    //  dive now: nobody makes you finish a level, they make you decide whether
+    //  what is in the hold is worth the next room.
+    //
+    //  The shaft down is somewhere else in the water and stays shut until the
+    //  level's work is done. Riding it keeps the hold, keeps the damage, and
+    //  costs nothing but the fact that you are now one floor further from air.
+    inline constexpr float LiftRadius = 62.0f;
+    inline constexpr float LiftHold = 1.1f;       // seconds of sitting in it
+    inline constexpr float LiftForget = 2.6f;     // how fast leaving undoes that
+    inline constexpr float ShaftFromMouth = 1050.0f;
+    inline constexpr float LiftBeacon = 26.0f;    // the dot that says where it is
+
     // --- Hauling ---
     // A pod is dropped at the far end of the basin and has to be dragged back
     // to the mouth. Carrying one costs speed and lights you up, and a landed
