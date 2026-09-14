@@ -1504,10 +1504,22 @@ void Game::drawDeck()
     m_window.setView(m_ui);
     m_deck.draw(m_window);
 
-    sf::VertexArray text(sf::PrimitiveType::Triangles);
-
     // What is on the deck waiting to be sold, itemised. A total is a number; a
     // manifest is the reason the player went into the last room.
+    //
+    // On its own strip of dark, because the deck plate is grey and so is the
+    // dim text: a line of it laid straight on the floor cannot be read.
+    int lines = 0;
+    for (const int count : m_landed)
+        lines += count > 0 ? 1 : 0;
+
+    sf::RectangleShape panel({ 300.0f, 42.0f + 17.0f * static_cast<float>(std::max(1, lines)) });
+    panel.setPosition({ config::HudMargin - 10.0f, config::HudMargin - 8.0f });
+    panel.setFillColor(sf::Color(0, 0, 0, 150));
+    m_window.draw(panel);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+
     float y = config::HudMargin + 22.0f;
 
     pixelfont::append(text, "IN THE NETS", { config::HudMargin, config::HudMargin }, 1.6f,
