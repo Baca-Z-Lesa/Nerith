@@ -13,6 +13,7 @@
 #include "ui/Hud.h"
 #include "ui/MainMenu.h"
 #include "ui/Cinematic.h"
+#include "ui/Deck.h"
 #include "ui/UpgradeScreen.h"
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
@@ -50,6 +51,7 @@ private:
         Bestiary,   // the logbook: what has been met, and what it was
         Options,    // sound and difficulty
         Film,       // a cutscene: the way down, or the way back up
+        Deck,       // the surface: the crane, the bench and the bell
         LevelIntro, // title card, nothing spawns yet
         Fighting,
         LevelClear, // objective met, the water settles
@@ -278,6 +280,27 @@ private:
     void placeFinds();
     void updateFinds();
     void drawFinds();
+
+    // --- the surface ---
+    // Where a dive starts and ends. The deck itself is a place to walk about
+    // in; what a station does when it is used is all here.
+    void enterState(State next);
+    void openDeck();
+    void useStation();
+    void updateDeckSigns();
+    void drawDeck();
+
+    // Pieces to money. Handed a manifest rather than reading one, because the
+    // same sum is wanted for the hold, for the landed pile and for a banner
+    // telling the player what drowning just cost them.
+    static int worthOf(const std::array<int, config::SalvageKinds>& manifest);
+
+    // The hold survived: move it up the shaft and onto the deck.
+    void landHold();
+
+    // What the selected dive is asking for, and nothing when the shallows are
+    // being run on credit.
+    int diveCost() const;
 
     void placeNests();
     void updateNests(float deltaTime);
@@ -544,6 +567,7 @@ private:
     MainMenu      m_menu;
     Cinematic     m_film;
     UpgradeScreen m_upgradeScreen;
+    Deck          m_deck;
 
     std::vector<Projectile> m_playerShots;
     std::vector<Projectile> m_torpedoes;
@@ -562,9 +586,14 @@ private:
     std::vector<Cargo>      m_cargo;
     std::vector<Find>       m_finds;
 
-    // What is in the hold, by kind. The value of it is m_diveSalvage, which is
-    // already the thing that only becomes yours on the surface.
+    // What is in the hold, by kind. It is worth nothing until it is on the
+    // deck and nothing at all if the sub does not come back, which is the
+    // whole reason to turn round while you still can.
     std::array<int, config::SalvageKinds> m_hold{};
+
+    // And what made it to the surface, waiting at the crane to be sold. Kept
+    // apart from the hold so a dive cannot spend what it has not landed.
+    std::array<int, config::SalvageKinds> m_landed{};
     std::vector<HitRing>    m_hitRings;
     // What last hurt the sub, kept so a death can say what killed it.
     Wound                   m_lastWound;

@@ -71,6 +71,17 @@ $Materials = @{
     'nest.png'    = 'shell'
     'cargo.png'   = 'hardware'
 
+    # --- the surface ---
+    # The plate and the rail are tiling sheets and are listed further down
+    # instead: a relief pass lights the edges of whatever it is given, and the
+    # edges of a floor tile are the middle of the floor.
+    'deck_diver.png' = 'hardware'
+    'deck_boot.png'  = 'hardware'
+    'deck_crane.png' = 'metal'
+    'deck_bench.png' = 'metal'
+    'deck_bell.png'  = 'metal'
+    'deck_crate.png' = 'hardware'
+
     # --- projectiles and motes ---
     'shot_spitter.png'    = 'glow'
     'shot_bloom.png'      = 'glow'
@@ -96,7 +107,8 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_enemies.ps1', 'make_enemies2.ps1', 'make_bestiary.ps1',
                       'make_shots.ps1', 'make_nest.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
-                      'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1')) {
+                      'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1',
+                      'make_deck.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }
@@ -124,7 +136,7 @@ function Seed-For($name) {
 # A sheet is not a sprite. boss_hide is already a lit surface - it is what the
 # drawn bosses wear instead of going through this pass - so running the relief
 # over it would light a surface that is nothing but light.
-$Sheets = @('boss_hide.png')
+$Sheets = @('boss_hide.png', 'deck_plate.png', 'deck_rail.png')
 
 foreach ($file in (Get-ChildItem "$TexDir\*.png" | Sort-Object Name)) {
     $name = $file.Name

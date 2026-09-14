@@ -49,6 +49,12 @@ SaveGame SaveGame::load()
             stream >> data.unlockedLevel;
         else if (key == "salvage")
             stream >> data.salvage;
+        else if (key == "landed")
+        {
+            int count = 0;
+            while (stream >> count)
+                data.landed.push_back(std::max(0, count));
+        }
         else if (key == "best_level")
             stream >> data.bestLevel;
         else if (key == "best_depth")
@@ -167,6 +173,14 @@ void SaveGame::save() const
     file << "unlocked_level " << unlockedLevel << '\n';
     file << "level " << selectedLevel << '\n';
     file << "salvage " << salvage << '\n';
+
+    if (!landed.empty())
+    {
+        file << "landed";
+        for (const int count : landed)
+            file << ' ' << count;
+        file << '\n';
+    }
     file << "beaten " << (campaignBeaten ? 1 : 0) << '\n';
 
     if (!killed.empty())

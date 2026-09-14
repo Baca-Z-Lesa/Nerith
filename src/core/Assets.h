@@ -59,6 +59,10 @@ struct Assets
     // there and needs no line in here.
     const sf::Texture& boss(const char* path) const;
 
+    // The same cache under an honest name, for everything that is named by a
+    // path in a table and is not a boss: the deck, and whatever comes next.
+    const sf::Texture& byPath(const char* path) const { return boss(path); }
+
     // The shot this creature throws. Every kind that fires has its own, so the
     // water tells you what is shooting at you before you find what fired it.
     const sf::Texture& shotFor(EnemyType type) const;

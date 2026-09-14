@@ -1094,6 +1094,45 @@ namespace config
     inline constexpr float FindPickupRange = 44.0f;
     inline constexpr float FindBob = 1.6f;
 
+    // =====================================================================
+    //  THE SURFACE
+    //
+    //  A rig deck with three things on it, walked between by a man in a suit.
+    //  The layout lives here rather than in the class so a station can be
+    //  moved without arguing with the drawing code about it.
+    // =====================================================================
+    inline constexpr float DeckWalkSpeed = 215.0f;
+    inline constexpr float DeckAccel = 1700.0f;
+    inline constexpr float DeckDrag = 9.0f;
+    inline constexpr float DeckTurn = 720.0f;   // degrees a second
+    inline constexpr float DeckReach = 122.0f;  // how close counts as standing at one
+    inline constexpr float DeckStride = 0.052f; // radians of step per pixel walked
+
+    inline constexpr const char* DeckPlatePath = "assets/textures/deck_plate.png";
+    inline constexpr const char* DeckRailPath  = "assets/textures/deck_rail.png";
+    inline constexpr const char* DeckDiverPath = "assets/textures/deck_diver.png";
+    inline constexpr const char* DeckBootPath  = "assets/textures/deck_boot.png";
+    inline constexpr const char* DeckCranePath = "assets/textures/deck_crane.png";
+    inline constexpr const char* DeckBenchPath = "assets/textures/deck_bench.png";
+    inline constexpr const char* DeckBellPath  = "assets/textures/deck_bell.png";
+    inline constexpr const char* DeckCratePath = "assets/textures/deck_crate.png";
+
+    // What it costs to be put in the water. The bell, the gas, the men on the
+    // winch: none of it is free, and all of it is dearer the further down they
+    // have to lower you. This is the number that turns a dive into a bet.
+    inline constexpr int DiveCostBase = 30;
+    inline constexpr int DiveCostPerLevel = 13;
+
+    constexpr int diveCost(int level)
+    {
+        return DiveCostBase + DiveCostPerLevel * (level > 1 ? level - 1 : 0);
+    }
+
+    // The shallows are always affordable. A player who has spent everything and
+    // drowned with the hold still has to be able to get back in the water, or
+    // the save is dead - so the first level goes on the slate.
+    inline constexpr int DiveFreeBelow = 2;
+
     // --- Hauling ---
     // A pod is dropped at the far end of the basin and has to be dragged back
     // to the mouth. Carrying one costs speed and lights you up, and a landed

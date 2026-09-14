@@ -68,6 +68,7 @@ Game::Game()
     , m_arena(WorldCentre, config::ArenaRadius)
     , m_seabed(m_assets, WorldCentre, config::ArenaRadius)
     , m_player(m_assets, m_playerStats)
+    , m_deck(m_assets)
     , m_ambience(m_assets.particle)
     , m_effects(m_assets.particle)
     , m_state(State::Menu)
@@ -128,6 +129,13 @@ Game::Game()
     // Pick up where the last session stopped, if there was one.
     m_save = SaveGame::load();
     m_salvage = m_save.salvage;
+
+    // A save written before the crane existed simply has nothing under it.
+    for (std::size_t kind = 0; kind < config::SalvageKinds && kind < m_save.landed.size();
+         ++kind)
+    {
+        m_landed[kind] = m_save.landed[kind];
+    }
     m_tree.setUnlockedIds(m_save.unlocked);
     applyUpgrades();
     applySettings();
@@ -1237,6 +1245,7 @@ void Game::persist()
     // selectedLevel and unlockedLevel are owned by whoever changed them; this
     // only writes out the things that are always true.
     m_save.salvage = m_salvage;
+    m_save.landed.assign(m_landed.begin(), m_landed.end());
     m_save.unlocked = m_tree.getUnlockedIds();
     m_save.bestLevel = std::max(m_save.bestLevel, m_level.getNumber());
     m_save.bestDepth = std::max(m_save.bestDepth, m_level.getDepth());
@@ -1272,8 +1281,11 @@ void Game::onPlayerDied()
         m_save.killed[index] = std::max(1, m_save.killed[index]);
     }
 
-    m_lostSalvage = m_diveSalvage;
+    // Everything the dive was carrying goes down with it. The hold is the
+    // expensive half of that: a crate of ore is four rooms of work.
+    m_lostSalvage = m_diveSalvage + worthOf(m_hold);
     m_diveSalvage = 0;
+    m_hold.fill(0);
 
     m_save.selectedLevel = m_level.getNumber();
     persist();
@@ -1285,6 +1297,8 @@ void Game::startNewRun()
     // game is additive.
     m_tree.reset();
     m_salvage = 0;
+    m_landed.fill(0);
+    m_hold.fill(0);
 
     // Settings belong to the player rather than to the run, so scuttling the
     // sub does not also reset the volume and the difficulty.
@@ -1307,9 +1321,211 @@ void Game::diveIntoSelected()
 {
     const int level = std::clamp(m_save.selectedLevel, 1, m_save.unlockedLevel);
 
+    m_hold.fill(0);
     m_player.reset();
     beginLevel(level);
     persist();
+}
+
+// ---------------------------------------------------------------------------
+//  The surface
+//
+//  Between two dives the player is not driving a submarine, they are a man in
+//  a suit on a wet steel deck with three things on it. That is the whole
+//  reason it exists: a hub you walk about in asks "is this worth going back
+//  down for" in a way a menu with a DIVE button never does.
+// ---------------------------------------------------------------------------
+
+int Game::worthOf(const std::array<int, config::SalvageKinds>& manifest)
+{
+    int total = 0;
+
+    for (std::size_t kind = 0; kind < config::SalvageKinds; ++kind)
+        total += manifest[kind] * config::SalvageTable[kind].value;
+
+    return total;
+}
+
+void Game::landHold()
+{
+    for (std::size_t kind = 0; kind < config::SalvageKinds; ++kind)
+    {
+        m_landed[kind] += m_hold[kind];
+        m_hold[kind] = 0;
+    }
+}
+
+int Game::diveCost() const
+{
+    const int level = std::clamp(m_save.selectedLevel, 1, m_save.unlockedLevel);
+    const int asking = config::diveCost(level);
+
+    // The shallows go on the slate when there is nothing left to pay with.
+    // Without this a player who spends everything and then drowns with the
+    // hold owns a save that cannot be played, which is not difficulty.
+    if (level < config::DiveFreeBelow && m_salvage < asking)
+        return 0;
+
+    return asking;
+}
+
+void Game::enterState(State next)
+{
+    // The deck is the only state that has to be arrived at rather than simply
+    // switched to - a man has to be put back on it - so everything that hands
+    // control to a state goes through here instead of assigning m_state.
+    if (next == State::Deck)
+        openDeck();
+    else
+        m_state = next;
+}
+
+void Game::openDeck()
+{
+    m_state = State::Deck;
+    m_showUpgrades = false;
+    m_paused = false;
+    m_respecArmed = false;
+
+    m_deck.enter();
+    updateDeckSigns();
+    persist();
+}
+
+void Game::updateDeckSigns()
+{
+    int pieces = 0;
+    for (const int count : m_landed)
+        pieces += count;
+
+    const int worth = worthOf(m_landed);
+
+    m_deck.setNote(Deck::Post::Crane,
+                   pieces > 0 ? std::to_string(pieces) + " PIECES, " + std::to_string(worth)
+                                    + " SALVAGE"
+                              : "NOTHING LANDED");
+    m_deck.setOpen(Deck::Post::Crane, pieces > 0);
+
+    m_deck.setNote(Deck::Post::Bench, std::to_string(m_salvage) + " SALVAGE IN HAND");
+
+    const int level = std::clamp(m_save.selectedLevel, 1, m_save.unlockedLevel);
+    const int cost = diveCost();
+
+    std::string say = "LEVEL " + std::to_string(level) + ", DEPTH "
+                      + std::to_string(depthOf(level)) + " - ";
+
+    if (cost <= 0)
+        say += "ON THE SLATE";
+    else if (m_salvage >= cost)
+        say += std::to_string(cost) + " TO BE LOWERED";
+    else
+        say += "NEEDS " + std::to_string(cost) + ", YOU HAVE " + std::to_string(m_salvage);
+
+    if (m_save.unlockedLevel > 1)
+        say += "   [<>]";
+
+    m_deck.setNote(Deck::Post::Bell, say);
+    m_deck.setOpen(Deck::Post::Bell, m_salvage >= cost);
+}
+
+void Game::useStation()
+{
+    switch (m_deck.standingAt())
+    {
+        case Deck::Post::Crane:
+        {
+            const int paid = worthOf(m_landed);
+            if (paid <= 0)
+                break;
+
+            m_salvage += paid;
+            m_landed.fill(0);
+
+            m_audio.play(Sfx::LevelClear, 0.8f);
+            persist();
+            break;
+        }
+
+        case Deck::Post::Bench:
+            // The tree, unchanged. It is a board on the bench rather than the
+            // hub itself now, which is the only thing that moved.
+            m_state = State::Upgrading;
+            m_showUpgrades = false;
+            m_upgradeScreen.clearCursor();
+            m_upgradeScreen.recentre();
+            break;
+
+        case Deck::Post::Bell:
+        {
+            const int cost = diveCost();
+            if (m_salvage < cost)
+                break;
+
+            m_salvage -= cost;
+            m_audio.play(Sfx::Hatch);
+            diveIntoSelected();
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    updateDeckSigns();
+}
+
+void Game::drawDeck()
+{
+    m_window.setView(m_ui);
+    m_deck.draw(m_window);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+
+    // What is on the deck waiting to be sold, itemised. A total is a number; a
+    // manifest is the reason the player went into the last room.
+    float y = config::HudMargin + 22.0f;
+
+    pixelfont::append(text, "IN THE NETS", { config::HudMargin, config::HudMargin }, 1.6f,
+                      config::HudBossColor);
+
+    bool anything = false;
+
+    for (std::size_t kind = 0; kind < config::SalvageKinds; ++kind)
+    {
+        if (m_landed[kind] <= 0)
+            continue;
+
+        anything = true;
+
+        const config::SalvageDef& def = config::SalvageTable[kind];
+        const std::string line = std::to_string(m_landed[kind]) + "x " + def.name;
+
+        pixelfont::append(text, line, { config::HudMargin, y }, 1.2f, def.colour);
+        pixelfont::append(text, std::to_string(m_landed[kind] * def.value),
+                          { config::HudMargin + 190.0f, y }, 1.2f, config::HudDimTextColor);
+        y += 17.0f;
+    }
+
+    if (!anything)
+    {
+        pixelfont::append(text, "EMPTY", { config::HudMargin, y }, 1.2f,
+                          config::HudDimTextColor);
+    }
+
+    const std::string purse = std::to_string(m_salvage) + " SALVAGE";
+    pixelfont::append(text, purse,
+                      { config::WindowWidth - pixelfont::measure(purse, 1.8f)
+                            - config::HudMargin,
+                        config::HudMargin },
+                      1.8f, config::HudSalvageColor);
+
+    const std::string out = "WASD TO WALK.  ESCAPE FOR THE MENU.";
+    pixelfont::append(text, out,
+                      { config::WindowWidth - pixelfont::measure(out, 1.1f) - config::HudMargin,
+                        config::WindowHeight - config::HudMargin - 12.0f },
+                      1.1f, config::HudDimTextColor);
+
+    m_window.draw(text);
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,7 +1544,7 @@ void Game::playFilm(Cinematic::Reel reel, State next)
 
     if ((m_save.storySeen & bit) != 0)
     {
-        m_state = next;
+        enterState(next);
         return;
     }
 
@@ -1355,13 +1571,12 @@ void Game::activateMenuChoice()
     switch (m_menu.getSelected())
     {
         case MainMenu::Choice::Dive:
-            // Straight into the hub: the level and what to spend salvage on are
-            // the same decision, so they share a screen. The prologue only
-            // stands between them the very first time.
+            // Out onto the deck. The prologue only stands between the menu and
+            // it the very first time.
             m_showUpgrades = false;
             m_upgradeScreen.clearCursor();
             m_upgradeScreen.recentre();
-            playFilm(Cinematic::Reel::Descent, State::Upgrading);
+            playFilm(Cinematic::Reel::Descent, State::Deck);
             break;
 
         case MainMenu::Choice::Controls:
@@ -1471,9 +1686,9 @@ void Game::handleUpgradeClick()
 
 void Game::stepSelectedLevel(int delta)
 {
-    // The dive strip is the other half of the hub, and reaching for the mouse
-    // to change one number is the sort of thing that wears a hub out.
-    if (m_state != State::Upgrading)
+    // How deep they are asking to be dropped. It is set at the bell, where the
+    // price of it is written, and on the board, where what it will be like is.
+    if (m_state != State::Upgrading && m_state != State::Deck)
         return;
 
     const int wanted = std::clamp(m_save.selectedLevel + delta, 1, m_save.unlockedLevel);
@@ -1483,6 +1698,10 @@ void Game::stepSelectedLevel(int delta)
     m_save.selectedLevel = wanted;
     m_upgradeScreen.setLevels(m_save.selectedLevel, m_save.unlockedLevel);
     m_audio.play(Sfx::Impact, 0.25f);
+
+    if (m_state == State::Deck)
+        updateDeckSigns();
+
     persist();
 }
 
@@ -1655,6 +1874,14 @@ void Game::processEvents()
                     m_showUpgrades = false;
                 else if (m_state == State::Fighting || m_state == State::LevelIntro)
                     m_paused = !m_paused;
+                else if (m_state == State::Upgrading)
+                {
+                    // The board is a thing on the bench, so shutting it puts
+                    // you back on the deck in front of the bench rather than
+                    // out of the game entirely.
+                    m_state = State::Deck;
+                    updateDeckSigns();
+                }
                 else
                     openMenu();
 
@@ -1669,13 +1896,8 @@ void Game::processEvents()
                 if (m_paused)
                 {
                     bankSalvage();
-                    m_paused = false;
-                    m_state = State::Upgrading;
-                    m_showUpgrades = false;
-                    m_upgradeScreen.clearCursor();
-                    m_upgradeScreen.recentre();
                     m_save.selectedLevel = m_level.getNumber();
-                    persist();
+                    openDeck();
                 }
 
                 continue;
@@ -1744,11 +1966,15 @@ void Game::processEvents()
                 case sf::Keyboard::Scancode::Left:
                     if (upgradesVisible())
                         m_upgradeScreen.moveFocus({ -1.0f, 0.0f }, m_tree);
+                    else if (m_state == State::Deck)
+                        stepSelectedLevel(-1);
                     break;
 
                 case sf::Keyboard::Scancode::Right:
                     if (upgradesVisible())
                         m_upgradeScreen.moveFocus({ 1.0f, 0.0f }, m_tree);
+                    else if (m_state == State::Deck)
+                        stepSelectedLevel(1);
                     break;
 
                 case sf::Keyboard::Scancode::Up:
@@ -1781,7 +2007,20 @@ void Game::processEvents()
 
                 case sf::Keyboard::Scancode::Enter:
                     if (m_state == State::Upgrading)
-                        diveIntoSelected();
+                    {
+                        m_state = State::Deck;
+                        updateDeckSigns();
+                    }
+                    else if (m_state == State::Deck)
+                        useStation();
+                    break;
+
+                case sf::Keyboard::Scancode::E:
+                    // The one key the deck has. It is read raw rather than
+                    // through a binding because nothing down in the water uses
+                    // it for this, and "press E" is what a prompt says.
+                    if (m_state == State::Deck)
+                        useStation();
                     break;
 
                 case sf::Keyboard::Scancode::M:
@@ -2302,6 +2541,12 @@ void Game::bankSalvage()
 {
     // Surfacing is what makes it yours. Called when a level closes and when
     // the player walks out of one on purpose, and never when they drown.
+    //
+    // Two things come up the shaft: the money the dive earned, which is simply
+    // banked, and the hold, which is crates of rock that have to be carried to
+    // the crane and sold before they are worth anything at all.
+    landHold();
+
     if (m_diveSalvage <= 0)
         return;
 
@@ -2450,8 +2695,9 @@ void Game::updateDrones(float deltaTime)
 
 void Game::placeFinds()
 {
+    // The hold is not touched here: it belongs to the dive rather than to the
+    // level, and a dive is going to be more than one level of it.
     m_finds.clear();
-    m_hold.fill(0);
 
     const int depth = m_level.getDepth();
     const int wanted = config::FindsBase + config::FindsPerDepth * (depth - 1);
@@ -2523,9 +2769,9 @@ void Game::updateFinds()
 
         const config::SalvageDef& def = config::SalvageTable[find.kind];
 
-        // Straight into the hold, which is the thing that is only yours once
-        // the sub is back on the surface.
-        awardSalvage(def.value);
+        // Into the hold and nowhere else. It is not money until a man on the
+        // surface has been handed it, which is the only thing that makes the
+        // way back up worth taking before the water is empty.
 
         addHitRing(find.position, config::FindPickupRange * 1.4f, def.colour);
         m_audio.play(Sfx::Hatch, 1.25f);
@@ -5571,8 +5817,21 @@ void Game::presentUpdate(float deltaTime)
         case State::Film:
             m_film.update(deltaTime);
             if (m_film.isFinished())
-                m_state = m_afterFilm;
+                enterState(m_afterFilm);
             break;
+
+        case State::Deck:
+        {
+            // A hub is not a simulation. It runs on the frame clock like every
+            // other screen, and nothing it does can change the game.
+            const sf::Vector2f drive{
+                (isHeld(Action::Right) ? 1.0f : 0.0f) - (isHeld(Action::Left) ? 1.0f : 0.0f),
+                (isHeld(Action::Down) ? 1.0f : 0.0f) - (isHeld(Action::Up) ? 1.0f : 0.0f)
+            };
+
+            m_deck.update(deltaTime, drive);
+            break;
+        }
 
         case State::Menu:
             m_menuTime += deltaTime;
@@ -5604,6 +5863,7 @@ void Game::step(float deltaTime)
     switch (m_state)
     {
         case State::Film:
+        case State::Deck:
         case State::Menu:
         case State::Credits:
         case State::Controls:
@@ -5705,7 +5965,7 @@ void Game::step(float deltaTime)
                     playFilm(Cinematic::Reel::Surface, State::Victory);
                 }
                 else
-                    m_state = State::Upgrading;
+                    openDeck();
             }
             break;
 
@@ -5714,12 +5974,7 @@ void Game::step(float deltaTime)
             // back in the hub rather than to the start of the campaign.
             m_stateTimer -= deltaTime;
             if (m_stateTimer <= 0.0f)
-            {
-                m_state = State::Upgrading;
-                m_showUpgrades = false;
-                m_upgradeScreen.clearCursor();
-                m_upgradeScreen.recentre();
-            }
+                openDeck();
             break;
     }
 }
@@ -6046,6 +6301,7 @@ void Game::render(float alpha)
         return;
     }
 
+    if (m_state == State::Deck)     { drawDeck();     m_window.display(); return; }
     if (m_state == State::Controls) { drawControls(); m_window.display(); return; }
     if (m_state == State::Bestiary) { drawBestiary(); m_window.display(); return; }
     if (m_state == State::Options)  { drawOptions();  m_window.display(); return; }
@@ -6058,8 +6314,7 @@ void Game::render(float alpha)
     if (upgradesVisible())
     {
         std::string prompt = m_state == State::Upgrading
-                                 ? "ENTER TO DIVE INTO LEVEL "
-                                       + std::to_string(m_save.selectedLevel)
+                                 ? "ENTER TO GO BACK ON DECK"
                                  : "TAB TO CLOSE";
 
         if (m_respecArmed)

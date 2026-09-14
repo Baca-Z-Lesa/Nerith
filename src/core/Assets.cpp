@@ -90,6 +90,21 @@ Assets::Assets()
     want(config::SerpentSegmentPath);
     want(config::SerpentTailPath);
 
+    // The surface, through the same cache: none of it is a boss, but a texture
+    // named by a path in a table is a texture named by a path in a table.
+    for (const char* path : { config::DeckPlatePath, config::DeckRailPath,
+                              config::DeckDiverPath, config::DeckBootPath,
+                              config::DeckCranePath, config::DeckBenchPath,
+                              config::DeckBellPath, config::DeckCratePath })
+    {
+        want(path);
+    }
+
+    // The floor and the rail are laid by giving one sprite a rectangle bigger
+    // than the tile, which only works on a texture that repeats.
+    m_bossTextures.at(config::DeckPlatePath).setRepeated(true);
+    m_bossTextures.at(config::DeckRailPath).setRepeated(true);
+
     // The drawn bosses share one sheet, and it has to repeat: the body is
     // mapped along its own length, so a long animal runs off the end of a
     // single tile immediately.

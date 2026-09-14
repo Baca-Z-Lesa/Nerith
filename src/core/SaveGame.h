@@ -12,9 +12,15 @@
 // in the first place, not in how much it destroys when it beats you.
 struct SaveGame
 {
-    int selectedLevel = 1; // what the hub will dive into next
+    int selectedLevel = 1; // what the bell is set to drop you at next
     int unlockedLevel = 1; // the deepest level that may be picked
     int salvage = 0;
+
+    // What is stacked by the crane waiting to be sold, in SalvageTable order.
+    // It is progress rather than a setting: a player who quits with a full
+    // deck has to find it still there, or surfacing with a hold is a thing
+    // they will only ever do once.
+    std::vector<int> landed;
     int bestLevel = 0;
     int bestDepth = 0;
     int storySeen = 0;     // bitmask of chapters already shown
