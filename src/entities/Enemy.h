@@ -77,6 +77,10 @@ public:
     bool bodyTouches(sf::Vector2f position, float radius) const;
     void setSegmentTexture(const sf::Texture& texture);
 
+    // Drawn past the last ring and nothing else: it is not a ring, so it is
+    // not one of the things the body can catch you with.
+    void setTailTexture(const sf::Texture& texture);
+
     // Parasite: a wound that keeps working after the shot has gone.
     void applyBleed(float damagePerSecond, float seconds);
     bool isBleeding() const { return m_bleedTimer > 0.0f; }
@@ -207,4 +211,5 @@ private:
     std::vector<sf::Vector2f> m_history;
     std::vector<sf::Vector2f> m_body;
     std::unique_ptr<sf::Sprite> m_segment;
+    std::unique_ptr<sf::Sprite> m_tail;
 };

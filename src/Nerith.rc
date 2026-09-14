@@ -1,0 +1,10 @@
+// What Windows shows for the executable: the shortcut on the desktop, the
+// taskbar button, the title bar. Explorer shows the icon with the lowest ID
+// in the file, so this is deliberately 1.
+//
+// Forward slashes on purpose. The resource compiler reads a backslash inside
+// a string as an escape, so a Windows path here has to be doubled or it comes
+// out as the wrong path with a control character in the middle of it.
+#define IDI_NERITH 1
+
+IDI_NERITH ICON "../assets/nerith.ico"

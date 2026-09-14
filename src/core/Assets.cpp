@@ -75,6 +75,7 @@ Assets::Assets()
         want(def.headTexture);
         want(def.shotTexture);
         want(def.segmentTexture);
+        want(def.tailTexture);
         for (std::size_t p = 0; p < def.partCount; ++p)
             want(def.parts[p].texture);
     }
@@ -87,6 +88,10 @@ Assets::Assets()
     want(config::NestTexturePath);
     want(config::CargoTexturePath);
     want(config::SerpentSegmentPath);
+    want(config::SerpentTailPath);
+
+    if (!icon.loadFromFile(config::IconPath))
+        throw std::runtime_error(std::string("failed to load icon: ") + config::IconPath);
 }
 
 const sf::Texture& Assets::shotFor(EnemyType type) const

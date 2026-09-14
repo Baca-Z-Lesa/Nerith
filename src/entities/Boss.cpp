@@ -61,7 +61,17 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     for (int i = 0; i <= links; ++i)
     {
         const bool head = i == 0;
-        const sf::Texture& texture = assets.boss(head ? m_def->headTexture : m_def->segmentTexture);
+
+        // The last link is a tail where the animal has one. Swapped rather
+        // than added, so the body is exactly as long and exactly as hittable
+        // as it was: this is what the end of it looks like, not more of it.
+        const bool tail = !head && i == links && m_def->tailTexture != nullptr;
+
+        const char* path = head ? m_def->headTexture
+                           : tail ? m_def->tailTexture
+                                  : m_def->segmentTexture;
+
+        const sf::Texture& texture = assets.boss(path);
 
         float scale = head ? m_def->headScale : m_def->segmentScale;
         for (int t = 1; t < i; ++t)
@@ -188,10 +198,15 @@ void Boss::followChain()
         if (distance > 0.0001f)
         {
             segment.angle = delta.angle();
-            // Pulling each link up behind the one ahead is what makes the whole
-            // animal swim instead of sliding around as a rigid shape.
-            if (distance > spacing)
-                segment.position = previous.position - (delta / distance) * spacing;
+
+            // Held at exactly one spacing behind the link ahead, in whichever
+            // direction it already lies. Pulling only - which is what this used
+            // to do - meant a boss that stopped moving collapsed into a pile of
+            // its own segments, and a pile is what a lot of them looked like:
+            // no length, no tail, just a heap with a head on it. Keeping the
+            // distance both ways holds the shape of the animal without making
+            // the body rigid, because the direction is still its own.
+            segment.position = previous.position - (delta / distance) * spacing;
         }
 
         segment.sprite.setPosition(segment.position);

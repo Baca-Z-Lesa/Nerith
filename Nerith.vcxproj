@@ -131,6 +131,9 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClCompile Include="src\world\Seabed.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="src\Nerith.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="src\audio\AudioSystem.h" />
     <ClInclude Include="src\core\Assets.h" />
     <ClInclude Include="src\core\Config.h" />

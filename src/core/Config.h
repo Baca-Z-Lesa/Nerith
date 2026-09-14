@@ -674,6 +674,13 @@ namespace config
     inline constexpr float SerpentSpacing = 26.0f;
     inline constexpr float SerpentSegmentRadius = 17.0f;
     inline constexpr const char* SerpentSegmentPath = "assets/textures/enemy_coil_seg.png";
+
+    // A body made of identical rings does not end, it stops - which is exactly
+    // what the thing looked like: a string of beads somebody cut. The last ring
+    // is followed by this, and this is a tail.
+    inline constexpr const char* SerpentTailPath = "assets/textures/enemy_coil_tail.png";
+    inline constexpr float SerpentTailScale = 1.30f;  // of a ring
+    inline constexpr float SerpentTailReach = 0.85f;  // of a spacing, past the last ring
     inline constexpr float SerpentTurn = 150.0f;   // degrees a second the head may swing
 
     inline constexpr float EnemyHitFlashDuration = 0.12f;
@@ -929,6 +936,11 @@ namespace config
     // basin for; leaving one is a level that never ends.
     inline constexpr const char* NestTexturePath = "assets/textures/nest.png";
     inline constexpr const char* CargoTexturePath = "assets/textures/cargo.png";
+
+    // The picture Windows puts on the shortcut, and the one the window carries.
+    // Outside textures/ because it is not drawn in the water and is not lit by
+    // the pass that lights everything in there.
+    inline constexpr const char* IconPath = "assets/icon.png";
 
     // --- Hauling ---
     // A pod is dropped at the far end of the basin and has to be dragged back

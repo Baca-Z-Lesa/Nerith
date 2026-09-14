@@ -76,6 +76,11 @@ struct BossDef
     const char* headTexture;
     const char* shotTexture; // what this animal throws
     const char* segmentTexture;
+
+    // What the last link is drawn as. A chain of identical links does not end,
+    // it stops, which made every one of these look like half an animal. Null
+    // for a body that is not a chain.
+    const char* tailTexture;
     float headScale;
     float segmentScale;
     float segmentTaper;   // each link this much smaller than the one ahead

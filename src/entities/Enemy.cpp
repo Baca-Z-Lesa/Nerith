@@ -550,6 +550,16 @@ void Enemy::setSegmentTexture(const sf::Texture& texture)
     m_segment->setScale({ scale, scale });
 }
 
+void Enemy::setTailTexture(const sf::Texture& texture)
+{
+    m_tail = std::make_unique<sf::Sprite>(texture);
+    m_tail->setOrigin(sf::Vector2f(texture.getSize()) / 2.0f);
+
+    const float scale = config::SerpentSegmentRadius * 2.0f * config::SerpentTailScale
+                        / std::max(1.0f, static_cast<float>(texture.getSize().x));
+    m_tail->setScale({ scale, scale });
+}
+
 bool Enemy::bodyTouches(sf::Vector2f position, float radius) const
 {
     const float reach = config::SerpentSegmentRadius + radius;
@@ -796,6 +806,27 @@ void Enemy::draw(sf::RenderTarget& target) const
     if (m_segment)
     {
         const sf::Color tint = m_sprite.getColor();
+
+        // The tail goes down first of all, so the last ring overlaps its root
+        // and the join is a body rather than two sprites touching. It is drawn
+        // pointing at the ring ahead of it, the same way a link is.
+        if (m_tail && m_body.size() >= 2)
+        {
+            const sf::Vector2f last = m_body.back();
+            const sf::Vector2f back = last - m_body[m_body.size() - 2];
+
+            if (back.lengthSquared() > 0.0001f)
+            {
+                const sf::Vector2f away = back.normalized();
+
+                sf::Sprite tail = *m_tail;
+                tail.setPosition(last + away * (config::SerpentSpacing
+                                                * config::SerpentTailReach));
+                tail.setRotation((-away).angle());
+                tail.setColor(tint);
+                target.draw(tail);
+            }
+        }
 
         for (std::size_t i = m_body.size(); i-- > 0;)
         {

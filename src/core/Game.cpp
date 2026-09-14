@@ -166,6 +166,11 @@ void Game::createWindow(bool fullscreen)
                         sf::State::Windowed, settings);
     }
 
+    // The taskbar and the title bar. Windows falls back to the executable's
+    // own icon for a window that has none, but only sometimes and not in every
+    // shell, so it is set here rather than left to luck.
+    m_window.setIcon(m_assets.icon.getSize(), m_assets.icon.getPixelsPtr());
+
     m_fullscreen = fullscreen;
     // No limiter: the pacer at the top of the loop does this, and it does it
     // where the spare time is still worth something.
@@ -284,6 +289,14 @@ void Game::addHitStop(float seconds)
 
 void Game::addSlowMotion(float seconds, float scale)
 {
+    // A moment that asked for no slow motion gets none. Without this the scale
+    // was still taken while the clock stayed at zero, and the clock is the only
+    // thing that ever puts the scale back - so one delivered cargo pod, which
+    // asks for a jolt and a flash and no slow water at all, left the rest of
+    // the dive running at a third speed with nothing to end it.
+    if (seconds <= 0.0f)
+        return;
+
     // Takes the stronger of the two rather than adding, so two events landing
     // together cannot leave the game crawling for ten seconds.
     m_slowTimer = std::max(m_slowTimer, seconds);
@@ -801,6 +814,12 @@ void Game::updateFeel(float deltaTime)
         m_slowTimer -= deltaTime;
         if (m_slowTimer <= 0.0f)
             m_slowScale = 1.0f;
+    }
+    else
+    {
+        // Belt and braces: no clock running means full speed, whatever anything
+        // else believes it left behind.
+        m_slowScale = 1.0f;
     }
 
     // The hull alarm, on a loop, once there is almost nothing left of the sub.
@@ -3035,7 +3054,10 @@ void Game::spawnEnemy(EnemyType type)
     // here rather than looked up inside Enemy, so the creature never has to
     // know where the assets live.
     if (config::enemyStats(type).behaviour == EnemyBehaviour::Serpent)
+    {
         m_enemies.back().setSegmentTexture(m_assets.boss(config::SerpentSegmentPath));
+        m_enemies.back().setTailTexture(m_assets.boss(config::SerpentTailPath));
+    }
 }
 
 void Game::spawnStalker()
@@ -3053,6 +3075,7 @@ void Game::spawnStalker()
     m_enemies.emplace_back(EnemyType::Stalker, m_assets.forEnemy(EnemyType::Stalker),
                            pickSpawnPosition(), scaling);
     m_enemies.back().setSegmentTexture(m_assets.boss(config::SerpentSegmentPath));
+    m_enemies.back().setTailTexture(m_assets.boss(config::SerpentTailPath));
     m_enemies.back().markUnscripted();
 }
 

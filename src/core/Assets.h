@@ -3,6 +3,7 @@
 #include "entities/EnemyType.h"
 #include "upgrades/Stats.h"
 
+#include <SFML/Graphics/Image.hpp>
 #include <SFML/Graphics/Texture.hpp>
 
 #include <array>
@@ -14,6 +15,10 @@
 struct Assets
 {
     Assets(); // throws if a file is missing
+
+    // Not a texture: it never reaches the card. It is what the taskbar and the
+    // title bar are handed, in pixels.
+    sf::Image   icon;
 
     sf::Texture player;
     sf::Texture waterJet;

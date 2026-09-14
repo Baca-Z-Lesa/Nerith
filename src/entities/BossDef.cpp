@@ -18,7 +18,7 @@ namespace
             "THE LEVIATHAN", "IT HAS BEEN CIRCLING SINCE YOU ARRIVED.",
             BossBody::Serpent, BossMind::Prowler,
             "assets/textures/lev_head.png", "assets/textures/shot_leviathan.png",
-            "assets/textures/lev_body.png",
+            "assets/textures/lev_body.png", "assets/textures/lev_tail.png",
             1.0f, 0.92f, 0.88f, 4, 46.0f, 46.0f,
             2, 40,
             78.0f, 240.0f,
@@ -45,7 +45,7 @@ namespace
             "THE BLOOM SOVEREIGN", "IT DOES NOT HUNT. IT SIMPLY FILLS THE WATER.",
             BossBody::Bell, BossMind::Drifter,
             "assets/textures/med_bell.png", "assets/textures/shot_sovereign.png",
-            "assets/textures/med_bell.png",
+            "assets/textures/med_bell.png", nullptr,
             1.0f, 1.0f, 1.0f, 0, 0.0f, 84.0f,
             2, 46,
             34.0f, 0.0f,
@@ -73,7 +73,7 @@ namespace
             "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
             BossBody::Serpent, BossMind::Burrower,
             "assets/textures/worm_head.png", "assets/textures/shot_worm.png",
-            "assets/textures/worm_seg.png",
+            "assets/textures/worm_seg.png", "assets/textures/worm_tail.png",
             0.95f, 0.9f, 0.94f, 6, 44.0f, 44.0f,
             2, 52,
             132.0f, 0.0f,
@@ -85,7 +85,9 @@ namespace
                 { PartRole::Fin,   "assets/textures/lev_fin.png",    1,  0.0f,  32.0f, 20.0f, 0.7f,  62.0f, 30 },
                 { PartRole::Organ, "assets/textures/worm_vent.png",  2,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
                 { PartRole::Organ, "assets/textures/worm_vent.png",  4,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
-                { PartRole::Organ, "assets/textures/worm_vent.png",  6,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
+                // Not on the last link: that one is the tail now, and a heat
+                // vent sitting on a point is not anywhere on an animal.
+                { PartRole::Organ, "assets/textures/worm_vent.png",  5,  0.0f,   0.0f, 34.0f, 1.15f,   0.0f, 46 },
             } }
         },
 
@@ -102,7 +104,7 @@ namespace
             "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
             BossBody::Serpent, BossMind::Spiral,
             "assets/textures/hol_crown.png", "assets/textures/shot_hollow.png",
-            "assets/textures/hol_vertebra.png",
+            "assets/textures/hol_vertebra.png", "assets/textures/hol_tail.png",
             1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
             3, 96,
             96.0f, 330.0f,
