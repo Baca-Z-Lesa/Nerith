@@ -9,6 +9,7 @@
 #include <SFML/System/Angle.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -1907,43 +1908,100 @@ void Arena::buildLightPool()
     // drawLight can carry them to the sub and turn them to the aim without any
     // of this having to be rebuilt.
     const sf::Color core = m_theme->light;
-    const sf::Color edge(core.r, core.g, core.b, 0);
     const float reach = (m_theme->lightRadius + m_lampBonus) * m_lampFactor;
 
-    // The halo first: a short even glow close in. Without it a pure beam is
-    // unplayable - the sub sits in a hole it cannot see out of sideways, and
-    // anything that closes from behind is unanswerable rather than frightening.
-    const sf::Color halo(core.r, core.g, core.b,
+    // The halo first: the light that spills off a lamp rather than a second
+    // light source. Without something close in a pure beam is unplayable - the
+    // sub sits in a hole it cannot see out of sideways, and anything that
+    // closes from behind is unanswerable rather than frightening.
+    //
+    // It was an even disc, which is to say it was a circle with a beam stuck
+    // on the front of it, and the circle was the thing the eye went to. Two
+    // things fix that. It is weighted by angle, so it is brightest where the
+    // beam is and only a wash astern, which makes the two halves one shape.
+    // And it falls off in steps of a square rather than in one straight run to
+    // the rim, so there is no edge left to see.
+    const float haloReach = reach * config::LampHaloFactor;
+
+    const auto facing = [](sf::Angle angle) {
+        const float ahead = 0.5f + 0.5f * std::cos(angle.asRadians());
+        return config::LampHaloBack + (1.0f - config::LampHaloBack) * ahead;
+    };
+
+    const auto spill = [&core](float amount) {
+        return sf::Color(core.r, core.g, core.b,
                          static_cast<std::uint8_t>(static_cast<float>(core.a)
-                                                   * config::LampHaloBrightness));
+                                                   * config::LampHaloBrightness
+                                                   * std::clamp(amount, 0.0f, 1.0f)));
+    };
 
     for (std::size_t i = 0; i < Segments; ++i)
     {
-        appendRingQuad(m_lightPool,
-                       { 0.0f, 0.0f }, { 0.0f, 0.0f },
-                       sf::Vector2f(reach * config::LampHaloFactor, segmentAngle(i)),
-                       sf::Vector2f(reach * config::LampHaloFactor, segmentAngle(i + 1)),
-                       halo, edge);
+        const sf::Angle a0 = segmentAngle(i);
+        const sf::Angle a1 = segmentAngle(i + 1);
+        const float w0 = facing(a0);
+        const float w1 = facing(a1);
+
+        for (int ring = 0; ring < config::LampHaloRings; ++ring)
+        {
+            const float t0 = static_cast<float>(ring) / config::LampHaloRings;
+            const float t1 = static_cast<float>(ring + 1) / config::LampHaloRings;
+            const float f0 = (1.0f - t0) * (1.0f - t0);
+            const float f1 = (1.0f - t1) * (1.0f - t1);
+
+            const sf::Vector2f in0(haloReach * t0, a0);
+            const sf::Vector2f in1(haloReach * t0, a1);
+            const sf::Vector2f out0(haloReach * t1, a0);
+            const sf::Vector2f out1(haloReach * t1, a1);
+
+            m_lightPool.append(sf::Vertex{ in0, spill(f0 * w0) });
+            m_lightPool.append(sf::Vertex{ out0, spill(f1 * w0) });
+            m_lightPool.append(sf::Vertex{ out1, spill(f1 * w1) });
+
+            m_lightPool.append(sf::Vertex{ in0, spill(f0 * w0) });
+            m_lightPool.append(sf::Vertex{ out1, spill(f1 * w1) });
+            m_lightPool.append(sf::Vertex{ in1, spill(f0 * w1) });
+        }
     }
 
-    // Then the beam, thrown from the rim of the halo out to the full reach.
-    // Quads rather than a fan: a fan meets at one vertex, and one vertex can
-    // only be one brightness, so a fan cannot say that the beam is dimmer at
-    // its edges than down its middle - which is the whole shape of a beam.
+    // Then the beam. Quads rather than a fan: a fan meets at one vertex, and
+    // one vertex can only be one brightness, so a fan cannot say that the beam
+    // is dimmer at its edges than down its middle - which is the whole shape
+    // of a beam.
+    //
+    // It is banded along its length as well as split across, because a beam
+    // that starts at full strength on a ring somewhere out from the sub draws
+    // that ring: an arc of light hanging in the water with nothing throwing
+    // it. Rising out of the lamp and falling away at the far end is one shape
+    // with the halo, which is what a lamp actually looks like.
     const std::size_t steps = Segments / 2;
     const float half = config::LampConeHalfAngle;
-    const float inner = reach * config::LampHaloFactor * 0.85f;
 
     // Cosine across the beam rather than a straight taper, so the edges wash
     // out instead of ending on a line. A line reads as a cone drawn on the
     // water; a wash reads as light.
-    const auto across = [&core](float t) {
-        const float amount = std::pow(std::cos(std::clamp(t, -1.0f, 1.0f) * 1.5707963f),
-                                      config::LampConeEdgeFade);
+    const auto across = [](float t) {
+        return std::pow(std::cos(std::clamp(t, -1.0f, 1.0f) * 1.5707963f),
+                        config::LampConeEdgeFade);
+    };
+
+    const auto beam = [&core](float amount) {
         return sf::Color(core.r, core.g, core.b,
                          static_cast<std::uint8_t>(static_cast<float>(core.a)
                                                    * std::clamp(amount, 0.0f, 1.0f)));
     };
+
+    // Where the beam is along its own length, and how strong it is there.
+    // Climbing out of the lamp, then falling the rest of the way.
+    const float throat = haloReach * 0.8f;
+    const std::array<std::pair<float, float>, 6> band{ {
+        { 0.0f, 0.30f },
+        { throat, 1.00f },
+        { throat + (reach - throat) * 0.25f, 0.72f },
+        { throat + (reach - throat) * 0.50f, 0.44f },
+        { throat + (reach - throat) * 0.75f, 0.20f },
+        { reach, 0.00f },
+    } };
 
     for (std::size_t i = 0; i < steps; ++i)
     {
@@ -1953,18 +2011,27 @@ void Arena::buildLightPool()
         const sf::Angle a0 = sf::degrees(t0 * half);
         const sf::Angle a1 = sf::degrees(t1 * half);
 
-        const sf::Vector2f in0(inner, a0);
-        const sf::Vector2f in1(inner, a1);
-        const sf::Vector2f out0(reach, a0);
-        const sf::Vector2f out1(reach, a1);
+        const float e0 = across(t0);
+        const float e1 = across(t1);
 
-        m_lightPool.append(sf::Vertex{ in0, across(t0) });
-        m_lightPool.append(sf::Vertex{ out0, edge });
-        m_lightPool.append(sf::Vertex{ out1, edge });
+        for (std::size_t b = 0; b + 1 < band.size(); ++b)
+        {
+            const auto [r0, s0] = band[b];
+            const auto [r1, s1] = band[b + 1];
 
-        m_lightPool.append(sf::Vertex{ in0, across(t0) });
-        m_lightPool.append(sf::Vertex{ out1, edge });
-        m_lightPool.append(sf::Vertex{ in1, across(t1) });
+            const sf::Vector2f in0(r0, a0);
+            const sf::Vector2f in1(r0, a1);
+            const sf::Vector2f out0(r1, a0);
+            const sf::Vector2f out1(r1, a1);
+
+            m_lightPool.append(sf::Vertex{ in0, beam(e0 * s0) });
+            m_lightPool.append(sf::Vertex{ out0, beam(e0 * s1) });
+            m_lightPool.append(sf::Vertex{ out1, beam(e1 * s1) });
+
+            m_lightPool.append(sf::Vertex{ in0, beam(e0 * s0) });
+            m_lightPool.append(sf::Vertex{ out1, beam(e1 * s1) });
+            m_lightPool.append(sf::Vertex{ in1, beam(e1 * s0) });
+        }
     }
 }
 

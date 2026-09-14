@@ -5528,16 +5528,25 @@ float Game::lightAt(sf::Vector2f where) const
     const float halo = reach * config::LampHaloFactor;
     float amount = config::LightFloor;
 
-    // The pool, which is what lets you see something that has got behind you.
+    // Which way the point is off the nose, which both halves want.
+    const float facing = distance > 1.0f
+                             ? offset.dot(m_player.getAimDirection()) / distance
+                             : 1.0f;
+
+    // The spill, which is what lets you see something that has got behind you.
+    // Weighted the same way the mesh is - a teardrop, not a disc - so a thing
+    // astern is a shape in the dark rather than as lit as one in the beam.
     if (distance < halo)
     {
-        amount = std::max(amount, config::LampHaloBrightness
-                                      * (1.0f - distance / halo));
+        const float side = config::LampHaloBack
+                           + (1.0f - config::LampHaloBack) * (0.5f + 0.5f * facing);
+        const float fall = 1.0f - distance / halo;
+
+        amount = std::max(amount, config::LampHaloBrightness * side * fall * fall);
     }
 
     if (distance < reach && distance > 1.0f)
     {
-        const float facing = offset.dot(m_player.getAimDirection()) / distance;
         const float edge = std::cos(sf::degrees(config::LampConeHalfAngle).asRadians());
 
         if (facing > edge)

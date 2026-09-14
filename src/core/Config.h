@@ -243,12 +243,20 @@ namespace config
     // --- The lamp ---
     // The beam is what makes the dark cost something. Half angle wide enough
     // to fight inside and narrow enough that turning to look is a decision;
-    // the halo is the short even glow close in, without which anything
-    // closing from behind is unanswerable rather than frightening.
+    // the halo is the spill close in, without which anything closing from
+    // behind is unanswerable rather than frightening.
+    //
+    // The halo used to be an even disc, and an even disc is a circle: the sub
+    // sat in a bright ring with a beam stuck on the front of it, and the ring
+    // was the thing you looked at. It is a teardrop now - brightest where the
+    // lamp is pointed, never quite nothing behind - and it falls off as a
+    // square rather than a straight line, so it has no rim to notice.
     inline constexpr float LampConeHalfAngle = 42.0f;   // degrees either side
     inline constexpr float LampConeEdgeFade = 1.35f;    // higher is a softer edge
-    inline constexpr float LampHaloFactor = 0.22f;      // of the beam reach
-    inline constexpr float LampHaloBrightness = 0.40f;  // of the theme light
+    inline constexpr float LampHaloFactor = 0.26f;      // of the beam reach
+    inline constexpr float LampHaloBrightness = 0.46f;  // of the theme light
+    inline constexpr float LampHaloBack = 0.20f;        // of that, directly astern
+    inline constexpr int   LampHaloRings = 4;           // steps in the falloff
 
     // How much light there is where there is none. Not zero: a creature that
     // is literally invisible is not frightening, it is unfair - what the dark
