@@ -1117,6 +1117,15 @@ namespace config
     inline constexpr const char* DeckBellPath  = "assets/textures/deck_bell.png";
     inline constexpr const char* DeckCratePath = "assets/textures/deck_crate.png";
 
+    // The cutscene plates. Painted once and then moved, panned and lit by the
+    // reel, because a rig is not a thing anybody draws out of triangles.
+    inline constexpr const char* ReelRigPath     = "assets/textures/reel_rig.png";
+    inline constexpr const char* ReelBellPath    = "assets/textures/reel_bell.png";
+    inline constexpr const char* ReelWallPath    = "assets/textures/reel_wall.png";
+    inline constexpr const char* ReelStationPath = "assets/textures/reel_station.png";
+    inline constexpr const char* ReelBeastPath   = "assets/textures/reel_beast.png";
+    inline constexpr const char* ReelDiverPath   = "assets/textures/reel_diver.png";
+
     // What it costs to be put in the water. The bell, the gas, the men on the
     // winch: none of it is free, and all of it is dearer the further down they
     // have to lower you. This is the number that turns a dive into a bet.

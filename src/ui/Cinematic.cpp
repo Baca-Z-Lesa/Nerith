@@ -1,5 +1,6 @@
 #include "ui/Cinematic.h"
 
+#include "core/Assets.h"
 #include "core/Config.h"
 #include "ui/PixelFont.h"
 
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 
 namespace
 {
@@ -18,21 +20,30 @@ namespace
     // signal every player already knows for "this is not a thing you are
     // playing right now".
     constexpr float Letterbox = 92.0f;
+    constexpr float Top = Letterbox;
+    constexpr float Bottom = H - Letterbox;
+    constexpr float MidY = H * 0.5f;
 
     constexpr sf::Color Deep{ 4, 9, 13 };
     constexpr sf::Color Water{ 12, 30, 40 };
+    constexpr sf::Color Night{ 20, 26, 36 };
     constexpr sf::Color Sky{ 118, 150, 160 };
-    constexpr sf::Color Rock{ 26, 34, 38 };
-    constexpr sf::Color RockLit{ 52, 64, 66 };
     constexpr sf::Color Steel{ 96, 108, 116 };
     constexpr sf::Color Lamp{ 128, 214, 224 };
     constexpr sf::Color Ember{ 236, 150, 96 };
-    constexpr sf::Color Egg{ 226, 214, 178 };
 
     sf::Color fade(sf::Color colour, float alpha)
     {
         colour.a = static_cast<std::uint8_t>(std::clamp(alpha, 0.0f, 1.0f) * 255.0f);
         return colour;
+    }
+
+    sf::Color dim(sf::Color colour, float amount)
+    {
+        amount = std::clamp(amount, 0.0f, 1.0f);
+        return { static_cast<std::uint8_t>(static_cast<float>(colour.r) * amount),
+                 static_cast<std::uint8_t>(static_cast<float>(colour.g) * amount),
+                 static_cast<std::uint8_t>(static_cast<float>(colour.b) * amount), colour.a };
     }
 
     sf::Vector2f unit(float degrees)
@@ -53,15 +64,22 @@ namespace
     // reel is watched.
     float wiggle(float seed)
     {
-        return std::sin(seed * 12.9898f) * 43758.5453f - std::floor(std::sin(seed * 12.9898f)
-                                                                    * 43758.5453f);
+        const float x = std::sin(seed * 12.9898f) * 43758.5453f;
+        return x - std::floor(x);
     }
-
 }
 
-Cinematic::Cinematic()
+Cinematic::Cinematic(const Assets& assets)
     : m_mesh(sf::PrimitiveType::Triangles)
     , m_text(sf::PrimitiveType::Triangles)
+    , m_rig(assets.byPath(config::ReelRigPath))
+    , m_bell(assets.byPath(config::ReelBellPath))
+    , m_wall(assets.byPath(config::ReelWallPath))
+    , m_station(assets.byPath(config::ReelStationPath))
+    , m_beast(assets.byPath(config::ReelBeastPath))
+    , m_diver(assets.byPath(config::ReelDiverPath))
+    , m_crate(assets.byPath(config::DeckCratePath))
+    , m_crane(assets.byPath(config::DeckCranePath))
 {
     m_fill.setFillColor(sf::Color::Black);
 }
@@ -88,20 +106,24 @@ void Cinematic::begin(Reel reel, const std::string& caption)
     else if (reel == Reel::Descent)
     {
         m_shots = {
-            { Scene::Winch,   5.0f, "NERITH STATION STOPPED ANSWERING ELEVEN DAYS AGO." },
-            { Scene::Fall,    4.6f, "YOU ARE THE FOURTH SUB THEY HAVE SENT DOWN." },
-            { Scene::Pass,    4.4f, "THE OTHER THREE REPORTED NOTHING WRONG." },
-            { Scene::Station, 4.6f, "AND THEN THEY STOPPED REPORTING." },
-            { Scene::Mark,    4.0f, nullptr },
+            { Scene::Rig,     4.6f, "NERITH STATION STOPPED ANSWERING ELEVEN DAYS AGO." },
+            { Scene::Lower,   4.4f, "THE COMPANY PUT A SUB IN THE WATER. IT FOUND NOTHING WRONG." },
+            { Scene::Fall,    4.2f, "THEN A SECOND. THEN A THIRD." },
+            { Scene::Pass,    4.6f, "ALL THREE STOPPED TRANSMITTING AT THE SAME DEPTH." },
+            { Scene::Station, 4.6f, "THE STATION IS STILL DOWN THERE, AND IT IS NOT DAMAGED." },
+            { Scene::Hatches, 4.6f, "EVERY HATCH ON IT IS OPEN FROM THE INSIDE." },
+            { Scene::Trench,  4.8f, "AND THE TRENCH UNDERNEATH IT IS NOT A TRENCH." },
+            { Scene::Mark,    4.2f, nullptr },
         };
     }
     else
     {
         m_shots = {
-            { Scene::Hatch, 4.6f, "THE FLOOR OF THE TRENCH CAME OPEN." },
-            { Scene::Climb, 4.8f, "EVERYTHING IN IT WENT UP PAST YOU." },
-            { Scene::Dawn,  4.6f, "YOU SURFACED AT FIRST LIGHT. ALONE." },
-            { Scene::Wake,  5.2f, "NOT FOR LONG." },
+            { Scene::Hatch, 4.4f, "THE FLOOR OF THE TRENCH CAME OPEN." },
+            { Scene::Climb, 4.4f, "EVERYTHING THAT LIVED IN IT WENT UP PAST YOU." },
+            { Scene::Dawn,  4.4f, "YOU SURFACED AT FIRST LIGHT, WHICH NOBODY ELSE HAS DONE." },
+            { Scene::Count, 4.6f, "THEY COUNTED WHAT YOU BROUGHT UP AND THEY PAID FOR IT." },
+            { Scene::Wake,  5.0f, "NOT FOR LONG." },
             { Scene::Mark,  4.4f, nullptr },
         };
     }
@@ -163,6 +185,22 @@ void Cinematic::disc(sf::Vector2f at, float radius, sf::Color colour, int steps)
     }
 }
 
+void Cinematic::glow(sf::Vector2f at, float radius, sf::Color colour, float strength, int steps)
+{
+    const sf::Color core = fade(colour, strength);
+    const sf::Color rim = fade(colour, 0.0f);
+
+    for (int i = 0; i < steps; ++i)
+    {
+        const float a0 = 360.0f * static_cast<float>(i) / static_cast<float>(steps);
+        const float a1 = 360.0f * static_cast<float>(i + 1) / static_cast<float>(steps);
+
+        m_mesh.append(sf::Vertex{ at, core });
+        m_mesh.append(sf::Vertex{ at + unit(a0) * radius, rim });
+        m_mesh.append(sf::Vertex{ at + unit(a1) * radius, rim });
+    }
+}
+
 void Cinematic::bar(sf::Vector2f from, sf::Vector2f to, float width, sf::Color a, sf::Color b)
 {
     const sf::Vector2f along = to - from;
@@ -210,299 +248,602 @@ void Cinematic::hull(sf::Vector2f at, float size, float lean, sf::Color colour)
     m_mesh.append(sf::Vertex{ at - nose * (size * 0.9f) + side * (size * 0.62f), colour });
 }
 
+void Cinematic::wash(sf::Color top, sf::Color bottom)
+{
+    m_mesh.append(sf::Vertex{ { 0.0f, 0.0f }, top });
+    m_mesh.append(sf::Vertex{ { W, 0.0f }, top });
+    m_mesh.append(sf::Vertex{ { W, H }, bottom });
+
+    m_mesh.append(sf::Vertex{ { 0.0f, 0.0f }, top });
+    m_mesh.append(sf::Vertex{ { W, H }, bottom });
+    m_mesh.append(sf::Vertex{ { 0.0f, H }, bottom });
+}
+
+void Cinematic::motes(float phase, sf::Vector2f drift, float length, sf::Color colour, int count)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        const float seed = static_cast<float>(i) * 1.7f;
+        const float speed = 0.6f + wiggle(seed) * 0.8f;
+
+        float x = wiggle(seed + 0.3f) * (W + 400.0f) + drift.x * phase * speed;
+        float y = wiggle(seed + 0.7f) * (H + 400.0f) + drift.y * phase * speed;
+
+        x = std::fmod(std::fmod(x, W + 400.0f) + W + 400.0f, W + 400.0f) - 200.0f;
+        y = std::fmod(std::fmod(y, H + 400.0f) + H + 400.0f, H + 400.0f) - 200.0f;
+
+        const sf::Vector2f at{ x, y };
+        const sf::Vector2f along = drift.lengthSquared() > 0.001f
+                                       ? drift.normalized() * length
+                                       : sf::Vector2f{ 0.0f, length };
+
+        bar(at, at + along, 1.2f, colour, fade(colour, 0.0f));
+    }
+}
+
+void Cinematic::flush(sf::RenderTarget& target)
+{
+    if (m_mesh.getVertexCount() == 0)
+        return;
+
+    target.draw(m_mesh);
+    m_mesh.clear();
+}
+
+void Cinematic::plate(sf::RenderTarget& target, sf::Sprite& sprite, sf::Vector2f at, float scale,
+                      sf::Color tint, float turn)
+{
+    // Whatever has been put in the mesh belongs behind the plate, and a sprite
+    // cannot be batched into it, so the mesh goes out first.
+    flush(target);
+
+    const sf::Vector2f size(sprite.getTexture().getSize());
+
+    sprite.setOrigin(size * 0.5f);
+    sprite.setPosition(at);
+    sprite.setScale({ scale, scale });
+    sprite.setRotation(sf::degrees(turn));
+    sprite.setColor(tint);
+    target.draw(sprite);
+}
+
+void Cinematic::rock(sf::RenderTarget& target, float offset, float scale, sf::Color tint)
+{
+    flush(target);
+
+    const float band = Bottom - Top;
+
+    m_wall.setOrigin({ 0.0f, 0.0f });
+    m_wall.setTextureRect(sf::IntRect({ 0, static_cast<int>(offset) },
+                                      { static_cast<int>(W / scale) + 2,
+                                        static_cast<int>(band / scale) + 2 }));
+    m_wall.setScale({ scale, scale });
+    m_wall.setPosition({ 0.0f, Top });
+    m_wall.setRotation(sf::degrees(0.0f));
+    m_wall.setColor(tint);
+    target.draw(m_wall);
+}
+
 // ---------------------------------------------------------------------------
 //  The shots
 // ---------------------------------------------------------------------------
 
-void Cinematic::drawWinch(float t)
+void Cinematic::drawRig(sf::RenderTarget& target, float t)
 {
-    // A hole of daylight closing up above, a cable, and the sub going away
-    // from it. The whole shot is the light getting smaller.
-    const float sink = ease(t);
-    const float sky = 200.0f * (1.0f - sink * 0.92f);
+    // Night, rain, and a rig with its lights on. The camera pushes in slowly
+    // and the bell is already over the side: whatever was decided here was
+    // decided before the player arrived.
+    wash(Night, sf::Color(10, 14, 20));
 
-    disc({ W * 0.5f, -40.0f }, sky * 2.6f, fade(Sky, 0.22f * (1.0f - sink * 0.7f)), 26);
-    disc({ W * 0.5f, -40.0f }, sky, fade(Sky, 0.5f * (1.0f - sink * 0.6f)), 22);
+    const float sea = MidY + 96.0f;
 
-    const float y = H * (0.18f + 0.5f * sink);
+    m_mesh.append(sf::Vertex{ { 0.0f, sea }, sf::Color(16, 26, 34) });
+    m_mesh.append(sf::Vertex{ { W, sea }, sf::Color(16, 26, 34) });
+    m_mesh.append(sf::Vertex{ { W, H }, sf::Color(5, 9, 13) });
+    m_mesh.append(sf::Vertex{ { 0.0f, sea }, sf::Color(16, 26, 34) });
+    m_mesh.append(sf::Vertex{ { W, H }, sf::Color(5, 9, 13) });
+    m_mesh.append(sf::Vertex{ { 0.0f, H }, sf::Color(5, 9, 13) });
 
-    bar({ W * 0.5f, -40.0f }, { W * 0.5f, y }, 2.0f,
-        fade(Steel, 0.5f), fade(Steel, 0.75f));
-
-    hull({ W * 0.5f, y }, 26.0f, 90.0f, fade(sf::Color(20, 26, 30), 1.0f));
-    disc({ W * 0.5f, y + 16.0f }, 5.0f, fade(Lamp, 0.9f), 10);
-
-    // Bubbles going the other way, which is the only thing in the frame that
-    // is not sinking.
-    for (int i = 0; i < 22; ++i)
+    for (int i = 0; i < 6; ++i)
     {
-        const float seed = static_cast<float>(i) * 3.1f;
-        const float up = std::fmod(m_total * 0.35f + wiggle(seed), 1.0f);
+        const float y = sea + 14.0f + static_cast<float>(i) * 26.0f;
+        const float slide = std::sin(m_total * 0.7f + static_cast<float>(i)) * 20.0f;
 
-        disc({ W * (0.32f + 0.36f * wiggle(seed + 1.0f)), H * (1.1f - up * 1.2f) },
-             1.0f + 2.0f * wiggle(seed + 2.0f), fade(Lamp, 0.16f), 6);
-    }
-}
-
-void Cinematic::drawFall(float t)
-{
-    // Rock going past. The walls are drawn from a scroll offset rather than
-    // moved, so the shot can be any length and never repeat visibly.
-    const float scroll = m_total * 420.0f + ease(t) * 600.0f;
-
-    for (int side = 0; side < 2; ++side)
-    {
-        const float x = side == 0 ? 0.0f : W;
-        const float sign = side == 0 ? 1.0f : -1.0f;
-
-        for (int i = -1; i < 14; ++i)
-        {
-            const float seed = static_cast<float>(i + side * 40);
-            const float y = std::fmod(static_cast<float>(i) * 120.0f + scroll, H + 260.0f) - 130.0f;
-            const float reach = 120.0f + 150.0f * wiggle(seed);
-
-            m_mesh.append(sf::Vertex{ { x, y - 90.0f }, fade(Rock, 1.0f) });
-            m_mesh.append(sf::Vertex{ { x + sign * reach, y }, fade(RockLit, 1.0f) });
-            m_mesh.append(sf::Vertex{ { x, y + 90.0f }, fade(Rock, 1.0f) });
-        }
+        bar({ -40.0f + slide, y }, { W + 40.0f + slide, y + 3.0f }, 2.0f,
+            fade(Sky, 0.10f), fade(Sky, 0.04f));
     }
 
-    // And the sub in the middle of it with the lamp on, because this is the
-    // only shot where the player is told what the lamp is for.
-    const sf::Vector2f at{ W * 0.5f, H * 0.46f + std::sin(m_total * 2.0f) * 8.0f };
+    const float push = 1.12f + 0.16f * ease(t);
+    const float pan = -30.0f * ease(t);
 
-    wedge(at, { 0.0f, 1.0f }, 420.0f, 190.0f, fade(Lamp, 0.16f), fade(Lamp, 0.0f));
-    hull(at, 30.0f, 90.0f, fade(sf::Color(22, 28, 32), 1.0f));
+    plate(target, m_rig, { W * 0.52f + pan, sea - 84.0f * push }, push,
+          sf::Color(148, 158, 166));
+
+    // The bell, already over the side and swinging.
+    const float swing = std::sin(m_total * 0.9f) * 12.0f;
+
+    plate(target, m_bell, { W * 0.52f + pan + 300.0f * push + swing, sea - 6.0f },
+          0.34f * push, sf::Color(130, 142, 150), swing * 0.2f);
+
+    // The one warm thing in the shot.
+    glow({ W * 0.52f + pan + 12.0f * push, sea - 176.0f * push }, 54.0f, Ember, 0.45f);
+
+    motes(m_total, { -90.0f, 780.0f }, 26.0f, fade(Sky, 0.30f), 110);
+    flush(target);
 }
 
-void Cinematic::drawPass(float t)
+void Cinematic::drawLower(sf::RenderTarget& target, float t)
 {
-    // Something crosses the beam. It is never shown - only the beam going out
-    // in a band and coming back - because whatever the player imagines there
-    // is worse than anything that can be drawn.
-    const sf::Vector2f at{ W * 0.5f, H * 0.62f };
+    // Under, looking up. The whole shot is the daylight getting further away
+    // and the bell getting lower in the frame.
+    wash(sf::Color(26, 54, 66), Deep);
 
-    wedge(at, { 0.0f, -1.0f }, 520.0f, 230.0f, fade(Lamp, 0.20f), fade(Lamp, 0.0f));
-    hull(at, 30.0f, -90.0f, fade(sf::Color(22, 28, 32), 1.0f));
+    const float lid = Top + 40.0f - 70.0f * ease(t);
+    const float bright = 1.0f - 0.72f * ease(t);
 
-    const float sweep = ease(t) * (W + 900.0f) - 450.0f;
-    const float thick = 150.0f + 90.0f * std::sin(t * 3.14159265f);
+    for (int i = 0; i < 26; ++i)
+    {
+        const float x = static_cast<float>(i) * (W / 25.0f);
+        const float lift = std::sin(m_total * 1.4f + static_cast<float>(i) * 0.6f) * 7.0f;
+
+        bar({ x, lid + lift }, { x + W / 25.0f, lid + lift }, 5.0f,
+            fade(Sky, 0.55f * bright), fade(Sky, 0.55f * bright));
+    }
 
     for (int i = 0; i < 7; ++i)
     {
-        const float lag = static_cast<float>(i) * 46.0f;
-        const float x = sweep - lag;
-        const float y = H * (0.16f + 0.02f * static_cast<float>(i));
+        const float x = 120.0f + static_cast<float>(i) * 170.0f;
 
-        m_mesh.append(sf::Vertex{ { x - thick, y - 60.0f }, fade(Deep, 0.0f) });
-        m_mesh.append(sf::Vertex{ { x, y - 90.0f }, fade(Deep, 1.0f) });
-        m_mesh.append(sf::Vertex{ { x, H * 0.9f }, fade(Deep, 1.0f) });
-
-        m_mesh.append(sf::Vertex{ { x - thick, y - 60.0f }, fade(Deep, 0.0f) });
-        m_mesh.append(sf::Vertex{ { x, H * 0.9f }, fade(Deep, 1.0f) });
-        m_mesh.append(sf::Vertex{ { x - thick, H * 0.9f }, fade(Deep, 0.0f) });
+        wedge({ x, lid }, { 0.12f, 1.0f }, 520.0f, 60.0f,
+              fade(Sky, 0.14f * bright), fade(Sky, 0.0f));
     }
 
-    // One eye, open for about a second in the middle of it, and never again.
-    const float look = std::clamp(1.0f - std::abs(t - 0.52f) * 9.0f, 0.0f, 1.0f);
-    if (look > 0.0f)
-    {
-        const sf::Vector2f eye{ sweep - 150.0f, H * 0.30f };
+    const float drop = Top + 120.0f + 300.0f * ease(t);
 
-        disc(eye, 26.0f * look, fade(Ember, 0.7f * look), 16);
-        disc(eye, 11.0f * look, fade(sf::Color(12, 8, 6), look), 12);
+    bar({ W * 0.5f, lid }, { W * 0.5f, drop }, 2.0f, fade(Steel, 0.5f), fade(Steel, 0.8f));
+
+    plate(target, m_bell, { W * 0.5f, drop }, 0.72f, sf::Color(150, 164, 172),
+          std::sin(m_total * 0.8f) * 3.0f);
+
+    glow({ W * 0.5f, drop + 46.0f }, 64.0f, Lamp, 0.30f);
+    motes(m_total, { 20.0f, -260.0f }, 14.0f, fade(Sky, 0.22f), 60);
+    flush(target);
+}
+
+void Cinematic::drawFall(sf::RenderTarget& target, float)
+{
+    // Rock going past, faster than is comfortable. Two layers at different
+    // speeds, because one layer scrolling is a texture and two is a fall.
+    wash(sf::Color(14, 20, 24), Deep);
+    flush(target);
+
+    rock(target, -m_total * 620.0f, 1.9f, sf::Color(76, 86, 92));
+    rock(target, -m_total * 1150.0f + 220.0f, 3.1f, sf::Color(26, 32, 36, 190));
+
+    // Black down the middle, so the plate reads as two walls with a gap
+    // between them rather than as wallpaper.
+    const auto gloom = [this](float from, float to) {
+        m_mesh.append(sf::Vertex{ { from, Top }, fade(sf::Color::Black, 0.0f) });
+        m_mesh.append(sf::Vertex{ { to, Top }, fade(sf::Color::Black, 0.84f) });
+        m_mesh.append(sf::Vertex{ { to, Bottom }, fade(sf::Color::Black, 0.84f) });
+        m_mesh.append(sf::Vertex{ { from, Top }, fade(sf::Color::Black, 0.0f) });
+        m_mesh.append(sf::Vertex{ { to, Bottom }, fade(sf::Color::Black, 0.84f) });
+        m_mesh.append(sf::Vertex{ { from, Bottom }, fade(sf::Color::Black, 0.0f) });
+    };
+
+    gloom(W * 0.20f, W * 0.5f);
+    gloom(W * 0.80f, W * 0.5f);
+
+    const float sway = std::sin(m_total * 1.6f) * 16.0f;
+
+    wedge({ W * 0.5f + sway, MidY - 20.0f }, { 0.0f, 1.0f }, 340.0f, 130.0f,
+          fade(Lamp, 0.16f), fade(Lamp, 0.0f));
+    flush(target);
+
+    plate(target, m_bell, { W * 0.5f + sway, MidY - 30.0f }, 0.46f, sf::Color(140, 152, 160),
+          sway * 0.3f);
+
+    motes(m_total, { 0.0f, -1500.0f }, 90.0f, fade(Sky, 0.22f), 70);
+    flush(target);
+}
+
+void Cinematic::drawPass(sf::RenderTarget& target, float t)
+{
+    // Something the length of the screen crosses the beam. It is never lit and
+    // never explained; the shot is an eye going past, and then the lamp not
+    // being there any more.
+    wash(sf::Color(8, 14, 18), sf::Color(2, 4, 6));
+
+    const float dying = std::clamp((t - 0.74f) / 0.14f, 0.0f, 1.0f);
+    const float beam = 1.0f - dying;
+
+    const sf::Vector2f from{ 200.0f, MidY + 10.0f };
+
+    // The animal first and very nearly black. It is never lit: a thing you can
+    // see all of is a thing with a size, and the whole point of this shot is
+    // that nobody on board finds out what the size was.
+    const float cross = 1500.0f - 2000.0f * ease(t);
+    const float rise = std::sin(m_total * 0.7f) * 18.0f;
+
+    flush(target);
+    plate(target, m_beast, { cross, MidY + 40.0f + rise }, 1.42f,
+          dim(sf::Color(96, 88, 116), 0.14f + 0.16f * beam), -4.0f);
+
+    // Then the beam, over it, because the water between a lamp and a thing is
+    // in front of the thing.
+    wedge(from, { 1.0f, 0.02f }, 1250.0f * beam, 300.0f * beam,
+          fade(Lamp, 0.16f * beam), fade(Lamp, 0.0f));
+    wedge(from, { 1.0f, 0.02f }, 900.0f * beam, 150.0f * beam,
+          fade(Lamp, 0.10f * beam), fade(Lamp, 0.0f));
+
+    // Its eye, which is the only part of it that is lit at all.
+    const sf::Vector2f head{ cross + 380.0f, MidY + 40.0f + rise - 26.0f };
+
+    if (beam > 0.05f)
+    {
+        glow(head, 70.0f, Ember, 0.30f * beam);
+        disc(head, 10.0f, fade(sf::Color(255, 226, 170), 0.9f * beam));
+    }
+
+    flush(target);
+
+    plate(target, m_bell, from + sf::Vector2f{ -30.0f, 0.0f }, 0.40f,
+          dim(sf::Color(140, 152, 160), 0.35f + 0.65f * beam));
+
+    glow(from, 40.0f, Lamp, 0.6f * beam);
+    flush(target);
+
+    if (dying > 0.0f)
+    {
+        m_fill.setSize({ W, H });
+        m_fill.setPosition({ 0.0f, 0.0f });
+        m_fill.setFillColor(fade(sf::Color::Black, dying * 0.9f));
+        target.draw(m_fill);
     }
 }
 
-void Cinematic::drawStation(float t)
+void Cinematic::drawStation(sf::RenderTarget& target, float t)
 {
-    // A structure with nothing running in it. Boxes and legs: the moment it is
-    // detailed it stops being a wreck and starts being a set.
-    const float reveal = ease(std::clamp(t * 1.6f, 0.0f, 1.0f));
-    const float base = H * 0.72f;
+    // Nerith itself, on the floor, whole. One window is lit and none of the
+    // others are, and nothing anywhere in the frame is moving.
+    wash(sf::Color(10, 18, 22), sf::Color(3, 6, 8));
 
+    const float floor = Bottom - 40.0f;
+
+    m_mesh.append(sf::Vertex{ { 0.0f, floor }, sf::Color(22, 28, 30) });
+    m_mesh.append(sf::Vertex{ { W, floor }, sf::Color(22, 28, 30) });
+    m_mesh.append(sf::Vertex{ { W, H }, sf::Color(8, 11, 12) });
+    m_mesh.append(sf::Vertex{ { 0.0f, floor }, sf::Color(22, 28, 30) });
+    m_mesh.append(sf::Vertex{ { W, H }, sf::Color(8, 11, 12) });
+    m_mesh.append(sf::Vertex{ { 0.0f, H }, sf::Color(8, 11, 12) });
+
+    wedge({ -60.0f, MidY - 130.0f }, { 1.0f, 0.22f }, 1100.0f, 260.0f,
+          fade(Lamp, 0.10f), fade(Lamp, 0.0f));
+
+    const float pan = 60.0f - 120.0f * ease(t);
+
+    plate(target, m_station, { W * 0.52f + pan, floor - 108.0f }, 1.02f,
+          sf::Color(120, 132, 140));
+
+    // The lit window, given the halo the plate cannot paint on itself.
+    glow({ W * 0.52f + pan + 30.0f, floor - 152.0f }, 88.0f, Ember, 0.30f);
+
+    motes(m_total, { -40.0f, 60.0f }, 10.0f, fade(Sky, 0.14f), 70);
+    flush(target);
+}
+
+void Cinematic::drawHatches(sf::RenderTarget& target, float t)
+{
+    // The same structure, close enough to see that the doors are open, and one
+    // of the men who opened them still out in the water.
+    wash(sf::Color(8, 15, 19), sf::Color(2, 5, 7));
+
+    const float creep = 40.0f * ease(t);
+
+    plate(target, m_station, { W * 0.28f - creep, MidY + 150.0f }, 2.9f,
+          sf::Color(74, 84, 90));
+
+    wedge({ W + 40.0f, Top + 40.0f }, { -1.0f, 0.25f }, 1000.0f, 250.0f,
+          fade(Lamp, 0.09f), fade(Lamp, 0.0f));
+    flush(target);
+
+    // A man, drifting, with nothing holding him.
+    const float turn = std::sin(m_total * 0.35f) * 22.0f - 12.0f;
+    const float lift = std::sin(m_total * 0.5f) * 14.0f;
+
+    plate(target, m_diver, { W * 0.74f, MidY - 110.0f + lift }, 0.92f,
+          sf::Color(96, 104, 110), turn);
+
+    glow({ W * 0.74f + 12.0f, MidY - 166.0f + lift }, 26.0f, Lamp, 0.5f);
+
+    motes(m_total, { -30.0f, 50.0f }, 9.0f, fade(Sky, 0.12f), 60);
+    flush(target);
+}
+
+void Cinematic::drawTrench(sf::RenderTarget& target, float t)
+{
+    // The floor under the station, coming apart. What is in the gap is never
+    // shown: two lights come on in it, a long way apart, and that is all.
+    wash(sf::Color(7, 12, 16), sf::Color(0, 0, 0));
+
+    const float floor = MidY + 60.0f;
+    const float gap = 40.0f + 420.0f * ease(t);
+
+    const auto slab = [&](float from, float to) {
+        m_mesh.append(sf::Vertex{ { from, floor }, sf::Color(24, 30, 34) });
+        m_mesh.append(sf::Vertex{ { to, floor - 18.0f }, sf::Color(24, 30, 34) });
+        m_mesh.append(sf::Vertex{ { to, H }, sf::Color(6, 9, 11) });
+        m_mesh.append(sf::Vertex{ { from, floor }, sf::Color(24, 30, 34) });
+        m_mesh.append(sf::Vertex{ { to, H }, sf::Color(6, 9, 11) });
+        m_mesh.append(sf::Vertex{ { from, H }, sf::Color(6, 9, 11) });
+    };
+
+    slab(-20.0f, W * 0.5f - gap * 0.5f);
+    slab(W * 0.5f + gap * 0.5f, W + 20.0f);
+
+    // Two eyes, a long way apart, that were not on a moment ago.
+    const float wake = std::clamp((t - 0.55f) / 0.4f, 0.0f, 1.0f);
+
+    if (wake > 0.0f)
+    {
+        for (const float side : { -1.0f, 1.0f })
+        {
+            const sf::Vector2f at{ W * 0.5f + side * gap * 0.26f, floor + 120.0f };
+
+            glow(at, 86.0f, Ember, 0.24f * wake);
+            disc(at, 11.0f, fade(sf::Color(255, 216, 158), 0.75f * wake));
+        }
+    }
+
+    wedge({ W * 0.5f, MidY - 150.0f }, { 0.0f, 1.0f }, 300.0f, 120.0f,
+          fade(Lamp, 0.13f), fade(Lamp, 0.0f));
+    flush(target);
+
+    plate(target, m_bell, { W * 0.5f, MidY - 170.0f }, 0.40f, sf::Color(130, 142, 150));
+
+    motes(m_total, { 0.0f, 120.0f }, 10.0f, fade(Sky, 0.12f), 50);
+    flush(target);
+}
+
+void Cinematic::drawMark(sf::RenderTarget& target, float)
+{
+    wash(Deep, sf::Color(0, 0, 0));
+    glow({ W * 0.5f, MidY }, 420.0f, Water, 0.55f);
+    flush(target);
+}
+
+void Cinematic::drawHatch(sf::RenderTarget& target, float t)
+{
+    // The bottom of it opening, from much closer than anybody would choose.
+    wash(sf::Color(6, 10, 14), sf::Color(0, 0, 0));
+
+    const float floor = MidY - 30.0f;
+    const float gap = 100.0f + 540.0f * ease(t);
+
+    const auto slab = [&](float from, float to) {
+        m_mesh.append(sf::Vertex{ { from, floor }, sf::Color(30, 36, 40) });
+        m_mesh.append(sf::Vertex{ { to, floor }, sf::Color(30, 36, 40) });
+        m_mesh.append(sf::Vertex{ { to, Top }, sf::Color(10, 14, 16) });
+        m_mesh.append(sf::Vertex{ { from, floor }, sf::Color(30, 36, 40) });
+        m_mesh.append(sf::Vertex{ { to, Top }, sf::Color(10, 14, 16) });
+        m_mesh.append(sf::Vertex{ { from, Top }, sf::Color(10, 14, 16) });
+    };
+
+    slab(-20.0f, W * 0.5f - gap * 0.5f);
+    slab(W * 0.5f + gap * 0.5f, W + 20.0f);
+
+    // Light out of the gap, which is the wrong way round, and is the point.
+    // Wide and faint: narrow shafts out of a hole read as teeth.
     for (int i = 0; i < 5; ++i)
     {
-        const float seed = static_cast<float>(i) * 7.0f;
-        const float x = W * (0.18f + 0.16f * static_cast<float>(i));
-        const float w = 42.0f + 40.0f * wiggle(seed);
-        const float h = 60.0f + 120.0f * wiggle(seed + 1.0f);
+        const float x = W * 0.5f + (static_cast<float>(i) - 2.0f) * gap * 0.22f;
 
-        m_mesh.append(sf::Vertex{ { x - w, base }, fade(Steel, 0.30f * reveal) });
-        m_mesh.append(sf::Vertex{ { x - w, base - h }, fade(Steel, 0.30f * reveal) });
-        m_mesh.append(sf::Vertex{ { x + w, base - h }, fade(Steel, 0.30f * reveal) });
-
-        m_mesh.append(sf::Vertex{ { x - w, base }, fade(Steel, 0.30f * reveal) });
-        m_mesh.append(sf::Vertex{ { x + w, base - h }, fade(Steel, 0.30f * reveal) });
-        m_mesh.append(sf::Vertex{ { x + w, base }, fade(Steel, 0.30f * reveal) });
-
-        bar({ x - w * 0.6f, base }, { x - w * 0.9f, base + 70.0f }, 4.0f,
-            fade(Steel, 0.26f * reveal), fade(Steel, 0.0f));
-        bar({ x + w * 0.6f, base }, { x + w * 0.9f, base + 70.0f }, 4.0f,
-            fade(Steel, 0.26f * reveal), fade(Steel, 0.0f));
+        wedge({ x, floor }, { 0.0f, 1.0f }, 560.0f, 150.0f,
+              fade(Ember, 0.10f * ease(t)), fade(Ember, 0.0f));
     }
 
-    // The one light still on, and it is going out while you watch.
-    const float alive = std::clamp(1.0f - t * 1.7f, 0.0f, 1.0f);
-    const float flicker = alive * (0.55f + 0.45f * std::sin(m_total * 23.0f));
+    glow({ W * 0.5f, floor + 30.0f }, gap * 0.9f, Ember, 0.22f * ease(t));
 
-    disc({ W * 0.5f, base - 96.0f }, 54.0f, fade(Ember, 0.16f * flicker), 18);
-    disc({ W * 0.5f, base - 96.0f }, 7.0f, fade(Ember, flicker), 10);
-
-    hull({ W * 0.78f, base - 150.0f + std::sin(m_total * 1.4f) * 6.0f }, 20.0f, 180.0f,
-         fade(sf::Color(24, 30, 34), reveal));
+    motes(m_total, { 0.0f, -420.0f }, 30.0f, fade(Ember, 0.24f), 80);
+    flush(target);
 }
 
-void Cinematic::drawMark(float t)
+void Cinematic::drawClimb(sf::RenderTarget& target, float)
 {
-    // The title, out of the dark. Letters do not type: the word is already
-    // there and the dark is what moves.
-    const float open = ease(std::clamp(t * 1.5f, 0.0f, 1.0f));
+    // Rising. The rock goes the other way and so does everything else in the
+    // water, which is the half of it that is not good news.
+    wash(sf::Color(12, 22, 28), Deep);
+    flush(target);
 
-    disc({ W * 0.5f, H * 0.5f }, 90.0f + 620.0f * open,
-         fade(Water, 0.5f * open * (1.0f - std::clamp((t - 0.75f) * 4.0f, 0.0f, 1.0f))), 30);
+    rock(target, m_total * 540.0f, 2.1f, sf::Color(50, 58, 64));
+    rock(target, m_total * 980.0f - 140.0f, 3.4f, sf::Color(22, 28, 32, 190));
 
-    for (int i = 0; i < 40; ++i)
+    const auto gloom = [this](float from, float to) {
+        m_mesh.append(sf::Vertex{ { from, Top }, fade(sf::Color::Black, 0.0f) });
+        m_mesh.append(sf::Vertex{ { to, Top }, fade(sf::Color::Black, 0.8f) });
+        m_mesh.append(sf::Vertex{ { to, Bottom }, fade(sf::Color::Black, 0.8f) });
+        m_mesh.append(sf::Vertex{ { from, Top }, fade(sf::Color::Black, 0.0f) });
+        m_mesh.append(sf::Vertex{ { to, Bottom }, fade(sf::Color::Black, 0.8f) });
+        m_mesh.append(sf::Vertex{ { from, Bottom }, fade(sf::Color::Black, 0.0f) });
+    };
+
+    gloom(W * 0.24f, W * 0.5f);
+    gloom(W * 0.76f, W * 0.5f);
+
+    // Things going up past you, none of which are yours.
+    for (int i = 0; i < 12; ++i)
     {
-        const float seed = static_cast<float>(i) * 2.7f;
-        const float up = std::fmod(m_total * 0.22f + wiggle(seed), 1.0f);
+        const float seed = static_cast<float>(i) * 3.3f;
+        const float x = 120.0f + wiggle(seed) * (W - 240.0f);
+        const float speed = 180.0f + wiggle(seed + 0.5f) * 460.0f;
+        const float y = H + 120.0f
+                        - std::fmod(m_total * speed + wiggle(seed + 0.9f) * 900.0f, H + 300.0f);
+        const float size = 8.0f + wiggle(seed + 0.2f) * 26.0f;
 
-        disc({ W * wiggle(seed + 4.0f), H * (1.1f - up * 1.2f) }, 1.0f + 2.0f * wiggle(seed + 5.0f),
-             fade(Lamp, 0.14f * open), 6);
+        disc({ x, y }, size, fade(sf::Color(20, 18, 26), 0.85f));
+        disc({ x + size * 0.4f, y - size * 0.3f }, size * 0.22f, fade(Ember, 0.35f));
     }
+
+    const float sway = std::sin(m_total * 1.3f) * 14.0f;
+
+    wedge({ W * 0.5f + sway, MidY + 10.0f }, { 0.0f, -1.0f }, 300.0f, 110.0f,
+          fade(Lamp, 0.14f), fade(Lamp, 0.0f));
+    flush(target);
+
+    plate(target, m_bell, { W * 0.5f + sway, MidY + 20.0f }, 0.46f, sf::Color(140, 152, 160),
+          sway * 0.3f);
+
+    motes(m_total, { 0.0f, 1200.0f }, 70.0f, fade(Sky, 0.18f), 60);
+    flush(target);
 }
 
-void Cinematic::drawHatch(float t)
+void Cinematic::drawDawn(sf::RenderTarget& target, float t)
 {
-    // The floor opens. A dark seam that widens, and light coming up out of it
-    // that is not the sort of light anybody wants.
-    const float open = ease(t);
-    const float base = H * 0.80f;
+    // The surface from underneath, with the rig standing in it. The first warm
+    // light in the whole game, and it arrives as a ceiling.
+    wash(sf::Color(52, 92, 104), sf::Color(6, 14, 20));
 
-    m_mesh.append(sf::Vertex{ { 0.0f, base }, fade(Rock, 1.0f) });
-    m_mesh.append(sf::Vertex{ { 0.0f, H }, fade(Rock, 1.0f) });
-    m_mesh.append(sf::Vertex{ { W, H }, fade(Rock, 1.0f) });
+    const float lid = Top + 90.0f - 50.0f * ease(t);
 
-    m_mesh.append(sf::Vertex{ { 0.0f, base }, fade(Rock, 1.0f) });
-    m_mesh.append(sf::Vertex{ { W, H }, fade(Rock, 1.0f) });
-    m_mesh.append(sf::Vertex{ { W, base + 40.0f }, fade(Rock, 1.0f) });
-
-    const float gap = 12.0f + 300.0f * open;
-
-    m_mesh.append(sf::Vertex{ { W * 0.5f - gap, H }, fade(Deep, 1.0f) });
-    m_mesh.append(sf::Vertex{ { W * 0.5f, base - 40.0f * open }, fade(Deep, 1.0f) });
-    m_mesh.append(sf::Vertex{ { W * 0.5f + gap, H }, fade(Deep, 1.0f) });
-
-    // What is coming up out of it.
-    for (int i = 0; i < 90; ++i)
+    for (int i = 0; i < 30; ++i)
     {
-        const float seed = static_cast<float>(i) * 1.7f;
-        const float up = std::fmod(m_total * 0.30f + wiggle(seed), 1.0f);
-        const float spread = (wiggle(seed + 3.0f) - 0.5f) * gap * 1.8f;
+        const float x = static_cast<float>(i) * (W / 29.0f);
+        const float lift = std::sin(m_total * 1.2f + static_cast<float>(i) * 0.5f) * 9.0f;
 
-        disc({ W * 0.5f + spread * (0.4f + up), base - (base - 40.0f) * up * up },
-             1.5f + 2.5f * wiggle(seed + 6.0f), fade(Egg, 0.55f * open * (1.0f - up * 0.6f)), 7);
+        bar({ x, lid + lift }, { x + W / 29.0f, lid + lift }, 6.0f,
+            fade(sf::Color(226, 206, 168), 0.7f), fade(sf::Color(226, 206, 168), 0.7f));
     }
 
-    disc({ W * 0.5f, H }, gap * 1.4f, fade(Egg, 0.10f * open), 24);
+    for (int i = 0; i < 9; ++i)
+    {
+        const float x = 60.0f + static_cast<float>(i) * 150.0f;
+
+        wedge({ x, lid }, { -0.08f, 1.0f }, 620.0f, 70.0f,
+              fade(sf::Color(236, 214, 170), 0.16f), fade(Ember, 0.0f));
+    }
+
+    // The rig's legs, from below.
+    for (const float x : { W * 0.30f, W * 0.42f, W * 0.62f, W * 0.74f })
+        bar({ x, lid }, { x + 10.0f, lid + 260.0f }, 9.0f, fade(Deep, 0.8f), fade(Deep, 0.25f));
+
+    const float rise = Bottom - 120.0f - 240.0f * ease(t);
+
+    plate(target, m_bell, { W * 0.5f, rise }, 0.68f, sf::Color(168, 180, 186));
+
+    motes(m_total, { 10.0f, -320.0f }, 18.0f, fade(sf::Color(226, 214, 180), 0.30f), 80);
+    flush(target);
 }
 
-void Cinematic::drawClimb(float t)
+void Cinematic::drawCount(sf::RenderTarget& target, float t)
 {
-    // Rising, with everything that came out of the hole going past faster than
-    // the sub is. It is not an escape: it is being overtaken.
-    const float rise = m_total * 300.0f + ease(t) * 700.0f;
+    // The deck, in the rain, with the hold on it. This is the only shot in the
+    // game where anything goes right, and it lasts four seconds.
+    wash(sf::Color(56, 62, 74), sf::Color(24, 30, 38));
 
-    for (int i = 0; i < 120; ++i)
+    const float deck = MidY + 110.0f;
+
+    m_mesh.append(sf::Vertex{ { 0.0f, deck }, sf::Color(74, 80, 84) });
+    m_mesh.append(sf::Vertex{ { W, deck }, sf::Color(74, 80, 84) });
+    m_mesh.append(sf::Vertex{ { W, H }, sf::Color(42, 48, 52) });
+    m_mesh.append(sf::Vertex{ { 0.0f, deck }, sf::Color(74, 80, 84) });
+    m_mesh.append(sf::Vertex{ { W, H }, sf::Color(42, 48, 52) });
+    m_mesh.append(sf::Vertex{ { 0.0f, H }, sf::Color(42, 48, 52) });
+
+    // Dawn behind it.
+    glow({ W * 0.78f, deck - 30.0f }, 300.0f, sf::Color(236, 178, 118), 0.30f);
+
+    const float pan = -40.0f * ease(t);
+
+    // A derrick, drawn rather than plated: the deck crane is a top down sprite
+    // and this shot is in profile, so the sprite would be a crane lying on its
+    // side with its jib pointing at the camera.
+    const sf::Color frame(96, 104, 110);
+    const float mast = W * 0.16f + pan;
+
+    bar({ mast, deck }, { mast + 26.0f, deck - 250.0f }, 7.0f, frame, frame);
+    bar({ mast + 96.0f, deck }, { mast + 40.0f, deck - 250.0f }, 7.0f, frame, frame);
+
+    for (int i = 1; i < 5; ++i)
     {
-        const float seed = static_cast<float>(i) * 2.3f;
-        const float y = std::fmod(static_cast<float>(i) * 51.0f + rise, H + 200.0f) - 100.0f;
-        const float x = W * wiggle(seed);
-        const float size = 2.0f + 5.0f * wiggle(seed + 1.0f);
-
-        disc({ x, H - y }, size, fade(Egg, 0.42f), 7);
-        bar({ x, H - y }, { x, H - y + size * 5.0f }, size * 0.4f,
-            fade(Egg, 0.18f), fade(Egg, 0.0f));
+        const float up = deck - static_cast<float>(i) * 50.0f;
+        bar({ mast + static_cast<float>(i) * 5.0f, up },
+            { mast + 96.0f - static_cast<float>(i) * 11.0f, up }, 4.0f, frame, frame);
     }
 
-    const sf::Vector2f at{ W * 0.5f, H * 0.58f - std::sin(m_total * 1.6f) * 10.0f };
+    bar({ mast + 33.0f, deck - 250.0f }, { mast + 250.0f, deck - 216.0f }, 6.0f, frame, frame);
+    bar({ mast + 244.0f, deck - 218.0f }, { mast + 244.0f, deck - 96.0f }, 2.0f,
+        fade(frame, 0.7f), fade(frame, 0.7f));
+    disc({ mast + 244.0f, deck - 88.0f }, 11.0f, frame);
 
-    wedge(at, { 0.0f, -1.0f }, 300.0f, 120.0f, fade(Lamp, 0.13f), fade(Lamp, 0.0f));
-    hull(at, 28.0f, -90.0f, fade(sf::Color(24, 30, 34), 1.0f));
+    // The hold, stacked and counted one crate at a time.
+    const sf::Vector2f stack[] = {
+        { W * 0.40f, deck - 36.0f }, { W * 0.52f, deck - 30.0f }, { W * 0.46f, deck - 104.0f },
+        { W * 0.64f, deck - 42.0f }, { W * 0.75f, deck - 34.0f },
+    };
+
+    for (std::size_t i = 0; i < std::size(stack); ++i)
+    {
+        const float show = std::clamp((t - static_cast<float>(i) * 0.12f) * 4.0f, 0.0f, 1.0f);
+        if (show <= 0.0f)
+            continue;
+
+        plate(target, m_crate, stack[i] + sf::Vector2f{ pan, 0.0f }, 1.55f,
+              dim(sf::Color(160, 166, 170), show));
+    }
+
+    // And a man standing next to it with a board, which is the whole of the
+    // reward anybody in this line of work gets.
+    plate(target, m_diver, { W * 0.88f + pan, deck - 92.0f }, 0.95f, sf::Color(142, 148, 136),
+          std::sin(m_total * 0.6f) * 3.0f);
+
+    motes(m_total, { -70.0f, 700.0f }, 24.0f, fade(Sky, 0.24f), 90);
+    flush(target);
 }
 
-void Cinematic::drawDawn(float t)
+void Cinematic::drawWake(sf::RenderTarget& target, float t)
 {
-    // The surface, from underneath, and then through it. The first warm colour
-    // in the entire game.
-    const float up = ease(t);
-    const float line = H * (1.15f - 0.85f * up);
+    // Black, and then not black. The rig is a shape a long way up and the
+    // thing under it is most of the frame.
+    wash(sf::Color(10, 16, 22), sf::Color(0, 0, 0));
 
-    m_mesh.append(sf::Vertex{ { 0.0f, line }, fade(Sky, 0.55f) });
-    m_mesh.append(sf::Vertex{ { 0.0f, 0.0f }, fade(Ember, 0.55f) });
-    m_mesh.append(sf::Vertex{ { W, 0.0f }, fade(Ember, 0.55f) });
+    const float lid = Top + 50.0f;
 
-    m_mesh.append(sf::Vertex{ { 0.0f, line }, fade(Sky, 0.55f) });
-    m_mesh.append(sf::Vertex{ { W, 0.0f }, fade(Ember, 0.55f) });
-    m_mesh.append(sf::Vertex{ { W, line }, fade(Sky, 0.55f) });
-
-    // The waterline itself, wobbling.
-    for (int i = 0; i < 40; ++i)
+    for (int i = 0; i < 20; ++i)
     {
-        const float x0 = W * static_cast<float>(i) / 40.0f;
-        const float x1 = W * static_cast<float>(i + 1) / 40.0f;
-        const float w0 = std::sin(m_total * 1.4f + static_cast<float>(i) * 0.6f) * 7.0f;
-        const float w1 = std::sin(m_total * 1.4f + static_cast<float>(i + 1) * 0.6f) * 7.0f;
+        const float x = static_cast<float>(i) * (W / 19.0f);
+        const float lift = std::sin(m_total * 0.9f + static_cast<float>(i) * 0.7f) * 5.0f;
 
-        bar({ x0, line + w0 }, { x1, line + w1 }, 3.0f, fade(Sky, 0.8f), fade(Sky, 0.8f));
+        bar({ x, lid + lift }, { x + W / 19.0f, lid + lift }, 3.0f,
+            fade(sf::Color(180, 176, 156), 0.30f), fade(sf::Color(180, 176, 156), 0.30f));
     }
 
-    hull({ W * 0.5f, line + 60.0f - 40.0f * up }, 30.0f, -90.0f,
-         fade(sf::Color(26, 32, 36), 1.0f));
-}
+    plate(target, m_rig, { W * 0.5f, lid - 24.0f }, 0.40f, sf::Color(52, 60, 68));
 
-void Cinematic::drawWake(float t)
-{
-    // Dawn, held - and then the water behind the sub starts to light up, one
-    // point at a time, all the way to the horizon. Nobody says anything about
-    // it. That is the ending.
-    const float line = H * 0.34f;
+    // It comes up out of the bottom of the frame, and stops. Lit just enough
+    // to be a shape: a thing you cannot see at all is not frightening, it is
+    // a black screen.
+    const float lift = 360.0f - 300.0f * ease(std::min(1.0f, t * 1.4f));
+    const sf::Vector2f at{ W * 0.5f, Bottom + lift };
 
-    m_mesh.append(sf::Vertex{ { 0.0f, line }, fade(Sky, 0.6f) });
-    m_mesh.append(sf::Vertex{ { 0.0f, 0.0f }, fade(Ember, 0.62f) });
-    m_mesh.append(sf::Vertex{ { W, 0.0f }, fade(Ember, 0.62f) });
+    glow(at, 620.0f, sf::Color(40, 54, 76), 0.55f);
+    flush(target);
 
-    m_mesh.append(sf::Vertex{ { 0.0f, line }, fade(Sky, 0.6f) });
-    m_mesh.append(sf::Vertex{ { W, 0.0f }, fade(Ember, 0.62f) });
-    m_mesh.append(sf::Vertex{ { W, line }, fade(Sky, 0.6f) });
+    plate(target, m_beast, at, 1.55f, sf::Color(52, 48, 66), 3.0f);
 
-    m_mesh.append(sf::Vertex{ { 0.0f, line }, fade(Water, 0.9f) });
-    m_mesh.append(sf::Vertex{ { W, line }, fade(Water, 0.9f) });
-    m_mesh.append(sf::Vertex{ { W, H }, fade(Deep, 1.0f) });
+    // One eye, opening late.
+    const float open = std::clamp((t - 0.55f) / 0.35f, 0.0f, 1.0f);
 
-    m_mesh.append(sf::Vertex{ { 0.0f, line }, fade(Water, 0.9f) });
-    m_mesh.append(sf::Vertex{ { W, H }, fade(Deep, 1.0f) });
-    m_mesh.append(sf::Vertex{ { 0.0f, H }, fade(Deep, 1.0f) });
-
-    hull({ W * 0.34f, line + 22.0f }, 26.0f, 0.0f, fade(sf::Color(26, 32, 36), 1.0f));
-
-    // They arrive one at a time, and they keep arriving after the line of text
-    // has gone.
-    const int lit = static_cast<int>(std::clamp(t * 1.5f, 0.0f, 1.0f) * 120.0f);
-
-    for (int i = 0; i < lit; ++i)
+    if (open > 0.0f)
     {
-        const float seed = static_cast<float>(i) * 3.7f;
-        const float x = W * wiggle(seed);
-        const float y = line + 10.0f + (H - line) * wiggle(seed + 1.0f) * wiggle(seed + 1.0f);
-        const float pulse = 0.6f + 0.4f * std::sin(m_total * 3.0f + seed);
+        const sf::Vector2f eye{ W * 0.5f + 400.0f, Bottom + lift - 76.0f };
 
-        disc({ x, y }, 2.0f + 2.5f * wiggle(seed + 2.0f), fade(Egg, 0.75f * pulse), 7);
-        disc({ x, y }, 9.0f, fade(Egg, 0.10f * pulse), 10);
+        glow(eye, 150.0f, Ember, 0.26f * open);
+        disc(eye, 26.0f * open, fade(sf::Color(255, 222, 168), 0.9f * open));
+        disc(eye, 9.0f * open, fade(sf::Color::Black, 0.9f * open));
     }
-}
 
-// ---------------------------------------------------------------------------
+    flush(target);
+}
 
 void Cinematic::drawScene(sf::RenderTarget& target)
 {
@@ -510,18 +851,22 @@ void Cinematic::drawScene(sf::RenderTarget& target)
 
     switch (current().scene)
     {
-        case Scene::Winch:   drawWinch(t);   break;
-        case Scene::Fall:    drawFall(t);    break;
-        case Scene::Pass:    drawPass(t);    break;
-        case Scene::Station: drawStation(t); break;
-        case Scene::Mark:    drawMark(t);    break;
-        case Scene::Hatch:   drawHatch(t);   break;
-        case Scene::Climb:   drawClimb(t);   break;
-        case Scene::Dawn:    drawDawn(t);    break;
-        case Scene::Wake:    drawWake(t);    break;
+        case Scene::Rig:     drawRig(target, t);     break;
+        case Scene::Lower:   drawLower(target, t);   break;
+        case Scene::Fall:    drawFall(target, t);    break;
+        case Scene::Pass:    drawPass(target, t);    break;
+        case Scene::Station: drawStation(target, t); break;
+        case Scene::Hatches: drawHatches(target, t); break;
+        case Scene::Trench:  drawTrench(target, t);  break;
+        case Scene::Mark:    drawMark(target, t);    break;
+        case Scene::Hatch:   drawHatch(target, t);   break;
+        case Scene::Climb:   drawClimb(target, t);   break;
+        case Scene::Dawn:    drawDawn(target, t);    break;
+        case Scene::Count:   drawCount(target, t);   break;
+        case Scene::Wake:    drawWake(target, t);    break;
     }
 
-    target.draw(m_mesh);
+    flush(target);
 }
 
 void Cinematic::draw(sf::RenderTarget& target)
@@ -547,6 +892,8 @@ void Cinematic::draw(sf::RenderTarget& target)
 
     if (cut > 0.0f)
     {
+        m_fill.setSize({ W, H });
+        m_fill.setPosition({ 0.0f, 0.0f });
         m_fill.setFillColor(fade(sf::Color::Black, cut));
         target.draw(m_fill);
     }
@@ -559,29 +906,42 @@ void Cinematic::draw(sf::RenderTarget& target)
     m_fill.setPosition({ 0.0f, H - Letterbox });
     target.draw(m_fill);
 
-    // The line, in the lower bar, fading at both ends of its shot.
+    // The line, in the lower bar, fading at both ends of its shot. It shrinks
+    // rather than running off the edge, because a caption is written to say
+    // what it needs to say and not to fit a measurement.
     if (current().line != nullptr || !m_caption.empty())
     {
         const float say = std::min(std::clamp(t * 5.0f, 0.0f, 1.0f),
                                    std::clamp((1.0f - t) * 5.0f, 0.0f, 1.0f));
 
         const std::string line = current().line != nullptr ? current().line : m_caption;
-        const float width = pixelfont::measure(line, 1.7f);
+        const float scale = pixelfont::measure(line, 1.7f) > W - 90.0f ? 1.35f : 1.7f;
+        const float width = pixelfont::measure(line, scale);
 
-        pixelfont::append(m_text, line, { (W - width) * 0.5f, H - Letterbox + 32.0f }, 1.7f,
+        pixelfont::append(m_text, line, { (W - width) * 0.5f, H - Letterbox + 34.0f }, scale,
                           fade(config::HudTextColor, say));
     }
-    else
+
+    if (current().scene == Scene::Mark)
     {
-        // The title card carries the name instead.
+        // The title card carries the name, and the line the whole reel has
+        // been working toward.
         const float say = std::clamp(t * 2.2f, 0.0f, 1.0f)
                           * std::clamp((1.0f - t) * 3.0f, 0.0f, 1.0f);
 
         const std::string mark = "NERITH";
         const float width = pixelfont::measure(mark, 7.0f);
 
-        pixelfont::append(m_text, mark, { (W - width) * 0.5f, H * 0.42f }, 7.0f,
+        pixelfont::append(m_text, mark, { (W - width) * 0.5f, H * 0.36f }, 7.0f,
                           fade(config::HudBossColor, say));
+
+        // Eight shots is the descent; anything shorter is the way back up.
+        const std::string under = m_shots.size() > 6 ? "YOU ARE THE FOURTH"
+                                                     : "NOBODY ELSE CAME BACK UP";
+        const float underWidth = pixelfont::measure(under, 2.0f);
+
+        pixelfont::append(m_text, under, { (W - underWidth) * 0.5f, H * 0.36f + 78.0f }, 2.0f,
+                          fade(config::HudTextColor, say * 0.85f));
     }
 
     // And the way out, always, from the first frame.

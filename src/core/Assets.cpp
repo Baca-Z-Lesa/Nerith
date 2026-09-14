@@ -95,10 +95,17 @@ Assets::Assets()
     for (const char* path : { config::DeckPlatePath, config::DeckRailPath,
                               config::DeckDiverPath, config::DeckBootPath,
                               config::DeckCranePath, config::DeckBenchPath,
-                              config::DeckBellPath, config::DeckCratePath })
+                              config::DeckBellPath, config::DeckCratePath,
+                              config::ReelRigPath, config::ReelBellPath,
+                              config::ReelWallPath, config::ReelStationPath,
+                              config::ReelBeastPath, config::ReelDiverPath })
     {
         want(path);
     }
+
+    // The rock face in the two falling shots is laid down the screen more than
+    // once, so it has to repeat the same way the deck plate does.
+    m_bossTextures.at(config::ReelWallPath).setRepeated(true);
 
     // The floor and the rail are laid by giving one sprite a rectangle bigger
     // than the tile, which only works on a texture that repeats.
