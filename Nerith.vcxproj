@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -116,10 +116,10 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClCompile Include="src\entities\Enemy.cpp" />
     <ClCompile Include="src\entities\Player.cpp" />
     <ClCompile Include="src\entities\Projectile.cpp" />
+    <ClCompile Include="src\ui\Cinematic.cpp" />
     <ClCompile Include="src\ui\Hud.cpp" />
     <ClCompile Include="src\ui\MainMenu.cpp" />
     <ClCompile Include="src\ui\PixelFont.cpp" />
-    <ClCompile Include="src\ui\StoryScreen.cpp" />
     <ClCompile Include="src\ui\UpgradeIcons.cpp" />
     <ClCompile Include="src\ui\UpgradeScreen.cpp" />
     <ClCompile Include="src\upgrades\Stats.cpp" />
@@ -152,10 +152,10 @@ xcopy /Y /D /E /I "$(ProjectDir)assets" "$(OutDir)assets"</Command>
     <ClInclude Include="src\entities\EnemyType.h" />
     <ClInclude Include="src\entities\Player.h" />
     <ClInclude Include="src\entities\Projectile.h" />
+    <ClInclude Include="src\ui\Cinematic.h" />
     <ClInclude Include="src\ui\Hud.h" />
     <ClInclude Include="src\ui\MainMenu.h" />
     <ClInclude Include="src\ui\PixelFont.h" />
-    <ClInclude Include="src\ui\StoryScreen.h" />
     <ClInclude Include="src\ui\UpgradeIcons.h" />
     <ClInclude Include="src\ui\UpgradeScreen.h" />
     <ClInclude Include="src\upgrades\Stats.h" />

@@ -1,4 +1,4 @@
-#include "core/Game.h"
+﻿#include "core/Game.h"
 
 #include "core/Config.h"
 #include "core/Mesh.h"
@@ -1315,13 +1315,17 @@ void Game::diveIntoSelected()
 //  Upgrades
 // ---------------------------------------------------------------------------
 
-void Game::maybePlayStory(int chapter, State next)
+void Game::playFilm(Cinematic::Reel reel, State next)
 {
-    const int bit = 1 << chapter;
+    // Once each, ever. A player who has watched the descent does not want to
+    // watch it again every time they reload, and one who wants it again can
+    // start a new run.
+    // Bits nothing has ever used. The old interludes owned the low seven, so a
+    // save from before this existed reads as "has not seen either of these"
+    // rather than as "has seen all the story there is".
+    const int bit = reel == Cinematic::Reel::Descent ? 1 << 8 : 1 << 9;
 
-    // Each chapter is shown once ever. Replaying a level should not replay the
-    // words that came with it the first time.
-    if (chapter < 0 || chapter >= StoryScreen::chapterCount() || (m_save.storySeen & bit) != 0)
+    if ((m_save.storySeen & bit) != 0)
     {
         m_state = next;
         return;
@@ -1330,9 +1334,9 @@ void Game::maybePlayStory(int chapter, State next)
     m_save.storySeen |= bit;
     persist();
 
-    m_story.begin(chapter);
-    m_afterStory = next;
-    m_state = State::Story;
+    m_film.begin(reel);
+    m_afterFilm = next;
+    m_state = State::Film;
 }
 
 void Game::openMenu()
@@ -1356,7 +1360,7 @@ void Game::activateMenuChoice()
             m_showUpgrades = false;
             m_upgradeScreen.clearCursor();
             m_upgradeScreen.recentre();
-            maybePlayStory(0, State::Upgrading);
+            playFilm(Cinematic::Reel::Descent, State::Upgrading);
             break;
 
         case MainMenu::Choice::Controls:
@@ -1534,10 +1538,10 @@ void Game::processEvents()
         }
         else if (const auto* mousePressed = event->getIf<sf::Event::MouseButtonPressed>())
         {
-            if (m_state == State::Story)
+            if (m_state == State::Film)
             {
-                if (mousePressed->button == sf::Mouse::Button::Left)
-                    m_story.advance();
+                m_film.skip();
+                m_state = m_afterFilm;
             }
             else if (m_state == State::Menu)
             {
@@ -1552,14 +1556,12 @@ void Game::processEvents()
         }
         else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>())
         {
-            // An interlude owns the keyboard: one key finishes the line, the next
-            // moves on, and escape walks out of the whole chapter.
-            if (m_state == State::Story)
+            // Any key, any time, out of the whole reel. A cutscene you cannot
+            // leave is the most resented thing a game has.
+            if (m_state == State::Film)
             {
-                if (keyPressed->scancode == sf::Keyboard::Scancode::Escape)
-                    m_state = m_afterStory;
-                else
-                    m_story.advance();
+                m_film.skip();
+                m_state = m_afterFilm;
                 continue;
             }
 
@@ -5434,10 +5436,10 @@ void Game::presentUpdate(float deltaTime)
 
     switch (m_state)
     {
-        case State::Story:
-            m_story.update(deltaTime);
-            if (m_story.isFinished())
-                m_state = m_afterStory;
+        case State::Film:
+            m_film.update(deltaTime);
+            if (m_film.isFinished())
+                m_state = m_afterFilm;
             break;
 
         case State::Menu:
@@ -5469,7 +5471,7 @@ void Game::step(float deltaTime)
 
     switch (m_state)
     {
-        case State::Story:
+        case State::Film:
         case State::Menu:
         case State::Credits:
         case State::Controls:
@@ -5567,12 +5569,8 @@ void Game::step(float deltaTime)
                 if (m_justBeatCampaign)
                 {
                     m_justBeatCampaign = false;
-                    m_state = State::Victory;
+                    playFilm(Cinematic::Reel::Surface, State::Victory);
                 }
-                // Killing a depth ends a chapter, so the story lands between
-                // the kill and the shopping rather than during either.
-                else if (m_level.isBoss())
-                    maybePlayStory(m_level.getDepth(), State::Upgrading);
                 else
                     m_state = State::Upgrading;
             }
@@ -5887,9 +5885,9 @@ void Game::render(float alpha)
         drawMinimap();
     }
 
-    if (m_state == State::Story)
+    if (m_state == State::Film)
     {
-        m_story.draw(m_window);
+        m_film.draw(m_window);
         m_window.display();
         return;
     }

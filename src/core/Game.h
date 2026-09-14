@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "audio/AudioSystem.h"
 #include "core/Assets.h"
@@ -12,7 +12,7 @@
 #include "entities/Projectile.h"
 #include "ui/Hud.h"
 #include "ui/MainMenu.h"
-#include "ui/StoryScreen.h"
+#include "ui/Cinematic.h"
 #include "ui/UpgradeScreen.h"
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
@@ -49,7 +49,7 @@ private:
         Controls,   // what the keys and the mouse do
         Bestiary,   // the logbook: what has been met, and what it was
         Options,    // sound and difficulty
-        Story,      // an interlude between depths
+        Film,       // a cutscene: the way down, or the way back up
         LevelIntro, // title card, nothing spawns yet
         Fighting,
         LevelClear, // objective met, the water settles
@@ -461,7 +461,8 @@ private:
     int  getJetDamage() const;
 
     // Shows a chapter if it has never been seen, otherwise goes straight on.
-    void maybePlayStory(int chapter, State next);
+    // The two cutscenes, each shown once ever and skippable from frame one.
+    void playFilm(Cinematic::Reel reel, State next);
 
     void openMenu();
     void activateMenuChoice();
@@ -525,7 +526,7 @@ private:
     Player        m_player;
     Hud           m_hud;
     MainMenu      m_menu;
-    StoryScreen   m_story;
+    Cinematic     m_film;
     UpgradeScreen m_upgradeScreen;
 
     std::vector<Projectile> m_playerShots;
@@ -569,7 +570,7 @@ private:
     State    m_state;
     float    m_stateTimer;
     float    m_menuTime;
-    State    m_afterStory;
+    State    m_afterFilm;
 
     int   m_salvage;      // banked, and safe
     int   m_diveSalvage;  // earned this dive, and lost if you drown with it
