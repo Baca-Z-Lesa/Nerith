@@ -11,8 +11,12 @@
 // a range and fired a fan, and four that simply swam at you. A roster that
 // long reads as variety in a list and as one animal in the water.
 //
-// Nine now, and each asks a question none of the others do. The rule for
-// adding a tenth is that it must need an answer none of these need. What was
+// Each one asks a question none of the others do, and the rule for adding
+// another is that it must need an answer none of these need. The two below the
+// abyss earn their place that way: everything above them is answered by aiming
+// and by moving, and neither of those two is. One is answered by putting the
+// lamp out and the other by stopping dead, and both of those are things the
+// first twenty levels teach you never to do. What was
 // worth keeping out of the ones that went was folded into whichever of these
 // was already nearest: the Lancer took the Darter's job, the Warden the
 // Hulk's, the Weaver the Spitter's, the Bloom the Husk's dying ring, and the
@@ -28,6 +32,11 @@ enum class EnemyType
     Warden,    // armoured in front only, so it has to be fought from behind
     Revenant,  // under the floor and untouchable, then already beside you
     Herald,    // never attacks; it lights you up and hardens everything near it
+
+    // The two below the abyss. Each one takes a habit the trench spent twenty
+    // levels teaching and turns it into the way you die.
+    Moth,      // blind. It hunts the lamp, and nothing else in the water does
+    Effigy,    // it only moves while you do, so holding still is the answer
 
     // Not on any level's list. It follows you down from the last one.
     Stalker,   // a head towing a body that is the weapon, and it holds on
@@ -48,6 +57,8 @@ enum class EnemyBehaviour
     Bulwark,  // walks you down behind a shield that only faces one way
     Burrow,   // under the floor, up, strike, under again
     Serpent,  // a head towing a body that is itself the weapon
+    Moth,     // asleep in the dark, and the fastest thing down there in light
+    Creep,    // it only closes while the sub is under way
 };
 
 // Difficulty multipliers stamped onto a creature the moment it spawns, so a

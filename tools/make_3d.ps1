@@ -50,6 +50,11 @@ $Materials = @{
     'enemy_rift.png'      = 'jelly'
     'enemy_coilworm.png'  = 'shell'
     'enemy_coil_seg.png'  = 'shell'
+
+    # Below the abyss. The moth is flesh because it is all wing; the effigy is
+    # rock because whatever it was made of, it was not alive first.
+    'enemy_moth.png'      = 'flesh'
+    'enemy_effigy.png'    = 'rock'
     'fish.png'            = 'flesh'
 
     # --- bosses ---
@@ -74,6 +79,12 @@ $Materials = @{
     'worm_head.png'     = 'shell'
     'worm_seg.png'      = 'shell'
     'worm_vent.png'     = 'jelly'
+    'fur_body.png'      = 'rock'
+    'fur_flue.png'      = 'rock'
+    'fur_throat.png'    = 'glow'
+    'mot_bell.png'      = 'flesh'
+    'mot_limb.png'      = 'flesh'
+    'mot_sac.png'       = 'jelly'
 
     # --- the world ---
     'rock_a.png'  = 'rock'
@@ -95,6 +106,8 @@ $Materials = @{
     'shot_sovereign.png'  = 'glow'
     'shot_worm.png'       = 'glow'
     'shot_hollow.png'     = 'glow'
+    'shot_furnace.png'    = 'glow'
+    'shot_mother.png'     = 'glow'
 
     'water_jet.png'    = 'soft'
     'enemy_orb.png'    = 'glow'
@@ -108,7 +121,7 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_creatures.ps1', 'make_bosses.ps1',
                       'make_boss4.ps1', 'make_shots.ps1', 'make_nest.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
-                      'make_tails.ps1')) {
+                      'make_tails.ps1', 'make_deeper.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }

@@ -24,7 +24,7 @@ namespace
         const char* lines[6];
     };
 
-    // Five beats: one before the first dive, then one for each depth cleared.
+    // Seven beats: one before the first dive, then one for each depth cleared.
     const Chapter Chapters[] = {
         { StoryScreen::Motif::Descent, "ELEVEN DAYS",
           { "NERITH STATION STOPPED ANSWERING ELEVEN DAYS AGO.",
@@ -60,6 +60,22 @@ namespace
             "NERITH WAS NEVER A STATION.",
             "IT IS A NAME SOMETHING GAVE ITSELF.",
             "AND IT HAS BEEN AWAKE THE WHOLE TIME.",
+            nullptr } },
+
+        { StoryScreen::Motif::Reach, "THE LAMP",
+          { "THE FLOOR IS OPEN DOWN HERE AND IT IS BURNING.",
+            "THEY COME TO THE BEAM. ALL OF THEM. EVERY TIME.",
+            "THE OTHER THREE SUBS RAN THEIR LAMPS THE WHOLE WAY DOWN.",
+            "THAT IS WHY WE FOUND THEM AND NOT THEIR CREWS.",
+            "PUT IT OUT.",
+            nullptr } },
+
+        { StoryScreen::Motif::Pulse, "THE CRADLE",
+          { "THE STANDING THINGS ARE NOT STATUES.",
+            "THEY ARE THE ONES THAT GOT THIS FAR AND STOPPED.",
+            "SOMETHING UNDER THIS FLOOR HAS BEEN LAYING FOR A LONG TIME.",
+            "EVERY ANIMAL IN THIS TRENCH CAME OUT OF ONE ROOM.",
+            "YOU ARE STANDING OUTSIDE THE DOOR OF IT.",
             nullptr } },
     };
 

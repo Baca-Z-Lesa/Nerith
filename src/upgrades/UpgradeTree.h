@@ -32,10 +32,13 @@ struct UpgradeNode
 };
 
 // Nine roots, and each one splits in two partway out, so a branch is a choice
-// rather than a queue: committing to a root still leaves a fork in it.
+// rather than a queue: committing to a root still leaves a fork in it. Three
+// nodes of trunk and four of limb, which is eleven a branch and ninety nine in
+// all: the last ring went in with the ten levels under the abyss, because a
+// depth that asks more of the sub has to have more sub to ask for.
 inline constexpr int UpgradeBranchCount = 9;
 inline constexpr int UpgradeTrunkLength = 3;
-inline constexpr int UpgradeLimbLength = 3;
+inline constexpr int UpgradeLimbLength = 4;
 
 // A directed graph of upgrades plus which of them the player has bought.
 class UpgradeTree

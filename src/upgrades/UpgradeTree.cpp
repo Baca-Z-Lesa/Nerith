@@ -442,6 +442,96 @@ void UpgradeTree::build()
           28, 8, Icon::Abyssal, { "cur8" },
           { { Stat::ProjectileDamage, 0.0f, 0.40f }, { Stat::Armour, 1.0f, 0.0f },
             { Stat::MoveSpeed, 0.0f, 0.10f } }, {}, {}, cell(8, 2, 2) },
+
+        // ==================== THE LAST RING ====================
+        // One more node on the end of every limb, and nothing else. They are
+        // written here rather than in with their branches because that is what
+        // they are: the water under the abyss asked for ten more levels of
+        // sub, and this is the ten more levels of sub.
+        //
+        // Every one of them costs more than the whole trunk it hangs off, so
+        // finishing a limb is now a real end rather than somewhere a build
+        // arrives on the way past. Nobody gets more than two or three.
+        { "wpn10", "BARBED LINE", "+2 jet damage, +25% fire rate, and jets punch through one more.",
+          40, 0, Icon::Harpoon, { "wpn6" },
+          { { Stat::ProjectileDamage, 2.0f, 0.0f }, { Stat::FireRate, 0.0f, 0.25f },
+            { Stat::Pierce, 1.0f, 0.0f } }, {}, {}, cell(0, 1, 3) },
+        { "wpn11", "WATER HAMMER", "+60% jet damage and one more body punched through.",
+          40, 0, Icon::Pulse, { "wpn9" },
+          { { Stat::ProjectileDamage, 0.0f, 0.60f }, { Stat::Pierce, 1.0f, 0.0f } },
+          {}, {}, cell(0, 2, 3) },
+
+        { "tor10", "SUNDER", "+120 blast radius and +50% torpedo damage.",
+          40, 1, Icon::Blast, { "tor6" },
+          { { Stat::TorpedoBlast, 120.0f, 0.0f }, { Stat::TorpedoDamage, 0.0f, 0.50f } },
+          {}, {}, cell(1, 1, 3) },
+        { "tor11", "RUNNING LOAD", "+90% torpedo reload speed and +4 flat torpedo damage.",
+          40, 1, Icon::Reload, { "tor9" },
+          { { Stat::TorpedoRate, 0.0f, 0.90f }, { Stat::TorpedoDamage, 4.0f, 0.0f } },
+          {}, {}, cell(1, 2, 3) },
+
+        { "hul10", "CRUSH DEPTH", "+8 maximum HP and 1 more soaked per hit.",
+          40, 2, Icon::Hull, { "hul6" },
+          { { Stat::MaxHealth, 8.0f, 0.0f }, { Stat::Armour, 1.0f, 0.0f } },
+          {}, {}, cell(2, 1, 3) },
+        { "hul11", "DRY DOCK", "+6 more hull repaired between dives, and +4 maximum HP.",
+          40, 2, Icon::Repair, { "hul9" },
+          { { Stat::RepairPerLevel, 6.0f, 0.0f }, { Stat::MaxHealth, 4.0f, 0.0f } },
+          {}, {}, cell(2, 2, 3) },
+
+        { "eng10", "SUPERCAVITATION", "+30% move speed and -30% dash cooldown.",
+          40, 3, Icon::Propeller, { "eng6" },
+          { { Stat::MoveSpeed, 0.0f, 0.30f }, { Stat::DashCooldown, 0.0f, -0.30f } },
+          {}, {}, cell(3, 1, 3) },
+        { "eng11", "REDLINE", "+45% fire rate and +15% jet speed.",
+          40, 3, Icon::RapidFire, { "eng9" },
+          { { Stat::FireRate, 0.0f, 0.45f }, { Stat::ProjectileSpeed, 0.0f, 0.15f } },
+          {}, {}, cell(3, 2, 3) },
+
+        { "son10", "SEARCHLIGHT", "A far wider lamp and +400 sonar range - and everything down there knows.",
+          40, 4, Icon::Beacon, { "son6" },
+          { { Stat::LampRadius, 260.0f, 0.0f }, { Stat::SonarRange, 400.0f, 0.0f } },
+          {}, {}, cell(4, 1, 3) },
+        { "son11", "KILLING EYE", "+25% crit chance and a crit does twice again as much.",
+          40, 4, Icon::Eye, { "son9" },
+          { { Stat::CritChance, 0.25f, 0.0f }, { Stat::CritDamage, 1.00f, 0.0f } },
+          {}, {}, cell(4, 2, 3) },
+
+        { "def10", "LAST WORD", "+2 shield charges and -35% regrowth time.",
+          40, 5, Icon::ShieldTwo, { "def6" },
+          { { Stat::ShieldCharges, 2.0f, 0.0f }, { Stat::ShieldRecharge, 0.0f, -0.35f } },
+          {}, {}, cell(5, 1, 3) },
+        { "def11", "BULKHEAD", "+3 soaked per hit and +6 maximum HP.",
+          40, 5, Icon::Plate, { "def9" },
+          { { Stat::Armour, 3.0f, 0.0f }, { Stat::MaxHealth, 6.0f, 0.0f } },
+          {}, {}, cell(5, 2, 3) },
+
+        { "mut10", "THE SWARM", "+2 escort drones and +4 flat drone damage.",
+          40, 6, Icon::Hive, { "mut6" },
+          { { Stat::DroneCount, 2.0f, 0.0f }, { Stat::DroneDamage, 4.0f, 0.0f } },
+          {}, {}, cell(6, 1, 3) },
+        { "mut11", "SOMETHING ELSE", "Anything under a third health dies at a touch, and a third of kills heal.",
+          40, 6, Icon::Abyssal, { "mut9" },
+          { { Stat::ExecuteThreshold, 0.13f, 0.0f }, { Stat::LifestealChance, 0.33f, 0.0f } },
+          { Trait::Lifesteal }, {}, cell(6, 2, 3) },
+
+        { "sal10", "MINEFIELD", "+3 mines in the water and +8 mine damage.",
+          40, 7, Icon::Blast, { "sal6" },
+          { { Stat::MineCount, 3.0f, 0.0f }, { Stat::MineDamage, 8.0f, 0.0f } },
+          {}, {}, cell(7, 1, 3) },
+        { "sal11", "THE COMPANY'S CUT", "+80% salvage and 2 more soaked per hit.",
+          40, 7, Icon::Crate, { "sal9" },
+          { { Stat::SalvageBonus, 0.80f, 0.0f }, { Stat::Armour, 2.0f, 0.0f } },
+          {}, {}, cell(7, 2, 3) },
+
+        { "cur10", "RIPTIDE", "+3 bounces and +30% jet damage.",
+          40, 8, Icon::Ghost, { "cur6" },
+          { { Stat::RicochetCount, 3.0f, 0.0f }, { Stat::ProjectileDamage, 0.0f, 0.30f } },
+          {}, {}, cell(8, 1, 3) },
+        { "cur11", "NERITH", "A charged jet hits three times harder again and goes through two more.",
+          40, 8, Icon::Charge, { "cur9" },
+          { { Stat::ChargeMultiplier, 3.0f, 0.0f }, { Stat::Pierce, 2.0f, 0.0f } },
+          {}, {}, cell(8, 2, 3) },
     };
 
     for (UpgradeNode& node : m_nodes)

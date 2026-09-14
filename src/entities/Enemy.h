@@ -181,6 +181,7 @@ private:
     sf::Vector2f m_lanceHeading;    // Lance only: locked when the charge starts
     float        m_broodTimer;
     float        m_playerDistance;  // kept for the stealth fade
+    float        m_playerSpeed = 0.0f; // Creep only: it moves when the sub does
     bool         m_inFiringRange;
     bool         m_hasEntered;       // has it crossed into the lit basin yet
     bool         m_aware;            // does it currently know where the sub is

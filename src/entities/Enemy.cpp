@@ -91,6 +91,40 @@ void Enemy::move(float deltaTime, sf::Vector2f toPlayer, float distance)
             m_position += direction * speed * deltaTime;
             break;
 
+        case EnemyBehaviour::Moth:
+        {
+            // It has no eyes and it does not need any, because it is not
+            // looking for a sub. It is looking for the lamp. In the dark it is
+            // a drifting nothing; in the beam it is the fastest thing down
+            // here and it does not correct, it simply arrives.
+            //
+            // m_lit is how much of the player's lamp is falling on it, which
+            // is exactly the question, and the lamp being switched off is
+            // already in that number.
+            const float woken = std::clamp((m_lit - config::MothWakeLight)
+                                               / (1.0f - config::MothWakeLight),
+                                           0.0f, 1.0f);
+
+            m_position += direction * speed
+                          * (config::MothSleepSpeed
+                             + (1.0f - config::MothSleepSpeed) * woken)
+                          * deltaTime;
+            break;
+        }
+
+        case EnemyBehaviour::Creep:
+        {
+            // It is only ever where you left it. It closes while the sub is
+            // under way and it stops the moment the sub does, so a room full
+            // of them is crossed by holding still - which is the one thing
+            // twenty levels of everything else taught the player never to do.
+            const float under = std::clamp(m_playerSpeed / config::EffigyWakeSpeed,
+                                           0.0f, 1.0f);
+
+            m_position += direction * speed * under * under * deltaTime;
+            break;
+        }
+
 
         case EnemyBehaviour::Orbit:
         {
@@ -184,6 +218,11 @@ void Enemy::update(float deltaTime, sf::Vector2f playerPosition, sf::Vector2f pl
     // off. Cold water slows the beat along with everything else, so a chilled
     // creature does not swim at half speed while its tail keeps full time.
     m_age += deltaTime * (1.0f - m_chillStrength);
+
+    // How fast the sub is actually going, which is the whole of what an effigy
+    // reads. Kept rather than threaded through move(), because every other
+    // creature in the water is entitled to ignore it.
+    m_playerSpeed = playerVelocity.length();
 
     // Where to swim, as opposed to where the sub is. Straight at it when the
     // water is open, and along the room graph when it is not.

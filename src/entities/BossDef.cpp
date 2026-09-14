@@ -130,6 +130,70 @@ namespace
                 { PartRole::Organ,  "assets/textures/hol_mass.png",     1,   0.0f,   0.0f, 30.0f, 1.0f,    0.0f, 180 },
             } }
         },
+
+        // =================================================================
+        //  THE FURNACE
+        //  It does not hunt and it does not leave. It has settled on an open
+        //  vent and it is turning the whole room around itself, and the only
+        //  soft things on it are the three throats the heat comes out of.
+        //  Every flue you shear off is one less arm of the spiral, which is
+        //  the only way the room ever gets crossable.
+        // =================================================================
+        {
+            "THE FURNACE", "IT IS SITTING ON THE HOLE IN THE FLOOR.",
+            BossBody::Bell, BossMind::Spiral,
+            "assets/textures/fur_body.png", "assets/textures/shot_furnace.png",
+            "assets/textures/fur_body.png", nullptr,
+            1.0f, 1.0f, 1.0f, 0, 0.0f, 92.0f,
+            3, 58,
+            30.0f, 300.0f,
+            0.34f, 5, 90.0f,
+            { 0.62f, 1.10f, 3, 1.0f },
+            8,
+            { {
+                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0,  74.0f,   0.0f, 24.0f, 0.85f,   0.0f, 34 },
+                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0,  23.0f,  70.0f, 24.0f, 0.85f,  72.0f, 34 },
+                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0, -60.0f,  44.0f, 24.0f, 0.85f, 144.0f, 34 },
+                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0, -60.0f, -44.0f, 24.0f, 0.85f, 216.0f, 34 },
+                { PartRole::Tentacle, "assets/textures/fur_flue.png",   0,  23.0f, -70.0f, 24.0f, 0.85f, 288.0f, 34 },
+                // Three throats, spread so no single pass over the top can
+                // reach two of them.
+                { PartRole::Organ,    "assets/textures/fur_throat.png", 0,  38.0f,   0.0f, 26.0f, 1.0f,    0.0f, 96 },
+                { PartRole::Organ,    "assets/textures/fur_throat.png", 0, -19.0f,  33.0f, 26.0f, 1.0f,    0.0f, 96 },
+                { PartRole::Organ,    "assets/textures/fur_throat.png", 0, -19.0f, -33.0f, 26.0f, 1.0f,    0.0f, 96 },
+            } }
+        },
+
+        // =================================================================
+        //  THE MOTHER
+        //  A bell that charges. Everything shaped like this until now has
+        //  drifted and pulsed, so the first time it puts its head down and
+        //  comes at you across the room it reads as the wrong animal doing
+        //  it - which is the point. It also refills the water while it does,
+        //  so a fight spent dodging is a fight spent losing ground.
+        // =================================================================
+        {
+            "THE MOTHER", "IT IS WHERE THEY ALL CAME FROM.",
+            BossBody::Bell, BossMind::Prowler,
+            "assets/textures/mot_bell.png", "assets/textures/shot_mother.png",
+            "assets/textures/mot_bell.png", nullptr,
+            1.0f, 1.0f, 1.0f, 0, 0.0f, 96.0f,
+            3, 72,
+            104.0f, 330.0f,
+            2.0f, 7, 200.0f,
+            { 0.55f, 1.30f, 4, 1.2f },
+            7,
+            { {
+                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0,  46.0f,  62.0f, 26.0f, 0.9f,   52.0f, 42 },
+                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0, -46.0f,  62.0f, 26.0f, 0.9f,  128.0f, 42 },
+                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0, -46.0f, -62.0f, 26.0f, 0.9f,  232.0f, 42 },
+                { PartRole::Tentacle, "assets/textures/mot_limb.png",   0,  46.0f, -62.0f, 26.0f, 0.9f,  308.0f, 42 },
+                // Three sacs, and every one of them is still hatching.
+                { PartRole::Organ,    "assets/textures/mot_sac.png",    0,  44.0f,   0.0f, 28.0f, 1.0f,    0.0f, 120 },
+                { PartRole::Organ,    "assets/textures/mot_sac.png",    0, -22.0f,  38.0f, 28.0f, 1.0f,    0.0f, 120 },
+                { PartRole::Organ,    "assets/textures/mot_sac.png",    0, -22.0f, -38.0f, 28.0f, 1.0f,    0.0f, 120 },
+            } }
+        },
     };
 }
 

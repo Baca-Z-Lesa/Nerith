@@ -5,9 +5,10 @@
 
 namespace
 {
-    // Five steps down. Teal water gives way to cold blue, then indigo, then a
-    // bruised violet, and finally something the colour of dried blood. The lamp
-    // shrinks the whole way and the vignette tightens around it.
+    // Six steps down. Teal water gives way to cold blue, then indigo, then a
+    // bruised violet, then the colour of dried blood where the floor is open
+    // and burning, and at the bottom no colour at all. The lamp shrinks the
+    // whole way and the vignette tightens around it.
     const DepthTheme Themes[] = {
         { "THE SHALLOWS",
           { 2, 5, 9 }, { 15, 30, 38 }, { 9, 19, 26 },
@@ -41,13 +42,25 @@ namespace
           { 190, 168, 182 },
           0.82f, 40.0f },
 
-        { "THE DARK",
+        // The floor is open here and what comes out of it is the only light
+        // the depth has of its own.
+        { "THE VENTS",
           { 2, 1, 2 }, { 15, 8, 8 }, { 8, 4, 4 },
           { 60, 26, 26 }, 228.0f,
           { 146, 52, 42 }, 0.32f,
           253, 0.59f,
           { 186, 150, 146 },
           0.74f, 42.0f },
+
+        // And the bottom of it. Nothing here is any colour; the only thing the
+        // lamp finds is bone, and the dark is tight enough to touch.
+        { "THE CRADLE",
+          { 1, 2, 2 }, { 11, 14, 12 }, { 5, 7, 6 },
+          { 44, 62, 52 }, 206.0f,
+          { 94, 132, 108 }, 0.22f,
+          254, 0.50f,
+          { 168, 178, 168 },
+          0.66f, 44.0f },
     };
 
     constexpr std::size_t ThemeCount = sizeof(Themes) / sizeof(Themes[0]);

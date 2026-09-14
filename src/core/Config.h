@@ -122,12 +122,15 @@ namespace config
     // what stops a maze being symmetrical - you remember which way the water
     // was going, not just where the turnings were.
     //
-    // Strength stays under PlayerSpeed on purpose: a passage you cannot swim
-    // back up is not tension, it is a locked door, and the routing the
-    // creatures use knows nothing about the water.
-    inline constexpr float CorridorCurrentChance = 0.22f;
-    inline constexpr float CurrentStrength = 150.0f;
-    inline constexpr float CurrentMouthTaper = 0.18f;
+    // It used to push at two thirds of the sub's own top speed, which is not a
+    // current, it is a hand on your back: you were thrown down a passage you
+    // meant to stop in, and swimming back up one left you crawling at a third
+    // speed while something bit you. At a fifth of top speed it still tells
+    // you which way the water is going and it still costs you something to go
+    // the other way, but it never takes the sub off you.
+    inline constexpr float CorridorCurrentChance = 0.14f;
+    inline constexpr float CurrentStrength = 46.0f;
+    inline constexpr float CurrentMouthTaper = 0.30f;
 
     // How much of it a creature feels. Well under one, because the slowest of
     // them is slower than the water: at full strength a lurker in an upstream
@@ -471,6 +474,27 @@ namespace config
         { EnemyBehaviour::Chase, "assets/textures/enemy_herald.png", nullptr,
           0.9f, 27.0f, 58.0f, 40, 1, 13, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
+        // ---------------- BELOW THE ABYSS ----------------
+
+        // Moth: it has no eyes and it does not need them. In the dark it is a
+        // slow drifting nothing that will not even find you if you swim into
+        // it; in the beam it is the fastest thing in the trench and it does not
+        // stop. Everything above it made the lamp a cost. This one makes it a
+        // mistake, and the answer is the one thing twenty levels of dark water
+        // taught the player never to do: turn the light off and keep going.
+        { EnemyBehaviour::Moth, "assets/textures/enemy_moth.png", nullptr,
+          0.8f, 20.0f, 380.0f, 10, 3, 9, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.30f },
+
+        // Effigy: it is only ever where you left it. It closes while the sub
+        // is under way and it stops dead the moment the sub does, so the way
+        // through a room full of them is to stand still - which is the one
+        // thing that gets you killed by everything else in the water, and is
+        // exactly why they are never sent on their own.
+        { EnemyBehaviour::Creep, "assets/textures/enemy_effigy.png", nullptr,
+          1.0f, 30.0f, 306.0f, 22, 3, 12, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          EnemyType::Lurker, 0, 0.0f, 0, false, false },
+
         // Stalker: nothing puts it in the water. It is there because you left
         // it alive somewhere above, and it has been following you down ever
         // since. The head is only how it steers - the body laid along where it
@@ -505,7 +529,7 @@ namespace config
     };
 
     // Order must match EnemyBehaviour.
-    inline constexpr std::array<Motion, 8> BehaviourMotion{ {
+    inline constexpr std::array<Motion, 10> BehaviourMotion{ {
         { 7.0f, 2.20f, 0.030f, 2.20f, 1.2f, 1.10f }, // Chase: a tail, beating
         { 2.0f, 0.85f, 0.070f, 0.80f, 2.0f, 0.45f }, // Drift: a bell, breathing
         { 5.0f, 1.60f, 0.025f, 3.20f, 1.6f, 0.80f }, // Orbit: leaning its turn
@@ -514,6 +538,8 @@ namespace config
         { 2.0f, 1.05f, 0.018f, 1.05f, 2.4f, 1.05f }, // Bulwark: a heavy plod
         { 6.0f, 2.00f, 0.030f, 2.00f, 1.4f, 1.00f }, // Burrow
         { 9.0f, 2.40f, 0.025f, 2.40f, 0.0f, 0.00f }, // Serpent: the whole animal
+        { 14.0f, 5.20f, 0.060f, 5.20f, 3.0f, 4.20f }, // Moth: a flutter, not a swim
+        { 0.8f, 0.40f, 0.045f, 0.38f, 0.0f, 0.00f },  // Creep: barely breathing
     } };
 
     inline constexpr const Motion& motionFor(EnemyBehaviour behaviour)
@@ -550,6 +576,8 @@ namespace config
         CreatureVoice::Shell,   // Warden
         CreatureVoice::Void,    // Revenant
         CreatureVoice::Bladder, // Herald
+        CreatureVoice::Wet,     // Moth
+        CreatureVoice::Shell,   // Effigy
         CreatureVoice::Shell,   // Stalker
     } };
 
@@ -575,6 +603,19 @@ namespace config
     // Leave this many creatures alive in water this deep and one of them comes
     // with you. It is never rolled for: it is the price of finishing a level
     // by walking away from it rather than by emptying it.
+    // --- the two below the abyss ---
+    // How much lamp has to be on a moth before it wakes, and what fraction of
+    // its speed it has while it is asleep. Not zero: a creature that can be
+    // switched off outright is a creature a level can be won by ignoring, and
+    // a clear-the-roster level with one in it would never end.
+    inline constexpr float MothWakeLight = 0.34f;
+    inline constexpr float MothSleepSpeed = 0.07f;
+
+    // And how fast the sub has to be going before an effigy moves at all. Set
+    // under a drifting sub's speed rather than at zero, so easing off the
+    // throttle is not the same as stopping.
+    inline constexpr float EffigyWakeSpeed = 96.0f;
+
     inline constexpr int   StalkerFromDepth = 2;
     inline constexpr int   StalkerLeftBehind = 3;
 

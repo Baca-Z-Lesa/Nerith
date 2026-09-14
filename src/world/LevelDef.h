@@ -60,7 +60,7 @@ int authoredLevelCount();
 //  then tests all of it against a creature. Adding levels means adding
 //  rows; nothing else changes.
 // =====================================================================
-inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
+inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // ---------------- DEPTH 1: THE SHALLOWS ----------------
     // Still the teaching level, but no longer a formality: the sub is fragile
     // now and even lurkers will drown you if you stand still.
@@ -167,10 +167,84 @@ inline constexpr std::array<LevelDef, 20> AuthoredLevels{ {
           { EnemyType::Warden, 3 }, { EnemyType::Herald, 2 },
           { EnemyType::Lurker, 8 }, { EnemyType::Brooder, 2 } } }, false },
 
-    // The floor of the trench. Everything the campaign has taught, asked for
-    // at once, by the thing that was down here before any of it.
+    // Not the floor of the trench after all. Everything the campaign has
+    // taught, asked for at once, by the thing that was down here before any
+    // of it - and behind it the water keeps going.
     { "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
       ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 3.40f, 1.30f, 2 },
+      { {} }, true },
+
+    // ---------------- DEPTH 5: THE VENTS ----------------
+    // One idea: the lamp is now a liability. Everything above taught that the
+    // dark costs you and the light is worth what it costs. The moth is the
+    // first thing down here that is drawn to the beam, and the whole depth is
+    // built on taking the lamp away from a player who has learned to need it.
+    { "THE VENTS", "SOMETHING DOWN HERE COMES TO THE LIGHT.",
+      ObjectiveKind::ClearRoster, 0, 1.00f, 10, { 1.85f, 1.26f, 1 },
+      { { { EnemyType::Moth, 3 }, { EnemyType::Lurker, 6 },
+          { EnemyType::Moth, 4 }, { EnemyType::Lancer, 4 } } }, false },
+
+    // Drill it. A basin full of them and nothing else worth the beam.
+    { "RUN DARK", "PUT IT OUT. ALL OF IT. KEEP GOING.",
+      ObjectiveKind::KillCount, 40, 0.80f, 12, { 1.95f, 1.28f, 2 },
+      { { { EnemyType::Moth, 7 }, { EnemyType::Lurker, 7 },
+          { EnemyType::Moth, 6 }, { EnemyType::Weaver, 3 } } }, false },
+
+    // And then take the choice away. A herald keeps you lit whether you like
+    // it or not, so the moths are awake until the herald is dead - which puts
+    // the one thing that never attacks at the top of the target list.
+    { "SOMETHING HOLDS A LAMP", "IT IS NOT YOUR LIGHT THEY ARE COMING TO.",
+      ObjectiveKind::ClearRoster, 0, 0.85f, 12, { 2.05f, 1.30f, 2 },
+      { { { EnemyType::Herald, 2 }, { EnemyType::Moth, 6 },
+          { EnemyType::Warden, 2 }, { EnemyType::Herald, 2 },
+          { EnemyType::Moth, 5 } } }, false },
+
+    // Hauling in the dark, with the pod itself giving you away.
+    { "THE LAST HAUL", "FOUR PODS. NO LIGHT. GOOD LUCK.",
+      ObjectiveKind::HaulCargo, 4, 0.90f, 12, { 2.15f, 1.32f, 2 },
+      { { { EnemyType::Moth, 5 }, { EnemyType::Revenant, 3 },
+          { EnemyType::Lurker, 7 }, { EnemyType::Moth, 5 },
+          { EnemyType::Weaver, 3 } } }, false },
+
+    { "THE FURNACE", "IT IS SITTING ON THE HOLE IN THE FLOOR.",
+      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 4.00f, 1.28f, 2 },
+      { {} }, true },
+
+    // ---------------- DEPTH 6: THE CRADLE ----------------
+    // The last idea, and the opposite of every other one: stop moving. An
+    // effigy only closes while the sub is under way, so a room of them is
+    // crossed in bursts - and everything else in the water is still built to
+    // punish exactly that.
+    { "THE CRADLE", "THEY ARE ONLY EVER WHERE YOU LEFT THEM.",
+      ObjectiveKind::ClearRoster, 0, 1.05f, 11, { 2.30f, 1.34f, 2 },
+      { { { EnemyType::Effigy, 4 }, { EnemyType::Lurker, 6 },
+          { EnemyType::Effigy, 4 }, { EnemyType::Lancer, 4 } } }, false },
+
+    // The drill and the contradiction in one level: the effigies want you
+    // still and the weavers kill you for it.
+    { "HOLD STILL", "ONE OF THEM WANTS YOU TO STOP. THE OTHERS DO NOT.",
+      ObjectiveKind::SurviveTime, 90, 0.70f, 13, { 2.45f, 1.36f, 2 },
+      { { { EnemyType::Effigy, 5 }, { EnemyType::Weaver, 5 },
+          { EnemyType::Effigy, 4 }, { EnemyType::Lancer, 5 },
+          { EnemyType::Bloom, 3 } } }, false },
+
+    // Both of the deep answers at once: lamp off and feet still.
+    { "NOTHING MOVES HERE", "NOT WHILE YOU ARE WATCHING.",
+      ObjectiveKind::ClearRoster, 0, 0.80f, 13, { 2.60f, 1.38f, 3 },
+      { { { EnemyType::Effigy, 5 }, { EnemyType::Moth, 6 },
+          { EnemyType::Effigy, 5 }, { EnemyType::Herald, 2 },
+          { EnemyType::Warden, 3 } } }, false },
+
+    { "EVERYTHING THAT IS LEFT", "ALL OF IT. ONE MORE TIME.",
+      ObjectiveKind::KillCount, 70, 0.60f, 15, { 2.75f, 1.40f, 3 },
+      { { { EnemyType::Effigy, 5 }, { EnemyType::Moth, 6 },
+          { EnemyType::Revenant, 4 }, { EnemyType::Warden, 4 },
+          { EnemyType::Herald, 3 }, { EnemyType::Weaver, 5 } } }, false },
+
+    // The bottom. It is where all of it came from, and it is the first thing
+    // shaped like that which has ever come at you.
+    { "THE MOTHER", "IT IS WHERE THEY ALL CAME FROM.",
+      ObjectiveKind::DefeatBoss, 0, 0.0f, 1, { 5.00f, 1.36f, 3 },
       { {} }, true },
 } };
 

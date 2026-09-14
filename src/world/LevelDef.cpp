@@ -21,6 +21,8 @@ const char* depthName(int depth)
         case 2:  return "THE SHELF";
         case 3:  return "THE TRENCH";
         case 4:  return "THE ABYSS";
+        case 5:  return "THE VENTS";
+        case 6:  return "THE CRADLE";
         default: return "THE DARK";
     }
 }

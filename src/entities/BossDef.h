@@ -9,6 +9,12 @@ enum class BossId
     Medusa,    // the bloom sovereign: drifts and pulses rings of stingers
     Worm,      // the trench worm: dives, vanishes, erupts somewhere else
     Hollow,    // the crown of bone: holds its distance and winds a spiral
+
+    // Below the abyss. Both are bells, and a bell has never done either of
+    // these things: one plants itself on an open vent and winds the water
+    // around it, the other charges.
+    Furnace,   // sits on the hole in the floor and turns the room into one
+    Mother,    // a bell that runs you down, and refills the water while it does
     Count
 };
 
