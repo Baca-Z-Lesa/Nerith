@@ -261,10 +261,22 @@ namespace config
     inline constexpr float LampHaloBack = 0.20f;        // of that, directly astern
     inline constexpr int   LampHaloRings = 4;           // steps in the falloff
 
-    // How much light there is where there is none. Not zero: a creature that
-    // is literally invisible is not frightening, it is unfair - what the dark
-    // should take away is detail, not existence.
-    inline constexpr float LightFloor = 0.13f;
+    // How much light there is where there is none. Zero, now: outside the lamp
+    // the water is painted out entirely, so a creature out there is not a dim
+    // shape, it is nothing at all. The sonar and the little map are what you
+    // have instead, and the lamp is the only thing that turns the dark into a
+    // room - which is what makes buying a bigger one worth the salvage.
+    inline constexpr float LightFloor = 0.0f;
+
+    // The shape of the dark: the exact complement of the lamp, drawn over the
+    // basin after everything in it. The cone's edge is feathered over a few
+    // degrees so it is a beam and not a slice of pie, the black fades in over
+    // a short band rather than starting on a line, and there is always a small
+    // disc of visibility around the hull - you can see your own sub.
+    inline constexpr float DarkFeather = 16.0f;  // degrees the cone edge softens over
+    inline constexpr float DarkFade = 84.0f;     // pixels the black takes to arrive
+    inline constexpr float DarkFloor = 52.0f;    // never blind inside this radius
+    inline constexpr float DarkReach = 4200.0f;  // out past any window
 
     inline constexpr float CameraOvershoot = 0.55f;
     // How quickly the view catches up with the sub. At five it took about a

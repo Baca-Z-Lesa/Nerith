@@ -1,4 +1,4 @@
-#include "world/Arena.h"
+﻿#include "world/Arena.h"
 
 #include "core/Config.h"
 #include "core/Mesh.h"
@@ -102,10 +102,12 @@ Arena::Arena(sf::Vector2f center, float radius)
     , m_lightPool(sf::PrimitiveType::Triangles)
     , m_caustics(sf::PrimitiveType::Triangles)
     , m_gloom(sf::PrimitiveType::Triangles)
+    , m_dark(sf::PrimitiveType::Triangles)
     , m_theme(&themeFor(1))
 {
     generate(1, false);
     buildLightPool();
+    buildDark();
     buildGloom();
     updateCaustics();
 }
@@ -2047,7 +2049,7 @@ void Arena::buildLightPool()
     // it. Rising out of the lamp and falling away at the far end is one shape
     // with the halo, which is what a lamp actually looks like.
     const std::size_t steps = Segments / 2;
-    const float half = config::LampConeHalfAngle;
+    const float half = config::LampConeHalfAngle + m_lampSpread;
 
     // Cosine across the beam rather than a straight taper, so the edges wash
     // out instead of ending on a line. A line reads as a cone drawn on the
@@ -2105,6 +2107,71 @@ void Arena::buildLightPool()
             m_lightPool.append(sf::Vertex{ in1, beam(e1 * s0) });
         }
     }
+}
+
+float Arena::lampReachAt(float degreesOffAim) const
+{
+    const float reach = getLampReach();
+    const float halo = reach * config::LampHaloFactor;
+
+    // The spill: a teardrop, brightest where the lamp points and never quite
+    // nothing astern. Same weighting the pool itself is built with.
+    const float facing = 0.5f + 0.5f * std::cos(sf::degrees(degreesOffAim).asRadians());
+    const float spill = halo * (config::LampHaloBack
+                                + (1.0f - config::LampHaloBack) * facing);
+
+    // And the beam on top of it, eased in over the last few degrees of the
+    // cone so the edge of the light is an edge of light and not a cut.
+    const float off = std::abs(degreesOffAim);
+    const float half = config::LampConeHalfAngle + m_lampSpread;
+    const float t = std::clamp((half + config::DarkFeather - off) / config::DarkFeather,
+                               0.0f, 1.0f);
+
+    return std::max(config::DarkFloor, spill + (reach - spill) * (t * t * (3.0f - 2.0f * t)));
+}
+
+void Arena::buildDark()
+{
+    // Everything the lamp does not reach, as one mesh around the origin and
+    // pointing along +X, so drawDark can carry it to the sub and turn it to
+    // the aim without a vertex being rebuilt - exactly like the pool it is the
+    // complement of.
+    m_dark.clear();
+
+    const sf::Color clear(0, 0, 0, 0);
+    const sf::Color black(0, 0, 0, 255);
+
+    for (std::size_t i = 0; i < Segments; ++i)
+    {
+        const sf::Angle a0 = segmentAngle(i);
+        const sf::Angle a1 = segmentAngle(i + 1);
+
+        const float r0 = lampReachAt(a0.wrapSigned().asDegrees());
+        const float r1 = lampReachAt(a1.wrapSigned().asDegrees());
+
+        // The black arriving, and then the black.
+        appendRingQuad(m_dark,
+                       sf::Vector2f(r0, a0), sf::Vector2f(r1, a1),
+                       sf::Vector2f(r0 + config::DarkFade, a0),
+                       sf::Vector2f(r1 + config::DarkFade, a1),
+                       clear, black);
+
+        appendRingQuad(m_dark,
+                       sf::Vector2f(r0 + config::DarkFade, a0),
+                       sf::Vector2f(r1 + config::DarkFade, a1),
+                       sf::Vector2f(config::DarkReach, a0),
+                       sf::Vector2f(config::DarkReach, a1),
+                       black, black);
+    }
+}
+
+void Arena::drawDark(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const
+{
+    sf::RenderStates states;
+    states.transform.translate(lampCentre);
+    states.transform.rotate(aim);
+
+    target.draw(m_dark, states);
 }
 
 void Arena::buildGloom()
@@ -2178,17 +2245,22 @@ void Arena::updateCaustics()
     }
 }
 
-void Arena::setLamp(float bonus, float factor)
+void Arena::setLamp(float bonus, float spread, float factor)
 {
     // Rebuilding the pool every frame would be pointless work, so nothing
     // happens unless the lamp has actually changed size.
-    if (std::abs(bonus - m_lampBonus) < 0.5f && std::abs(factor - m_lampFactor) < 0.01f)
+    if (std::abs(bonus - m_lampBonus) < 0.5f && std::abs(spread - m_lampSpread) < 0.25f
+        && std::abs(factor - m_lampFactor) < 0.01f)
+    {
         return;
+    }
 
     m_lampBonus = std::max(0.0f, bonus);
+    m_lampSpread = std::clamp(spread, 0.0f, 55.0f);
     m_lampFactor = std::clamp(factor, 0.05f, 4.0f);
     m_lightPool.clear();
     buildLightPool();
+    buildDark();
 }
 
 void Arena::applyTheme(const DepthTheme& theme)
@@ -2200,6 +2272,7 @@ void Arena::applyTheme(const DepthTheme& theme)
     m_lightPool.clear();
     m_gloom.clear();
     buildLightPool();
+    buildDark();
     buildGloom();
     updateCaustics();
 

@@ -42,6 +42,7 @@ enum class Stat
     TorpedoBlast,        // extra blast radius
     OrbitCount,          // motes circling the sub, eating incoming orbs
     LampRadius,
+    LampAngle,           // degrees of extra half-angle on the beam
     Count
 };
 

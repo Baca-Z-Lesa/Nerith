@@ -40,7 +40,9 @@ public:
     // from the theme so descending still dims the light - a bigger lamp makes
     // a dark depth survivable rather than making it look like a shallow one -
     // and the factor is what running dark turns down.
-    void setLamp(float bonus, float factor);
+    // How far the beam carries, how wide it opens, and how much of it is
+    // working at all. Spread is degrees of extra half-angle on the cone.
+    void setLamp(float bonus, float spread, float factor);
 
     // How far the beam currently throws, for anything that needs to know what
     // is lit without reading the mesh back off the graphics card.
@@ -56,6 +58,12 @@ public:
     void drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const;
     // Darkness swallowing the distance. Drawn after the seabed, before entities.
     void drawGloom(sf::RenderTarget& target) const;
+
+    // The dark, as the exact complement of the lamp: everything the beam does
+    // not reach is painted out. Drawn in the basin's own space and after
+    // everything in it, because a creature standing in the black has to be
+    // covered by the black rather than tinted by it.
+    void drawDark(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const;
 
     sf::Vector2f getCenter() const { return m_center; }
     float getRadius() const { return m_radius; }
@@ -268,6 +276,11 @@ private:
     void buildWallShading();
     void buildSwirl();
     void buildLightPool();
+    void buildDark();
+
+    // How far the lamp carries at this angle off the aim. One function, so the
+    // light and the dark can never disagree about where the beam ends.
+    float lampReachAt(float degreesOffAim) const;
     void buildGloom();
     void updateCaustics();
     void buildGround();
@@ -345,7 +358,13 @@ private:
     sf::VertexArray m_lightPool;
     sf::VertexArray m_caustics;
     sf::VertexArray m_gloom;
+    sf::VertexArray m_dark;
     const DepthTheme* m_theme;
     float             m_lampBonus = 0.0f;
     float             m_lampFactor = 1.0f;
+
+    // Degrees of extra half-angle the sub has bought. A wider beam is the one
+    // lamp upgrade that changes how the water feels rather than how far you can
+    // see down one line of it.
+    float             m_lampSpread = 0.0f;
 };

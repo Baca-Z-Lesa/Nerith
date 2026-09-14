@@ -2767,7 +2767,8 @@ void Game::refreshLamp()
     if (m_player.isBroken(Player::Hull::Lamp))
         factor *= config::BrokenLampFactor;
 
-    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f), factor);
+    m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
+                    m_playerStats.get(Stat::LampAngle, 0.0f), factor);
 }
 
 void Game::toggleLamp()
@@ -5851,6 +5852,12 @@ void Game::render(float alpha)
             m_window.draw(m_sonarRing);
         }
     }
+
+    // The dark, last of everything that lives in the basin. It is the exact
+    // complement of the lamp, so a creature standing outside the beam is not
+    // dimmed, it is painted out - which is the only reason running with the
+    // lamp off costs anything.
+    m_arena.drawDark(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
 
     // Everything from here is pinned to the screen: the darkness closing in is
     // a vignette around the viewer, not a ring painted on the seabed.
