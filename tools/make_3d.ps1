@@ -117,7 +117,7 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_creatures.ps1', 'make_bosses.ps1',
                       'make_boss4.ps1', 'make_shots.ps1', 'make_nest.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
-                      'make_tails.ps1', 'make_deeper.ps1')) {
+                      'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }
@@ -142,8 +142,18 @@ function Seed-For($name) {
     return [uint32]$h
 }
 
+# A sheet is not a sprite. boss_hide is already a lit surface - it is what the
+# drawn bosses wear instead of going through this pass - so running the relief
+# over it would light a surface that is nothing but light.
+$Sheets = @('boss_hide.png')
+
 foreach ($file in (Get-ChildItem "$TexDir\*.png" | Sort-Object Name)) {
     $name = $file.Name
+
+    if ($Sheets -contains $name) {
+        Write-Host ("  {0,-22} sheet, left alone" -f $name)
+        continue
+    }
 
     if (-not $Materials.ContainsKey($name)) {
         $missing += $name

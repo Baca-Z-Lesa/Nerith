@@ -90,6 +90,12 @@ Assets::Assets()
     want(config::SerpentSegmentPath);
     want(config::SerpentTailPath);
 
+    // The drawn bosses share one sheet, and it has to repeat: the body is
+    // mapped along its own length, so a long animal runs off the end of a
+    // single tile immediately.
+    want(config::BossHidePath);
+    m_bossTextures.at(config::BossHidePath).setRepeated(true);
+
     if (!icon.loadFromFile(config::IconPath))
         throw std::runtime_error(std::string("failed to load icon: ") + config::IconPath);
 }

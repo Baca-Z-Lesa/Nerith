@@ -3,6 +3,7 @@
 #include "entities/BossDef.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/Graphics/Texture.hpp>
 #include <SFML/System/Angle.hpp>
 #include <SFML/System/Vector2.hpp>
 
@@ -63,5 +64,9 @@ namespace bossart
         sf::Vector2f look{ 1.0f, 0.0f }; // the direction it is looking in
     };
 
-    void drawLeviathan(sf::RenderTarget& target, const Body& body);
+    // hide is the tiling sheet every shape is surfaced with. It is multiplied
+    // by the colour the shape asked for, so one sheet does hide, plate, fin
+    // and jaw - which is the same bargain every sprite in the game makes with
+    // the relief pass.
+    void drawLeviathan(sf::RenderTarget& target, const Body& body, const sf::Texture& hide);
 }

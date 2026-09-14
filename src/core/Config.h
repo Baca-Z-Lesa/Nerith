@@ -1022,6 +1022,15 @@ namespace config
     // the pass that lights everything in there.
     inline constexpr const char* IconPath = "assets/icon.png";
 
+    // The surface the drawn bosses are made of. One tiling sheet, near white,
+    // with the scale and the grain cut into it darker - it is multiplied by
+    // whatever colour the shape wanted, so hide, plate, fin and jaw all differ
+    // by tint and share a surface, the same way the sprites all share the
+    // relief pass. How many world pixels one tile covers is what decides how
+    // big a scale is on the animal.
+    inline constexpr const char* BossHidePath = "assets/textures/boss_hide.png";
+    inline constexpr float BossHideTile = 74.0f;
+
     // --- Hauling ---
     // A pod is dropped at the far end of the basin and has to be dragged back
     // to the mouth. Carrying one costs speed and lights you up, and a landed

@@ -91,6 +91,11 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
         m_segments.push_back(std::move(segment));
     }
 
+    // The sheet a drawn creature is surfaced with. Held rather than looked up
+    // every frame, and only for the ones that need it.
+    if (m_def->skin != BossSkin::Sprites)
+        m_hide = &assets.boss(config::BossHidePath);
+
     // The parts that make it an animal rather than a shape.
     m_parts.reserve(m_def->partCount);
     for (std::size_t i = 0; i < m_def->partCount; ++i)
@@ -1477,7 +1482,7 @@ void Boss::draw(sf::RenderTarget& target) const
         pose.look = m_look;
         pose.alpha = std::clamp(m_visibility, 0.0f, 1.0f);
 
-        bossart::drawLeviathan(target, pose);
+        bossart::drawLeviathan(target, pose, *m_hide);
         return;
     }
 

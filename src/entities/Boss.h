@@ -291,6 +291,9 @@ private:
     float m_beat = 0.0f;    // where the fins are in their stroke
     float m_flinch = 0.0f;  // it has just been hurt
     sf::Vector2f m_look{ 1.0f, 0.0f };
+
+    // Not owned: Assets outlives every creature in the water.
+    const sf::Texture* m_hide = nullptr;
     bool  m_enraged;
     bool  m_hasEntered;
     bool  m_dead;
