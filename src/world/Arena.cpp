@@ -1503,17 +1503,40 @@ void Arena::buildGround()
     m_floor.clear();
     m_shade.clear();
 
+    // How thick the stone shelf is at a given piece of the world. A band of
+    // even width reads as a kerb rather than as rock, so it has to vary - but
+    // it has to vary with the PLACE and not with the chamber.
+    //
+    // It used to be sin(5*theta) measured from each chamber's own centre and
+    // offset by that chamber's own phase. Offsetting one outline outward by a
+    // constant and offsetting another by the same constant gives two curves
+    // that still meet cleanly, because a union offset outward is just the
+    // union offset outward. Offset them by DIFFERENT amounts at the same piece
+    // of wall and they cross instead, and two curves crossing is a cusp. A
+    // room is one or two big mouthfuls and the cusps are rare; a passage is
+    // forty small ones in a row, which is why every narrow corridor in the
+    // basin had a comb of black spikes down both of its walls.
+    //
+    // Read off the world instead and every mouthful agrees about how thick the
+    // shelf is here, so the band wanders without ever tearing.
+    const auto shelfAt = [](sf::Vector2f at) {
+        return std::sin(at.x * 0.0195f) * std::cos(at.y * 0.0163f)
+               + 0.45f * std::sin((at.x + at.y) * 0.0087f);
+    };
+
     // The rim of a chamber, wobbled, as a triangle fan. grow pushes it outward,
     // which is how the same outline serves as rock, as cut lip and as floor
     // without any of the three being able to disagree with the other two.
-    const auto chamberFan = [this](sf::VertexArray& into, const Chamber& chamber, float grow,
-                                   float wave, sf::Color colour) {
-        // wave varies the band thickness round the rim, which is what turns a
-        // stone shelf into a stone shelf rather than a kerb of even width.
+    const auto chamberFan = [this, &shelfAt](sf::VertexArray& into, const Chamber& chamber,
+                                             float grow, float wave, sf::Color colour) {
         const auto reach = [&](sf::Vector2f d) {
-            const float theta = std::atan2(d.y, d.x);
-            return edgeRadius(chamber, d)
-                   + grow * (1.0f + wave * std::sin(theta * 5.0f + chamber.phase * 2.1f));
+            const float rim = edgeRadius(chamber, d);
+
+            // The floor is the rim itself, so it never asks about the shelf.
+            if (grow <= 0.0f)
+                return rim;
+
+            return rim + grow * (1.0f + wave * shelfAt(chamber.centre + d * rim));
         };
 
         const std::size_t steps = segmentsFor(chamber.radius + grow);
@@ -1683,22 +1706,71 @@ void Arena::buildWallShading()
     {
         const std::size_t steps = segmentsFor(chamber.radius);
 
-        // The shadow reaches inward from the rim, and a passage mouthful is
-        // seventy pixels across while the shadow wants seventy eight - so on
-        // anything small it walked past the middle and out the far side, and
-        // the quad turned inside out. That is the comb of black spikes that
-        // used to hang off every narrow wall.
-        const float reach = std::min(config::WallShadeWidth, chamber.radius * 0.5f);
+        // How far in the shadow may fall: as far as there is water to fall on.
+        //
+        // This used to be half the radius of whichever mouthful happened to be
+        // drawing it, and a passage is cut from forty small mouthfuls sitting
+        // in a row inside two big ones. So the same stretch of wall got a
+        // seventy pixel shadow where a room's rim passed behind it and a
+        // twenty pixel one two steps later, which is the shadow stepping in
+        // and out along a corridor for no reason the player can see.
+        //
+        // Asked of the field instead, and asked properly: walk in from the rim
+        // and stop at the middle of the water.
+        //
+        // Walking straight in off a wall, the distance to the nearest rock
+        // should be exactly how far you have walked - your own wall, behind
+        // you. The moment it is less than that, some other wall is nearer and
+        // you have crossed the middle of the passage. Past that point the quad
+        // folds back through itself and comes out of the far side of the rock
+        // as a black spike, which is what was hanging off every narrow wall in
+        // the basin.
+        const auto span = [this](sf::Vector2f at, sf::Vector2f out) {
+            constexpr float Step = 9.0f;
 
-        // The weight at each rim point, worked out once and shared by the two
-        // segments that meet there - so neighbouring strips always agree about
-        // the corner between them and there is no seam down it.
+            // The common case in one question rather than eight: if the point
+            // a whole shadow's width in is still that far from anything, the
+            // only thing near it is the wall we started from, and there is a
+            // whole shadow's worth of water to fall on.
+            if (-depthAt(at - out * config::WallShadeWidth)
+                >= config::WallShadeWidth * 0.94f)
+            {
+                return config::WallShadeWidth;
+            }
+
+            float walked = Step;
+
+            while (walked + Step <= config::WallShadeWidth)
+            {
+                if (-depthAt(at - out * (walked + Step)) < walked)
+                    break;
+
+                walked += Step;
+            }
+
+            return std::clamp(walked, config::WallRimWidth, config::WallShadeWidth);
+        };
+
+        // The weight and the reach at each rim point, worked out once and
+        // shared by the two segments that meet there - so neighbouring strips
+        // always agree about the corner between them and there is no seam
+        // down it.
         std::vector<float> weight(steps + 1, 0.0f);
+        std::vector<float> deep(steps + 1, config::WallShadeWidth);
+        std::vector<sf::Vector2f> rimAt(steps + 1);
 
         for (std::size_t i = 0; i <= steps; ++i)
         {
             const sf::Vector2f d = sf::Vector2f(1.0f, segmentAngle(i % steps, steps));
-            weight[i] = wallness(chamber.centre + d * edgeRadius(chamber, d), d);
+
+            rimAt[i] = chamber.centre + d * edgeRadius(chamber, d);
+            weight[i] = wallness(rimAt[i], d);
+
+            // And never past the middle of the mouthful that is drawing it,
+            // whatever the field says: a fan that reaches its own centre is
+            // already as far as a fan can go.
+            if (weight[i] > 0.0f)
+                deep[i] = std::min(span(rimAt[i], d), chamber.radius * 0.8f);
         }
 
         for (std::size_t i = 0; i < steps; ++i)
@@ -1709,11 +1781,11 @@ void Arena::buildWallShading()
             const sf::Vector2f d0 = sf::Vector2f(1.0f, segmentAngle(i, steps));
             const sf::Vector2f d1 = sf::Vector2f(1.0f, segmentAngle(i + 1, steps));
 
-            const sf::Vector2f p0 = chamber.centre + d0 * edgeRadius(chamber, d0);
-            const sf::Vector2f p1 = chamber.centre + d1 * edgeRadius(chamber, d1);
+            const float reach = std::min(deep[i], deep[i + 1]);
 
-            strip(p0, p1, d0, d1, reach, shade, weight[i], weight[i + 1]);
-            strip(p0, p1, d0, d1, std::min(reach, config::WallRimWidth), rim,
+            strip(rimAt[i], rimAt[i + 1], d0, d1, reach, shade,
+                  weight[i], weight[i + 1]);
+            strip(rimAt[i], rimAt[i + 1], d0, d1, std::min(reach, config::WallRimWidth), rim,
                   weight[i], weight[i + 1]);
         }
     }
