@@ -118,13 +118,12 @@ public:
     // is willing to do.
     int getAct() const { return m_act; }
 
-    // Whether it has already run out of life once. Nothing down there dies the
-    // first time: the bar empties, the animal comes apart, and what stands up
-    // afterwards is faster and does not look the same.
-    bool isReborn() const { return m_reborn; }
-
-    // Whether it is still made of pieces. Only one of them is.
-    bool hasParts() const { return m_def->piecemeal && !m_reborn && !m_parts.empty(); }
+    // How many times it has already run out of life. Nothing down there dies
+    // the first time: the bar empties, the animal comes apart, and what stands
+    // up afterwards is faster and does not look the same. One of them does it
+    // twice, and the second time is not something the player is expecting.
+    int getPhase() const { return m_fallen; }
+    bool isReborn() const { return m_fallen > 0; }
 
     // The moment before a committed attack, as 0 at the announcement rising to
     // 1 as the blow lands. Anything that can really hurt you says so first, so
@@ -145,7 +144,10 @@ public:
     void beginSecondPhase();
 
     // How much faster it is once it has already been killed once.
-    float rebornSpeed() const { return m_reborn ? config::BossRebornSpeed : 1.0f; }
+    float rebornSpeed() const
+    {
+        return 1.0f + static_cast<float>(m_fallen) * (config::BossRebornSpeed - 1.0f);
+    }
 
     // Everything a drawn body does that the fight does not care about: the
     // jaw, the breath, the beat of the fins, where it is looking, and the rock
@@ -316,7 +318,7 @@ private:
     // leviathan itself comes back with once its organs are gone.
     int   m_core = 0;
     int   m_coreMax = 0;
-    bool  m_reborn = false;
+    int   m_fallen = 0;   // 0 first wind, 1 second, 2 whatever is under that
     float m_shed = 0.0f;  // 0..1, how far through coming apart it is
     bool  m_enraged;
     bool  m_hasEntered;
@@ -324,6 +326,5 @@ private:
 
     int   m_contactDamage;
     int   m_salvage;
-    float m_speed;
-    int   m_startingOrganHealth;
+    float m_speed;
 };

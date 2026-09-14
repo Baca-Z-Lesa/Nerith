@@ -27,8 +27,8 @@ namespace
             78.0f, 240.0f,
             2.2f, 3, 26.0f,
             { 0.55f, 1.35f, 3, 1.4f },
-            // pieces, core, emitters
-            true,   820,  3,
+            // core, emitters, lives
+             900,  3, 1,
             // parts
              6,
             { {
@@ -59,8 +59,8 @@ namespace
             34.0f, 0.0f,
             3.0f, 9, 360.0f,
             { 0.60f, 1.15f, 5, 1.0f },
-            // pieces, core, emitters
-            false,  760,  6,
+            // core, emitters, lives
+             760,  6, 1,
             // parts
              7,
             { {
@@ -90,8 +90,8 @@ namespace
             132.0f, 0.0f,
             1.5f, 5, 54.0f,
             { 0.58f, 1.30f, 4, 1.5f },
-            // pieces, core, emitters
-            false,  880,  4,
+            // core, emitters, lives
+             880,  4, 1,
             // parts
              5,
             { {
@@ -124,8 +124,8 @@ namespace
             96.0f, 330.0f,
             0.30f, 4, 90.0f,
             { 0.70f, 1.20f, 2, 1.0f },
-            // pieces, core, emitters
-            false, 1020,  4,
+            // core, emitters, lives
+             1020,  4, 1,
             // parts
              10,
             { {
@@ -169,8 +169,8 @@ namespace
             30.0f, 300.0f,
             0.34f, 5, 90.0f,
             { 0.62f, 1.10f, 3, 1.0f },
-            // pieces, core, emitters
-            false, 1100,  5,
+            // core, emitters, lives
+             1100,  5, 1,
             // parts
              8,
             { {
@@ -205,8 +205,8 @@ namespace
             104.0f, 330.0f,
             2.0f, 7, 200.0f,
             { 0.55f, 1.30f, 4, 1.2f },
-            // pieces, core, emitters
-            false, 1260,  4,
+            // core, emitters, lives
+             1260,  4, 2,   // the one at the bottom gets up twice
             // parts
              7,
             { {

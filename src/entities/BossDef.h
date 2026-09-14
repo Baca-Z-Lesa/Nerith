@@ -129,22 +129,21 @@ struct BossDef
 
     BossRage rage;
 
-    // Whether the pieces below are things you break or only things it is made
-    // of. Shooting the eyes off an animal and watching it aim worse is a good
-    // fight to have once; it is not a good fight to have six times, and five
-    // of the six were doing it because the first one did rather than because
-    // it said anything about them.
+    // What it is worth, and how many things are feeding its volleys.
     //
-    // So only one of them is piecemeal. On the rest the parts are still there
-    // - an octopus without arms is not an octopus - they are simply part of
-    // one animal with one pool of life, and what makes them different from
+    // The parts below used to be things you broke off one at a time. Shooting
+    // the eyes off an animal and watching it aim worse is a good fight to have
+    // once, and it was being had six times - so they are anatomy now. An
+    // octopus without arms is not an octopus; the arms are simply part of one
+    // creature with one pool of life, and what makes these six different from
     // each other is what they do rather than which bits fall off.
-    bool piecemeal;
-
-    // That pool, and how many things are feeding its volleys. Both ignored
-    // while a piecemeal creature still has its organs.
     int coreHealth;
     int emitters;
+
+    // How many times it gets back up. Every one of them has a second wind; the
+    // thing at the bottom of the trench has two, and nobody is expecting the
+    // second one.
+    int lives;
 
     std::size_t partCount;
     std::array<BossPartDef, MaxBossParts> parts;

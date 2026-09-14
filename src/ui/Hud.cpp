@@ -260,7 +260,7 @@ void Hud::drawBossBar(sf::RenderTarget& target, const Boss& boss)
     // other one they are anatomy, and a pip per limb would be promising the
     // player a mechanic that is not there.
     std::size_t shown = 0;
-    for (std::size_t i = 0; boss.hasParts() && i < boss.getPartCount(); ++i)
+    for (std::size_t i = 0; i < boss.getPartCount(); ++i)
     {
         if (boss.getPartRole(i) != PartRole::Organ)
             ++shown;

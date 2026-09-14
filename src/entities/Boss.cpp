@@ -1,4 +1,4 @@
-#include "entities/Boss.h"
+﻿#include "entities/Boss.h"
 
 #include "core/Assets.h"
 #include "entities/BossArt.h"
@@ -52,7 +52,6 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     , m_contactDamage(m_def->contactDamage + scaling.bonusDamage)
     , m_salvage(m_def->salvage)
     , m_speed(m_def->speed * scaling.speed)
-    , m_startingOrganHealth(0)
 {
     // The body: a head plus however many links trail behind it, each a little
     // smaller than the one in front so the animal tapers.
@@ -123,16 +122,14 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
             part.sprite->setScale({ def.scale, def.scale });
         }
 
-        if (def.role == PartRole::Organ)
-            m_startingOrganHealth += health;
-
         m_parts.push_back(std::move(part));
     }
 
-    // The pool. A creature with no pieces lives entirely off it from the
-    // start; one that has pieces only reaches for it once they are gone.
+    // The pool the whole animal lives off. The pieces above are anatomy: they
+    // are drawn, they are what its volleys come out of, and not one of them is
+    // a thing you take off it.
     m_coreMax = scaled(std::max(1, m_def->coreHealth), scaling.health);
-    m_core = m_def->piecemeal ? 0 : m_coreMax;
+    m_core = m_coreMax;
 
     refreshVitals();
     followChain();
@@ -145,50 +142,18 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
 
 void Boss::refreshVitals()
 {
-    int eyes = 0, eyesAlive = 0, fins = 0, finsAlive = 0;
-    m_vitals.emitters = 0;
-    m_vitals.organs = 0;
+    // Nothing degrades, because nothing comes off: it aims as well as it ever
+    // did and swims as fast as it ever did until the moment it stops. An
+    // octopus without arms is not an octopus - what a second wind changes is
+    // what the animal looks like and how hard it comes at you, not how much of
+    // it is left.
+    m_vitals.tracking = 1.0f;
+    m_vitals.mobility = 1.0f;
+    m_vitals.emitters = m_def->emitters + m_fallen * 2;
+    m_vitals.organs = m_core > 0 ? 1 : 0;
 
-    // Nothing to lose, so nothing degrades: it aims as well as it ever did and
-    // swims as fast as it ever did until the moment it stops. The arms are
-    // still on it, they are simply not a thing that can be taken off.
-    if (!hasParts())
-    {
-        m_vitals.tracking = 1.0f;
-        m_vitals.mobility = 1.0f;
-        m_vitals.emitters = m_def->emitters + (m_reborn ? 2 : 0);
-        m_vitals.organs = m_core > 0 ? 1 : 0;
-
-        // They never come off. An octopus without arms is not an octopus, and
-        // a vent with no colony on it is a rock: what the second phase changes
-        // is what the animal looks like and how hard it comes at you, not how
-        // much of it is left.
-        for (Part& part : m_parts)
-            part.alive = true;
-
-        return;
-    }
-
-    for (const Part& part : m_parts)
-    {
-        switch (part.def.role)
-        {
-            case PartRole::Eye:      ++eyes; if (part.alive) ++eyesAlive; break;
-            case PartRole::Fin:      ++fins; if (part.alive) ++finsAlive; break;
-            case PartRole::Tentacle: if (part.alive) ++m_vitals.emitters; break;
-            case PartRole::Organ:    if (part.alive) ++m_vitals.organs; break;
-            case PartRole::Armour:   break;
-        }
-    }
-
-    // Blind it and it still lunges, it just stops lunging where you are.
-    m_vitals.tracking = eyes > 0
-                            ? 0.25f + 0.75f * static_cast<float>(eyesAlive) / static_cast<float>(eyes)
-                            : 1.0f;
-    // Clipped fins cost it speed and, through steer(), its ability to turn.
-    m_vitals.mobility = fins > 0
-                            ? 0.45f + 0.55f * static_cast<float>(finsAlive) / static_cast<float>(fins)
-                            : 1.0f;
+    for (Part& part : m_parts)
+        part.alive = true;
 }
 
 void Boss::steer(float deltaTime, sf::Vector2f target, float turnScale)
@@ -335,20 +300,11 @@ void Boss::placeParts(float deltaTime)
 
 bool Boss::organExposed(const Part& part) const
 {
-    // Anything still plated on the same segment keeps that organ sealed.
-    for (const Part& other : m_parts)
-    {
-        if (other.alive && other.def.role == PartRole::Armour && other.def.segment == part.def.segment)
-            return false;
-    }
-
-    // A bell only opens on its own rhythm, and that is the whole of that
-    // fight - but only while the organ is a thing you are trying to reach. On
-    // a creature whose organs are anatomy rather than targets there is nothing
-    // to seal, so it simply shows.
-    if (m_def->body == BossBody::Bell && hasParts())
-        return m_rhythmOpen;
-
+    // Nothing seals anything any more: the organs are anatomy and the bell
+    // opens because a bell opens, not because that is where the damage gets
+    // in. Kept as one question rather than deleted, because it is still what
+    // decides whether the soft part of the animal is drawn.
+    (void)part;
     return true;
 }
 
@@ -407,7 +363,7 @@ void Boss::thinkProwler(float deltaTime, sf::Vector2f player)
                 // own rage row rather than from here.
                 const int shots = m_def->attackShots
                                   + (m_enraged ? m_def->rage.extraShots : 0)
-                                  + (m_reborn ? config::BossRebornShots : 0);
+                                  + (m_fallen * config::BossRebornShots);
                 const float spread = m_def->attackSpread
                                      * (m_enraged ? m_def->rage.spreadScale : 1.0f);
 
@@ -531,7 +487,7 @@ void Boss::thinkDrifter(float deltaTime, sf::Vector2f player)
     const sf::Vector2f centre = m_segments[0].position;
     const int ring = 4 + 2 * m_vitals.emitters
                      + (m_enraged ? m_def->rage.extraShots : 0)
-                                  + (m_reborn ? config::BossRebornShots : 0);
+                                  + (m_fallen * config::BossRebornShots);
 
     for (int i = 0; i < ring; ++i)
     {
@@ -603,7 +559,7 @@ void Boss::thinkBurrower(float deltaTime, sf::Vector2f player)
                 const sf::Angle base = aim.angle();
 
                 const int shots = m_def->attackShots + (m_enraged ? m_def->rage.extraShots : 0)
-                                  + (m_reborn ? config::BossRebornShots : 0);
+                                  + (m_fallen * config::BossRebornShots);
                 const float spread = m_def->attackSpread
                                      * (m_enraged ? m_def->rage.spreadScale : 1.0f);
 
@@ -750,7 +706,7 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
     // down to a single arm it can barely aim.
     const int lamps = std::max(1, m_vitals.emitters > 0 ? m_vitals.emitters : lampsAlive());
     const int arms = std::max(1, lamps + (m_enraged ? m_def->rage.extraShots : 0)
-                                  + (m_reborn ? config::BossRebornShots : 0)
+                                  + (m_fallen * config::BossRebornShots)
                                      + m_act * config::BossActArmBonus);
 
     for (int i = 0; i < arms; ++i)
@@ -780,7 +736,7 @@ float Boss::aggression() const
     if (m_enraged)
         pressure *= m_def->rage.cooldownScale;
 
-    if (m_reborn)
+    for (int i = 0; i < m_fallen; ++i)
         pressure *= config::BossRebornPressure;
 
     return std::max(0.22f, pressure);
@@ -1014,8 +970,11 @@ void Boss::updateLife(float deltaTime, sf::Vector2f player)
     m_flinch = std::max(0.0f, m_flinch - deltaTime * config::BossFlinchFade);
 
     // Coming apart, over a second or so rather than between two frames.
-    if (m_reborn && m_shed < 1.0f)
-        m_shed = std::min(1.0f, m_shed + deltaTime / config::BossShedTime);
+    // Each wind takes it further from what it was, so the third one is visibly
+    // past the second rather than only redder than the first.
+    const float wanted = std::min(1.0f, static_cast<float>(m_fallen) * 0.62f);
+    if (m_shed < wanted)
+        m_shed = std::min(wanted, m_shed + deltaTime / config::BossShedTime);
 
     // Breathing, and faster the worse it is doing: at full health it is a slow
     // swell and by the last act it is panting.
@@ -1034,12 +993,12 @@ void Boss::updateLife(float deltaTime, sf::Vector2f player)
     // The jaw. Open on the wind-up and all the way through the strike, shut
     // the rest of the time, so the bite is announced by the mouth rather than
     // only by a ring on the floor.
-    const float wanted = m_phase == Phase::Strike ? 1.0f
+    const float jaw = m_phase == Phase::Strike ? 1.0f
                          : m_tellTimer > 0.0f ? 0.30f + 0.70f * getTell()
                          : m_act >= 2 ? 0.22f  // by the last act it cannot shut it
                                       : 0.0f;
 
-    m_jaw += std::clamp(wanted - m_jaw, -deltaTime * 3.0f, deltaTime * 7.0f);
+    m_jaw += std::clamp(jaw - m_jaw, -deltaTime * 3.0f, deltaTime * 7.0f);
 
     // And where it is looking. It watches the sub, but only as far round as a
     // head can turn - past that it has to turn the whole animal, which is the
@@ -1065,9 +1024,9 @@ void Boss::updateLife(float deltaTime, sf::Vector2f player)
 
 void Boss::fall(Hit& result)
 {
-    // The first time the bar empties is not the end of the fight. It is the
-    // point where whatever it has been holding together stops being held.
-    if (!m_reborn)
+    // The bar emptying is not the end of the fight until it has emptied as
+    // many times as the creature has winds in it.
+    if (m_fallen < m_def->lives)
     {
         beginSecondPhase();
         result.destroyedPart = true; // the caller's word for "that was big"
@@ -1080,7 +1039,7 @@ void Boss::fall(Hit& result)
 
 void Boss::beginSecondPhase()
 {
-    m_reborn = true;
+    ++m_fallen;
 
     // Half again of what it just lost. This is the last thirty seconds of a
     // fight and not a second fight: a creature that comes back with as much as
@@ -1211,34 +1170,6 @@ void Boss::confine(sf::Vector2f center, float maxDistance)
     placeParts(0.0f);
 }
 
-// ---------------------------------------------------------------------------
-//  Damage
-// ---------------------------------------------------------------------------
-
-int Boss::partAt(sf::Vector2f position, float radius) const
-{
-    if (!isVulnerable())
-        return -1;
-
-    for (std::size_t i = 0; i < m_parts.size(); ++i)
-    {
-        const Part& part = m_parts[i];
-
-        if (!part.alive)
-            continue;
-
-        if (part.def.role == PartRole::Organ && !organExposed(part))
-            continue;
-
-        const float reach = radius + part.def.radius;
-
-        if ((part.world - position).lengthSquared() <= reach * reach)
-            return static_cast<int>(i);
-    }
-
-    return -1;
-}
-
 Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float weakPointBonus)
 {
     Hit result;
@@ -1249,105 +1180,24 @@ Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float we
     // One animal, one pool. Anywhere on it is somewhere worth shooting, which
     // is the whole reason the pieces went: an aiming puzzle is a good fight to
     // have once and it was being had six times.
-    if (!hasParts())
-    {
-        if (!bodyBlocks(position, radius))
-            return result;
-
-        result.hit = true;
-        result.at = position;
-        result.wasOrgan = true;
-
-        m_core -= std::max(1, static_cast<int>(std::lround(
-                                  static_cast<float>(damage) * (1.0f + weakPointBonus))));
-        m_flinch = 1.0f;
-
-        if (m_core <= 0)
-            fall(result);
-
-        return result;
-    }
-
-    for (std::size_t i = 0; i < m_parts.size(); ++i)
-    {
-        Part& part = m_parts[i];
-        if (!part.alive)
-            continue;
-
-        if (part.def.role == PartRole::Organ && !organExposed(part))
-            continue;
-
-        const float reach = radius + part.def.radius;
-        if ((part.world - position).lengthSquared() > reach * reach)
-            continue;
-
-        const bool organ = part.def.role == PartRole::Organ;
-        const int dealt = organ
-                              ? std::max(1, static_cast<int>(std::lround(
-                                                static_cast<float>(damage) * (1.0f + weakPointBonus))))
-                              : damage;
-
-        part.health -= dealt;
-        part.flash = config::BossFlashDuration;
-        m_flinch = 1.0f;
-
-        result.hit = true;
-        result.at = part.world;
-        result.partIndex = i;
-        result.wasOrgan = organ;
-
-        if (part.health <= 0)
-        {
-            part.alive = false;
-            result.destroyedPart = true;
-            refreshVitals();
-
-            if (organ && m_vitals.organs == 0)
-                fall(result);
-        }
-        return result;
-    }
-
     if (!bodyBlocks(position, radius))
         return result;
 
     result.hit = true;
     result.at = position;
-
-    // Once nothing is shielding it any more, the whole animal is soft: a shot
-    // anywhere on the body chips the nearest reachable organ. While the plating
-    // holds, the same shot sparks off and does nothing, which is what teaches
-    // the player to break the plate before emptying into the hide.
-    const std::size_t organ = nearestExposedOrgan(position);
-    if (organ >= m_parts.size())
-    {
-        result.blocked = true;
-        return result;
-    }
-
-    Part& part = m_parts[organ];
-    const int dealt = std::max(1, static_cast<int>(std::lround(
-                                      static_cast<float>(damage) * config::BossBodyHitFactor
-                                      * (1.0f + weakPointBonus))));
-
-    part.health -= dealt;
-    part.flash = config::BossFlashDuration;
-
-    result.partIndex = organ;
     result.wasOrgan = true;
 
-    if (part.health <= 0)
-    {
-        part.alive = false;
-        result.destroyedPart = true;
-        refreshVitals();
+    m_core -= std::max(1, static_cast<int>(std::lround(
+                              static_cast<float>(damage) * (1.0f + weakPointBonus))));
+    m_flinch = 1.0f;
 
-        if (m_vitals.organs == 0)
-        {
-            m_dead = true;
-            result.killedBoss = true;
-        }
-    }
+    // The whole creature flinches white rather than one piece of it, because
+    // there is no longer a piece of it that is the one you hit.
+    for (Part& part : m_parts)
+        part.flash = config::BossFlashDuration;
+
+    if (m_core <= 0)
+        fall(result);
 
     return result;
 }
@@ -1361,61 +1211,6 @@ bool Boss::bodyBlocks(sf::Vector2f position, float radius) const
             return true;
     }
     return false;
-}
-
-std::size_t Boss::nearestExposedOrgan(sf::Vector2f position) const
-{
-    std::size_t best = m_parts.size();
-    float bestDistance = 0.0f;
-
-    for (std::size_t i = 0; i < m_parts.size(); ++i)
-    {
-        const Part& part = m_parts[i];
-        if (!part.alive || part.def.role != PartRole::Organ || !organExposed(part))
-            continue;
-
-        const float distance = (part.world - position).lengthSquared();
-        if (best >= m_parts.size() || distance < bestDistance)
-        {
-            best = i;
-            bestDistance = distance;
-        }
-    }
-
-    return best;
-}
-
-void Boss::splashNeighbours(std::size_t partIndex, int damage)
-{
-    if (partIndex >= m_parts.size())
-        return;
-
-    const sf::Vector2f source = m_parts[partIndex].world;
-
-    for (std::size_t i = 0; i < m_parts.size(); ++i)
-    {
-        if (i == partIndex)
-            continue;
-
-        Part& part = m_parts[i];
-        if (!part.alive)
-            continue;
-
-        if ((part.world - source).lengthSquared() > config::BossChainRadius * config::BossChainRadius)
-            continue;
-
-        part.health -= damage;
-        part.flash = config::BossFlashDuration;
-
-        if (part.health <= 0)
-        {
-            part.alive = false;
-            refreshVitals();
-
-            if (part.def.role == PartRole::Organ && m_vitals.organs == 0)
-                m_dead = true;
-        }
-    }
 }
 
 bool Boss::touches(sf::Vector2f position, float radius) const
@@ -1467,24 +1262,10 @@ bool Boss::isVulnerable() const
 
 float Boss::getCoreFraction() const
 {
-    if (!hasParts())
-    {
-        return m_coreMax > 0
-                   ? std::clamp(static_cast<float>(m_core) / static_cast<float>(m_coreMax),
-                                0.0f, 1.0f)
-                   : (m_dead ? 0.0f : 1.0f);
-    }
-
-    if (m_startingOrganHealth <= 0)
+    if (m_coreMax <= 0)
         return m_dead ? 0.0f : 1.0f;
 
-    int left = 0;
-    for (const Part& part : m_parts)
-    {
-        if (part.def.role == PartRole::Organ && part.alive)
-            left += std::max(0, part.health);
-    }
-    return static_cast<float>(left) / static_cast<float>(m_startingOrganHealth);
+    return std::clamp(static_cast<float>(m_core) / static_cast<float>(m_coreMax), 0.0f, 1.0f);
 }
 
 const char* Boss::getName() const { return m_def->name; }

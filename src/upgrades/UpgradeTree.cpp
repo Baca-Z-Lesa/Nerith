@@ -344,9 +344,12 @@ void UpgradeTree::build()
         { "mut2", "RUPTURE", "+160% bleed damage.",
           6, 6, Icon::Bleed, { "mut1" },
           { { Stat::BleedDamage, 0.0f, 1.60f } }, {}, {}, cell(6, 0, 1) },
-        { "mut3", "CHAIN REACTION", "A destroyed boss part takes its neighbours with it.",
+        // This used to set off a boss part's neighbours when it broke. Nothing
+        // on a boss breaks any more, so it is what the line was always really
+        // about instead: hitting something enormous where it is soft.
+        { "mut3", "SOFT SPOT", "+45% damage against anything the size of a boss.",
           10, 6, Icon::Corpse, { "mut2" },
-          {}, { Trait::ChainReaction }, {}, cell(6, 0, 2) },
+          { { Stat::WeakPointDamage, 0.0f, 0.45f } }, {}, {}, cell(6, 0, 2) },
 
         { "mut4", "ESCORT", "A drone circles you and fires on its own.",
           14, 6, Icon::Drone, { "mut3" },

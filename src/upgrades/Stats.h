@@ -61,7 +61,6 @@ enum class Trait
     EmergencyVent,   // survive one lethal hit per level
     Sonar,
     Bleed,
-    ChainReaction,   // a destroyed boss part damages its neighbours
     PredatorInstinct,
     Drones,
     Mines,

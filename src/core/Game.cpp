@@ -3698,7 +3698,6 @@ void Game::handleCollisions()
     const float bleedRate = m_playerStats.get(Stat::BleedDamage, 0.0f);
     const float bleedBonus = m_playerStats.get(Stat::BleedTargetDamage, 0.0f);
     const bool splits = m_playerStats.has(Trait::SplitShot);
-    const bool chains = m_playerStats.has(Trait::ChainReaction);
 
     // Read once rather than per shot per creature: this loop is the hottest
     // thing in the frame on a busy level.
@@ -3894,12 +3893,10 @@ void Game::handleCollisions()
             if (spent || !shot.isAlive() || !m_boss)
                 continue;
 
-            // Which part it would land on, asked before any damage is done, so
-            // a shot that is still inside the part it already hit simply
-            // passes through it rather than hitting it again this step.
-            const int part = m_boss->partAt(shot.getPosition(), shot.getRadius());
-
-            if (part >= 0 && shot.alreadyHit(config::BossHitToken - part))
+            // A boss is one enormous body: without this a piercing shot sitting
+            // inside it lands again on every step, which at a hundred and
+            // twenty steps a second is not piercing, it is a blender.
+            if (shot.alreadyHit(config::BossHitToken))
                 continue;
 
             const Boss::Hit hit = m_boss->tryHit(shot.getPosition(), shot.getRadius(),
@@ -3907,7 +3904,7 @@ void Game::handleCollisions()
             if (!hit.hit)
                 continue;
 
-            shot.markHit(config::BossHitToken - static_cast<int>(hit.partIndex));
+            shot.markHit(config::BossHitToken);
 
             effects::impact(m_effects, shot.getPosition(), shot.getDirection());
 
@@ -3921,13 +3918,10 @@ void Game::handleCollisions()
 
             if (hit.destroyedPart)
             {
+                // Not a part any more: this is the bar emptying, and the
+                // creature getting back up is handled where the phase is.
                 effects::enemyDeath(m_effects, hit.at);
                 m_audio.play(Sfx::PartBreak);
-                addShake(config::ShakeBossPart);
-                addHitStop(config::HitStopBossPart);
-
-                if (chains)
-                    m_boss->splashNeighbours(hit.partIndex, config::BossChainDamage);
             }
             else
             {
