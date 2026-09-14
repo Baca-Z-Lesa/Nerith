@@ -861,6 +861,25 @@ void Game::onBossActChanged(int act)
     m_audio.play(Sfx::BossRoar, 1.3f);
 }
 
+void Game::onBossReborn()
+{
+    // Louder than an act, because it is the moment the player thinks they have
+    // won. The water stops, the screen goes white, and the thing gets back up.
+    const sf::Vector2f at = m_boss ? m_boss->getPosition() : m_player.getPosition();
+
+    addSlowMotion(config::SlowMotionBossAct * 1.8f, 0.18f);
+    addHitStop(config::HitStopBossPart * 3.0f);
+    addShake(config::ShakeDeath * 1.6f);
+    addFlash(sf::Color(255, 236, 226), 1.0f);
+    addHitRing(at, config::BigMomentRing * 1.6f, config::HudBossColor);
+
+    effects::playerDeath(m_effects, at);
+    effects::ventBurst(m_effects, at, config::BigMomentRing);
+
+    m_audio.play(Sfx::BossPhase, 0.7f);
+    m_audio.play(Sfx::BossRoar, 0.85f);
+}
+
 void Game::updateFeel(float deltaTime)
 {
     m_flash = std::max(0.0f, m_flash - config::FlashFade * deltaTime);
@@ -1009,6 +1028,7 @@ void Game::beginLevel(int number)
     m_tally = RunTally{};
     m_paused = false;
     m_bossAct = 0;
+    m_bossReborn = false;
     m_streak = 0;
     m_bestStreak = 0;
     m_blocks = 0;
@@ -3417,8 +3437,17 @@ void Game::updateBoss(float deltaTime)
         m_audio.play(Sfx::Hatch, 1.2f);
     }
 
+    // The bar emptying, which is not the end. Checked before the act, because
+    // coming back sets the act to its last one and the player should be told
+    // about the bigger of the two things.
+    if (m_boss->isReborn() && !m_bossReborn)
+    {
+        m_bossReborn = true;
+        m_bossAct = m_boss->getAct();
+        onBossReborn();
+    }
     // The fight turning.
-    if (m_boss->getAct() != m_bossAct)
+    else if (m_boss->getAct() != m_bossAct)
     {
         m_bossAct = m_boss->getAct();
         onBossActChanged(m_bossAct);

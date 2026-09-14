@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/Config.h"
 #include "entities/BossDef.h"
 #include "entities/EnemyType.h"
 
@@ -117,6 +118,14 @@ public:
     // is willing to do.
     int getAct() const { return m_act; }
 
+    // Whether it has already run out of life once. Nothing down there dies the
+    // first time: the bar empties, the animal comes apart, and what stands up
+    // afterwards is faster and does not look the same.
+    bool isReborn() const { return m_reborn; }
+
+    // Whether it is still made of pieces. Only one of them is.
+    bool hasParts() const { return m_def->piecemeal && !m_reborn && !m_parts.empty(); }
+
     // The moment before a committed attack, as 0 at the announcement rising to
     // 1 as the blow lands. Anything that can really hurt you says so first, so
     // that blocking one is a read rather than a guess.
@@ -129,6 +138,14 @@ public:
     // A bell whose mind does not open it opens itself, because a sealed bell
     // is a creature nothing can reach the inside of.
     void updateBellRhythm(float deltaTime);
+
+    // Its life runs out. Once, that is a second phase; twice, that is the end
+    // of it. Everything that decides which is in here.
+    void fall(Hit& result);
+    void beginSecondPhase();
+
+    // How much faster it is once it has already been killed once.
+    float rebornSpeed() const { return m_reborn ? config::BossRebornSpeed : 1.0f; }
 
     // Everything a drawn body does that the fight does not care about: the
     // jaw, the breath, the beat of the fins, where it is looking, and the rock
@@ -294,6 +311,13 @@ private:
 
     // Not owned: Assets outlives every creature in the water.
     const sf::Texture* m_hide = nullptr;
+
+    // The pool everything that is not the leviathan lives off, and the one the
+    // leviathan itself comes back with once its organs are gone.
+    int   m_core = 0;
+    int   m_coreMax = 0;
+    bool  m_reborn = false;
+    float m_shed = 0.0f;  // 0..1, how far through coming apart it is
     bool  m_enraged;
     bool  m_hasEntered;
     bool  m_dead;

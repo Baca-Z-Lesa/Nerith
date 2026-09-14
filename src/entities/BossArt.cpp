@@ -136,6 +136,24 @@ namespace
              tip + side * tipHalf, root + side * rootHalf, colour, skin);
     }
 
+    // What the second phase looks like. Every creature keeps its own shape and
+    // its own anatomy - it is the same animal - but the colour of it goes from
+    // whatever it was to whatever is underneath, and on all six of them what is
+    // underneath is raw.
+    //
+    // One function rather than six, because the player has to be able to read
+    // "that is the thing on its second wind" at a glance whichever one it is.
+    constexpr sf::Color Raw{ 196, 62, 58 };
+    constexpr sf::Color RawLit{ 255, 156, 120 };
+
+    sf::Color blend(sf::Color from, sf::Color to, float t);
+
+    sf::Color shed(sf::Color base, float amount, float towards = 0.72f)
+    {
+        return blend(base, sf::Color(Raw.r, Raw.g, Raw.b, base.a),
+                     std::clamp(amount, 0.0f, 1.0f) * towards);
+    }
+
     // Two colours down a length, alpha included, because most of what the
     // creatures below are made of fades out towards its own tip.
     sf::Color blend(sf::Color from, sf::Color to, float t)
@@ -633,7 +651,7 @@ namespace
         for (const bossart::Limb& limb : body.limbs)
         {
             if (limb.role == PartRole::Fin)
-                drawFin(skinned, limb, body, tint(Hide), kick, tile);
+                drawFin(skinned, limb, body, tint(shed(Hide, body.shed)), kick, tile);
         }
 
         // Then the animal, three times: the shadow it casts on itself, the
@@ -641,10 +659,10 @@ namespace
         drawSpine(skinned, body, 3.0f, tint(Ink), kick + down, tile);
         drawHead(skinned, body, tint(Ink), kick + down, tile, false);
 
-        drawSpine(skinned, body, 0.0f, tint(Hide), kick, tile);
+        drawSpine(skinned, body, 0.0f, tint(shed(Hide, body.shed)), kick, tile);
 
-        drawSpine(skinned, body, -6.0f, tint(Belly), kick + up, tile);
-        drawFluke(skinned, body, tint(Hide), kick, tile);
+        drawSpine(skinned, body, -6.0f, tint(shed(Belly, body.shed, 0.5f)), kick + up, tile);
+        drawFluke(skinned, body, tint(shed(Hide, body.shed)), kick, tile);
         drawBands(skinned, body, kick, tile, alpha);
 
         // The dorsal ridge, which is also where the flex shows: the plates
@@ -663,7 +681,7 @@ namespace
                       { at - out * (link.girth * 0.40f) + side * (flank * link.girth * 0.40f),
                         at + out * (link.girth * 0.10f) + side * (flank * link.girth * 0.78f),
                         at + out * (link.girth * 0.40f) + side * (flank * link.girth * 0.40f) },
-                      tint(Ridge), skin);
+                      tint(shed(Ridge, body.shed, 0.55f)), skin);
             }
         }
 
@@ -673,7 +691,7 @@ namespace
                 drawPlate(skinned, limb, kick, tile);
         }
 
-        drawHead(skinned, body, tint(Hide), kick, tile, true);
+        drawHead(skinned, body, tint(shed(Hide, body.shed)), kick, tile, true);
 
         // And the wind-up, on the animal rather than under it: the whole thing
         // goes pale for the half second before it commits.
@@ -733,8 +751,13 @@ namespace
         // The margin, as a run of lobes rather than a circle. A bell rim with
         // no notches in it is a plate; the notches are where the eyes are.
         void bell(sf::VertexArray& into, const bossart::Body& body, sf::Vector2f at,
-                  float radius, const Skin& skin, float alpha)
+                  float radius, const Skin& skin, float alpha, float torn = 0.0f)
         {
+            // Second wind: the jelly clouds over and the plumbing goes dark.
+            const sf::Color jelly = shed(Jelly, torn, 0.55f);
+            const sf::Color rim = shed(Rim, torn, 0.55f);
+            const sf::Color canal = shed(Canal, torn);
+
             constexpr int Lobes = 16;
 
             for (int i = 0; i < Lobes; ++i)
@@ -756,16 +779,16 @@ namespace
                               at + sf::Vector2f(notch, a0),
                               at + sf::Vector2f(belly, mid),
                               at + sf::Vector2f(notch, a1) },
-                      fade(Jelly, alpha), skin);
+                      fade(jelly, alpha), skin);
 
                 // The thickened rim itself, and the sense organ in the notch.
                 sweep(into, at + sf::Vector2f(notch, a0), at + sf::Vector2f(belly, mid),
-                      radius * 0.05f, radius * 0.05f, fade(Rim, alpha), skin);
+                      radius * 0.05f, radius * 0.05f, fade(rim, alpha), skin);
                 sweep(into, at + sf::Vector2f(belly, mid), at + sf::Vector2f(notch, a1),
-                      radius * 0.05f, radius * 0.05f, fade(Rim, alpha), skin);
+                      radius * 0.05f, radius * 0.05f, fade(rim, alpha), skin);
 
                 disc(into, at + sf::Vector2f(notch, a0), radius * 0.035f,
-                     fade(Canal, alpha), skin, 7);
+                     fade(canal, alpha), skin, 7);
             }
         }
 
@@ -804,9 +827,11 @@ namespace
 
                 // Fine, many, and curling off on their own. A lion's mane
                 // trails a curtain, not a set of spokes.
-                ribbon(into, at + unit(a) * (radius * 0.92f), a, reach,
+                const sf::Color thread = shed(Thread, body.shed);
+
+                ribbon(into, at + unit(a) * (radius * 0.92f), a, reach * (1.0f + body.shed * 0.4f),
                        radius * 0.016f, 0.0f, drift * 9.0f, 7,
-                       fade(Thread, alpha * 0.8f), fade(Thread, 0.0f), skin);
+                       fade(thread, alpha * 0.8f), fade(thread, 0.0f), skin);
             }
         }
     }
@@ -869,7 +894,7 @@ namespace
         // jelly has no scales: it is one sheet of mesogloea with the plumbing
         // showing through it, and putting reptile grain on that would be the
         // only wrong thing on the animal.
-        medusa::bell(plain, body, at, radius, Skin{}, alpha);
+        medusa::bell(plain, body, at, radius, Skin{}, alpha, body.shed);
 
         // The stomach and the gonads, seen through the jelly rather than
         // sitting on top of it - which is the whole reason this one is drawn
@@ -939,7 +964,7 @@ namespace
         constexpr sf::Color GillLit{ 232, 128, 116 };
 
         // Iridescence, as a slide from one tone to the other down the length.
-        sf::Color along(float t, float alpha)
+        sf::Color along(float t, float alpha, float split = 0.0f)
         {
             const auto mix = [t](std::uint8_t a, std::uint8_t b) {
                 return static_cast<std::uint8_t>(static_cast<float>(a)
@@ -947,8 +972,11 @@ namespace
                                                        * std::clamp(t, 0.0f, 1.0f));
             };
 
-            return fade(sf::Color(mix(Sheen.r, Chitin.r), mix(Sheen.g, Chitin.g),
-                                  mix(Sheen.b, Chitin.b)), alpha);
+            // Second wind: the chitin splits and what is under it is not
+            // chitin. The sheen goes first, because that was only ever a
+            // surface.
+            return fade(shed(sf::Color(mix(Sheen.r, Chitin.r), mix(Sheen.g, Chitin.g),
+                                       mix(Sheen.b, Chitin.b)), split), alpha);
         }
     }
 
@@ -985,7 +1013,7 @@ namespace
 
                 // The lobe.
                 ribbon(skinned, root, lean, link.girth * 1.25f, link.girth * 0.44f,
-                       link.girth * 0.20f, 0.0f, 2, worm::along(t, alpha),
+                       link.girth * 0.20f, 0.0f, 2, worm::along(t, alpha, body.shed),
                        fade(worm::Under, alpha), skin);
 
                 // And the bundle of chaetae out of the end of it, which is the
@@ -1018,9 +1046,9 @@ namespace
             quad(skinned, at - side * link.girth,
                  front.at + kick - sideFront * front.girth,
                  front.at + kick + sideFront * front.girth,
-                 at + side * link.girth, worm::along(t, alpha), skin);
+                 at + side * link.girth, worm::along(t, alpha, body.shed), skin);
 
-            disc(skinned, at, link.girth, worm::along(t, alpha), skin, 12);
+            disc(skinned, at, link.girth, worm::along(t, alpha, body.shed), skin, 12);
 
             // The annulus: the raised band at the front of every segment, which
             // is what makes a worm read as a worm and not as a tube.
@@ -1042,7 +1070,7 @@ namespace
                              at - nose * (wide * 1.1f) - side * (wide * 1.05f),
                              at - nose * (wide * 1.1f) + side * (wide * 1.05f),
                              at + nose * (wide * 0.5f) + side * (wide * 0.95f) },
-                  worm::along(0.0f, alpha), skin);
+                  worm::along(0.0f, alpha, body.shed), skin);
 
             // Five antennae, which is how many a eunicid has, waving.
             for (int i = -2; i <= 2; ++i)
@@ -1053,7 +1081,7 @@ namespace
 
                 ribbon(plain, at + nose * (wide * 1.2f), a, wide * (2.3f - std::abs(t) * 0.35f),
                        wide * 0.13f, wide * 0.02f, std::sin(body.breath * Tau + t) * 5.0f, 5,
-                       worm::along(0.1f, alpha), fade(worm::Bristle, alpha * 0.5f), Skin{});
+                       worm::along(0.1f, alpha, body.shed), fade(worm::Bristle, alpha * 0.5f), Skin{});
             }
 
             // The jaws. Five hooked pieces that swing out sideways, which is
@@ -1209,7 +1237,7 @@ namespace
                     ribbon(skinned, root, limb.angle + sf::degrees(flank * 96.0f),
                            limb.size * (1.5f - std::abs(t) * 0.4f),
                            limb.size * 0.16f, limb.size * 0.07f, -flank * 15.0f, 5,
-                           fade(flashed(hollow::Bone, limb.flash), alpha),
+                           fade(flashed(shed(hollow::Bone, body.shed, 0.45f), limb.flash), alpha),
                            fade(flashed(hollow::BoneLo, limb.flash), alpha), skin);
                 }
             }
@@ -1258,7 +1286,7 @@ namespace
                              at - nose * (wide * 1.4f),
                              at - nose * (wide * 0.9f) + side * (wide * 1.05f),
                              at + nose * (wide * 0.6f) + side * (wide * 0.52f) },
-                  fade(hollow::Bone, alpha), skin);
+                  fade(shed(hollow::Bone, body.shed, 0.45f), alpha), skin);
 
             for (const float flank : { -1.0f, 1.0f })
             {
@@ -1275,7 +1303,7 @@ namespace
                 ribbon(skinned, at - nose * (wide * 0.2f) + side * (flank * wide * 0.5f),
                        head.angle + sf::degrees(flank * swing), wide * 2.4f,
                        wide * 0.24f, wide * 0.10f, -flank * 6.0f, 4,
-                       fade(hollow::BoneHi, alpha), fade(hollow::Bone, alpha), skin);
+                       fade(hollow::BoneHi, alpha), fade(shed(hollow::Bone, body.shed, 0.45f), alpha), skin);
             }
         }
 
@@ -1323,10 +1351,14 @@ namespace
             const float flare = 0.8f + 0.2f * std::sin(body.breath * Tau * 3.0f)
                                 + 0.4f * body.tell;
 
-            disc(plain, at, limb.size * 1.15f * flare,
-                 fade(hollow::LampLo, alpha * 0.26f), Skin{}, 14);
+            // Second wind: whatever is burning in them stops being green.
+            const sf::Color glow = blend(hollow::Lamp, sf::Color(255, 226, 196), body.shed);
+            const sf::Color halo = blend(hollow::LampLo, sf::Color(220, 110, 70), body.shed);
+
+            disc(plain, at, limb.size * (1.15f + 0.5f * body.shed) * flare,
+                 fade(halo, alpha * 0.26f), Skin{}, 14);
             disc(plain, at, limb.size * 0.50f * flare,
-                 fade(flashed(hollow::Lamp, limb.flash), alpha), Skin{}, 12);
+                 fade(flashed(glow, limb.flash), alpha), Skin{}, 12);
             disc(plain, at, limb.size * 0.20f, fade(sf::Color::White, alpha * 0.9f), Skin{}, 8);
         }
 
@@ -1390,9 +1422,13 @@ namespace
                 rim.push_back(at + unit(a) * (size * wobble));
             }
 
-            shape(skinned, rim, fade(layer == 0 ? furnace::CrustLo
-                                     : layer == 3 ? furnace::CrustHi
-                                                  : furnace::Crust, alpha), skin);
+            // Second wind: the crust does not come off, it lights up. What is
+            // under a chimney is the thing the chimney was built by.
+            const sf::Color stone = layer == 0   ? furnace::CrustLo
+                                    : layer == 3 ? furnace::CrustHi
+                                                 : furnace::Crust;
+
+            shape(skinned, rim, fade(shed(stone, body.shed, 0.85f), alpha), skin);
         }
 
         // Cracks, with the heat under them. They breathe with the thing.
@@ -1456,7 +1492,7 @@ namespace
 
             ribbon(skinned, root, limb.angle + sf::degrees(lean), limb.size * 3.4f,
                    limb.size * 0.62f, limb.size * 0.40f, lean * 0.6f, 5,
-                   fade(flashed(furnace::Tube, limb.flash), alpha),
+                   fade(flashed(shed(furnace::Tube, body.shed), limb.flash), alpha),
                    fade(flashed(furnace::TubeLo, limb.flash), alpha), tubeSkin);
 
             // The plume: out when it is calm, pulled into the tube when it is
@@ -1544,8 +1580,8 @@ namespace
             const Skin armSkin{ root, unit(limb.angle), 0.0f, tile };
 
             ribbon(skinned, root, limb.angle, reach, limb.size * 1.05f, limb.size * 0.14f,
-                   curl, 8, fade(flashed(mother::Skin_, limb.flash), alpha),
-                   fade(flashed(mother::SkinLo, limb.flash), alpha), armSkin);
+                   curl, 8, fade(flashed(shed(mother::Skin_, body.shed), limb.flash), alpha),
+                   fade(flashed(shed(mother::SkinLo, body.shed), limb.flash), alpha), armSkin);
 
             // Two rows of suckers down the underside, shrinking to the tip.
             for (int i = 1; i < 9; ++i)
@@ -1600,7 +1636,7 @@ namespace
                          at - nose * (len * 1.00f) + side * (wide * 0.26f),
                          at - nose * (len * 0.55f) + side * (wide * 0.78f),
                          at + nose * (len * 0.10f) + side * (wide * 0.92f) },
-              fade(mother::Skin_, alpha), skin);
+              fade(shed(mother::Skin_, body.shed), alpha), skin);
 
         // Papillae: the little raised bumps an octopus puts up to match rock.
         // They come and go, because that is exactly what they do.
@@ -1664,7 +1700,7 @@ namespace
 
             ribbon(skinned, mouth, (-body.look).angle(), head.girth * (0.9f + 0.5f * body.pulse),
                    head.girth * 0.36f, head.girth * 0.22f, 0.0f, 3,
-                   fade(mother::SkinLo, alpha), fade(mother::Skin_, alpha), skin);
+                   fade(mother::SkinLo, alpha), fade(shed(mother::Skin_, body.shed), alpha), skin);
         }
 
         sf::RenderStates states;

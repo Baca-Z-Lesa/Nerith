@@ -60,6 +60,7 @@ namespace bossart
         float tell = 0.0f;   // 0..1, how far through a wind-up
         float flinch = 0.0f; // 0..1, it has just been hurt
         float pulse = 0.0f;  // 0..1, a bell mid clench
+        float shed = 0.0f;   // 0..1, how far through coming apart it is
         float alpha = 1.0f;
 
         sf::Vector2f look{ 1.0f, 0.0f }; // the direction it is looking in

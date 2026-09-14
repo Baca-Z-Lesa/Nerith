@@ -913,6 +913,18 @@ namespace config
     // How hard it rolls its open side away from the sub, in degrees a second.
     inline constexpr float BossGuardTurn = 95.0f;
 
+    // Nothing in the trench dies the first time it runs out of life. The bar
+    // empties, the animal comes apart, and what is standing there afterwards
+    // is faster, hits sooner and does not look like what you were fighting.
+    //
+    // The second pool is deliberately smaller than the first: this is the last
+    // thirty seconds of a fight, not another fight.
+    inline constexpr float BossRebornHealth = 0.52f;  // of the pool it just lost
+    inline constexpr float BossRebornSpeed = 1.45f;
+    inline constexpr float BossRebornPressure = 0.55f; // multiplies every gap
+    inline constexpr int   BossRebornShots = 3;
+    inline constexpr float BossShedTime = 1.2f;        // how long the change takes
+
     inline constexpr float BossBellShut = 4.6f;
     inline constexpr float BossBellOpen = 2.2f;
 

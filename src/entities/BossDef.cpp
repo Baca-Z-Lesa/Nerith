@@ -27,7 +27,10 @@ namespace
             78.0f, 240.0f,
             2.2f, 3, 26.0f,
             { 0.55f, 1.35f, 3, 1.4f },
-            6,
+            // pieces, core, emitters
+            true,   820,  3,
+            // parts
+             6,
             { {
                 { PartRole::Eye,    nullptr, 0, -30.0f, -22.0f, 19.0f, 0.62f,   0.0f, 18 },
                 { PartRole::Eye,    nullptr, 0, -30.0f,  22.0f, 19.0f, 0.62f,   0.0f, 18 },
@@ -56,7 +59,10 @@ namespace
             34.0f, 0.0f,
             3.0f, 9, 360.0f,
             { 0.60f, 1.15f, 5, 1.0f },
-            7,
+            // pieces, core, emitters
+            false,  760,  6,
+            // parts
+             7,
             { {
                 { PartRole::Tentacle, nullptr,                              0,  62.0f,   0.0f, 26.0f, 0.85f,   0.0f, 26 },
                 { PartRole::Tentacle, nullptr,                              0,  31.0f,  54.0f, 26.0f, 0.85f,  60.0f, 26 },
@@ -84,7 +90,10 @@ namespace
             132.0f, 0.0f,
             1.5f, 5, 54.0f,
             { 0.58f, 1.30f, 4, 1.5f },
-            5,
+            // pieces, core, emitters
+            false,  880,  4,
+            // parts
+             5,
             { {
                 { PartRole::Fin,   nullptr,                          1,  0.0f, -32.0f, 20.0f, 0.7f, -62.0f, 30 },
                 { PartRole::Fin,   nullptr,                          1,  0.0f,  32.0f, 20.0f, 0.7f,  62.0f, 30 },
@@ -115,7 +124,10 @@ namespace
             96.0f, 330.0f,
             0.30f, 4, 90.0f,
             { 0.70f, 1.20f, 2, 1.0f },
-            10,
+            // pieces, core, emitters
+            false, 1020,  4,
+            // parts
+             10,
             { {
                 // Four lamps on the crown, each on the end of an arm it holds up
                 // into the current the way a feather star does. Out on the ends
@@ -157,7 +169,10 @@ namespace
             30.0f, 300.0f,
             0.34f, 5, 90.0f,
             { 0.62f, 1.10f, 3, 1.0f },
-            8,
+            // pieces, core, emitters
+            false, 1100,  5,
+            // parts
+             8,
             { {
                 { PartRole::Tentacle, nullptr,                          0,  74.0f,   0.0f, 24.0f, 0.85f,   0.0f, 34 },
                 { PartRole::Tentacle, nullptr,                          0,  23.0f,  70.0f, 24.0f, 0.85f,  72.0f, 34 },
@@ -190,7 +205,10 @@ namespace
             104.0f, 330.0f,
             2.0f, 7, 200.0f,
             { 0.55f, 1.30f, 4, 1.2f },
-            7,
+            // pieces, core, emitters
+            false, 1260,  4,
+            // parts
+             7,
             { {
                 { PartRole::Tentacle, nullptr,                          0,  46.0f,  62.0f, 26.0f, 0.9f,   52.0f, 42 },
                 { PartRole::Tentacle, nullptr,                          0, -46.0f,  62.0f, 26.0f, 0.9f,  128.0f, 42 },

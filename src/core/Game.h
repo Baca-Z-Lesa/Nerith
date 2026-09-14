@@ -335,6 +335,10 @@ private:
 
     void onBossActChanged(int act);
 
+    // The bar empties and the thing gets back up. The single loudest moment in
+    // the game, because it is the one the player thought was the end.
+    void onBossReborn();
+
     // The moves that are not shots. The creature asks; this is where the
     // world actually does it.
     // A move that takes seconds rather than a frame. The queue is what lets a
@@ -598,7 +602,9 @@ private:
     float     m_slowScale;   // how slow, while it lasts
     float     m_flash;       // 1 at the moment, fading to 0
     sf::Color m_flashColour;
-    int       m_bossAct;     // the act the boss was in last frame
+    int  m_bossAct;
+
+    bool      m_bossReborn = false; // whether it has already run out of life once
 
     // Everything a boss special leaves behind for a few seconds. Held here
     // rather than in Boss because every one of them is about the world and the
