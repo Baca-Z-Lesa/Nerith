@@ -362,6 +362,11 @@ private:
     float opennessAt(sf::Vector2f where) const;
 
     void refreshLamp();
+
+    // A recovered log is kept for good. It is the only thing in the game that
+    // survives a drowning, because it is the one thing you did not carry: it
+    // was radioed up the moment it was read.
+    void keepLog(std::size_t which);
     void toggleLamp();
     float noticeRange() const;
     void updateSonar(float deltaTime);
@@ -506,6 +511,14 @@ private:
     // cursor, so they live here rather than in classes of their own.
     void drawControls();
     void drawBestiary();
+
+    // The other page of the book: what was taken off the divers who did not
+    // come back. It is the only lore in the game that is earned rather than
+    // shown, so it is the only lore that gets kept.
+    void drawRecovered(sf::VertexArray& text);
+
+    // How many rows the page that is open has.
+    int beastRows() const;
     void drawOptions();
     void drawVictory();
     void drawCredits();
@@ -750,6 +763,7 @@ private:
     int   m_optionScroll = 0;
     int   m_rebinding = -1; // which row is waiting for a key, -1 for none
     int   m_beastRow;     // which animal the logbook is open at
+    bool  m_beastLogs = false; // and which of its two pages is showing
     float m_creditsScroll;
     bool  m_justBeatCampaign; // the clear that ends the campaign, seen once
 

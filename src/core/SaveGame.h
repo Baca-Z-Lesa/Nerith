@@ -34,6 +34,11 @@ struct SaveGame
     // place in the game where these animals hold still long enough to look at.
     std::vector<int> killed;
 
+    // Which dead divers' recorders have been brought up, as indices into the
+    // log table. Kept for good: a log is radioed up the moment it is read, so
+    // it is the one thing a drowning does not take back.
+    std::vector<int> logs;
+
     // Something followed you down. It is set when a level is left with the
     // water still occupied, and it stays set until the thing is killed - so
     // it is carried between dives rather than rolled at the start of one.

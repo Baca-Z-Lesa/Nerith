@@ -37,6 +37,15 @@ public:
     void notifyNestDestroyed();
     void notifyCargoDelivered();
 
+    // Things the world already did that an objective may now be counting.
+    void notifySalvageLifted();
+    void notifyWreckOpened();
+    void notifyRigFound();
+
+    // Whether the lamp is off this instant. Pushed rather than pulled: the
+    // level owns no pointer to the sub and is not about to grow one.
+    void setLampOff(bool off) { m_lampOff = off; }
+
     // How many pods this level scatters, zero on anything that is not a haul.
     int  getCargoCount() const;
     void notifyBossDefeated();
@@ -70,6 +79,7 @@ private:
     int      m_number = 1;
     int      m_difficulty = 1;
     float    m_power = 0.0f;
+    bool     m_lampOff = false;
 
     std::vector<EnemyType> m_queue;
     std::size_t            m_queueIndex = 0;

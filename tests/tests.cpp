@@ -115,14 +115,36 @@ namespace
 
             switch (def.objective)
             {
-                case ObjectiveKind::ClearRoster:
-                    check(scripted > 0, (where + " has a roster to clear").c_str());
-                    break;
-                case ObjectiveKind::KillCount:
+                case ObjectiveKind::LiftQuota:
                     check(def.objectiveAmount > 0,
-                          (where + " asks for a positive number of kills").c_str());
-                    check(def.spawnInterval > 0.0f,
-                          (where + " keeps sending, so it can reach the quota").c_str());
+                          (where + " asks for some salvage").c_str());
+
+                    // The floor of a basin holds FindsBase plus three a depth.
+                    // A quota above that is a level that cannot be finished,
+                    // which is the one bug in a goal nobody finds until they
+                    // have played it for ten minutes.
+                    check(def.objectiveAmount
+                              <= config::FindsBase
+                                     + config::FindsPerDepth * (depthOf(level) - 1),
+                          (where + " does not ask for more salvage than the floor holds")
+                              .c_str());
+                    break;
+                case ObjectiveKind::RunDark:
+                    check(def.objectiveAmount > 0, (where + " has a clock").c_str());
+                    break;
+                case ObjectiveKind::OpenWrecks:
+                    check(def.objectiveAmount > 0,
+                          (where + " asks for at least one hull").c_str());
+
+                    // A basin only ever places OffersMost of anything, and a
+                    // wreck is one of three kinds it rolls between.
+                    check(def.objectiveAmount <= 3,
+                          (where + " does not ask for more hulls than a basin rolls")
+                              .c_str());
+                    break;
+                case ObjectiveKind::RecoverRig:
+                    check(def.objectiveAmount == 0,
+                          (where + " needs no number to find one man").c_str());
                     break;
                 case ObjectiveKind::SurviveTime:
                     check(def.objectiveAmount > 0, (where + " has a clock").c_str());

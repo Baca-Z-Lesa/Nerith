@@ -68,6 +68,12 @@ SaveGame SaveGame::load()
             while (stream >> count)
                 data.killed.push_back(std::max(0, count));
         }
+        else if (key == "logs")
+        {
+            int index = 0;
+            while (stream >> index)
+                data.logs.push_back(std::max(0, index));
+        }
         else if (key == "story")
             stream >> data.storySeen;
         else if (key == "beaten")
@@ -188,6 +194,14 @@ void SaveGame::save() const
         file << "killed";
         for (const int count : killed)
             file << ' ' << count;
+        file << '\n';
+    }
+
+    if (!logs.empty())
+    {
+        file << "logs";
+        for (const int index : logs)
+            file << ' ' << index;
         file << '\n';
     }
 

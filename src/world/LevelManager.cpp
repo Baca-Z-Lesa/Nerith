@@ -81,14 +81,21 @@ void LevelManager::start(int number)
 
     switch (m_def.objective)
     {
-        case ObjectiveKind::ClearRoster:
-            // The roster is the goal, so the target is however many the script
-            // actually contains. No second number to keep in sync.
-            m_objective = std::make_unique<ClearRosterObjective>(static_cast<int>(m_queue.size()));
+        case ObjectiveKind::LiftQuota:
+            m_objective = std::make_unique<LiftQuotaObjective>(m_def.objectiveAmount);
             break;
 
-        case ObjectiveKind::KillCount:
-            m_objective = std::make_unique<KillCountObjective>(m_def.objectiveAmount);
+        case ObjectiveKind::RunDark:
+            m_objective = std::make_unique<RunDarkObjective>(
+                static_cast<float>(m_def.objectiveAmount));
+            break;
+
+        case ObjectiveKind::OpenWrecks:
+            m_objective = std::make_unique<OpenWrecksObjective>(m_def.objectiveAmount);
+            break;
+
+        case ObjectiveKind::RecoverRig:
+            m_objective = std::make_unique<RecoverRigObjective>();
             break;
 
         case ObjectiveKind::SurviveTime:
@@ -120,7 +127,7 @@ void LevelManager::update(float deltaTime)
         m_spawnTimer -= deltaTime;
 
     if (m_objective)
-        m_objective->update(deltaTime);
+        m_objective->update(deltaTime, m_lampOff);
 }
 
 std::optional<EnemyType> LevelManager::takeSpawn(std::size_t aliveEnemies)
@@ -133,12 +140,10 @@ std::optional<EnemyType> LevelManager::takeSpawn(std::size_t aliveEnemies)
 
     if (m_queueIndex >= m_queue.size())
     {
-        // A fixed roster is sent once and the level ends when it is dead.
-        // Timed and quota levels loop the script instead, so the pressure
-        // never lets up until the objective closes it.
-        if (m_def.objective == ObjectiveKind::ClearRoster)
-            return std::nullopt;
-
+        // Every level loops its script now. Nothing finishes by emptying the
+        // water any more - the goals are salvage, the dark, sealed hulls and
+        // the men who came before - so the water has to keep being water for
+        // as long as the job takes.
         m_queueIndex = 0;
     }
 
@@ -150,9 +155,6 @@ bool LevelManager::hasSpawnsLeft() const
 {
     if (m_def.isBoss || !m_objective || !m_objective->wantsSpawning())
         return false;
-
-    if (m_def.objective == ObjectiveKind::ClearRoster)
-        return m_queueIndex < m_queue.size();
 
     return true;
 }
@@ -178,6 +180,24 @@ void LevelManager::notifyCargoDelivered()
 {
     if (m_objective)
         m_objective->onCargoDelivered();
+}
+
+void LevelManager::notifySalvageLifted()
+{
+    if (m_objective)
+        m_objective->onSalvageLifted();
+}
+
+void LevelManager::notifyWreckOpened()
+{
+    if (m_objective)
+        m_objective->onWreckOpened();
+}
+
+void LevelManager::notifyRigFound()
+{
+    if (m_objective)
+        m_objective->onRigFound();
 }
 
 int LevelManager::getCargoCount() const

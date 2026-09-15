@@ -1622,6 +1622,7 @@ void Game::activateMenuChoice()
 
         case MainMenu::Choice::Bestiary:
             m_beastRow = 0;
+            m_beastLogs = false;
             m_state = State::Bestiary;
             break;
 
@@ -1838,12 +1839,18 @@ void Game::processEvents()
                 {
                     case sf::Keyboard::Scancode::Up:
                     case sf::Keyboard::Scancode::W:
-                        m_beastRow = (m_beastRow + static_cast<int>(EnemyTypeCount) - 1)
-                                     % static_cast<int>(EnemyTypeCount);
+                        m_beastRow = (m_beastRow + beastRows() - 1) % beastRows();
                         break;
                     case sf::Keyboard::Scancode::Down:
                     case sf::Keyboard::Scancode::S:
-                        m_beastRow = (m_beastRow + 1) % static_cast<int>(EnemyTypeCount);
+                        m_beastRow = (m_beastRow + 1) % beastRows();
+                        break;
+                    case sf::Keyboard::Scancode::Tab:
+                        // The other page. The pick resets rather than being
+                        // carried across, because row nine of the animals has
+                        // nothing to do with row nine of the recovered logs.
+                        m_beastLogs = !m_beastLogs;
+                        m_beastRow = 0;
                         break;
                     case sf::Keyboard::Scancode::F11:
                         toggleFullscreen();
@@ -2879,8 +2886,24 @@ void Game::placeOffers()
     m_offers.clear();
 
     const int depth = m_level.getDepth();
-    const int wanted = std::min(config::OffersMost,
-                                config::OffersBase + config::OffersPerDepth * (depth - 1));
+    const LevelDef& def = m_level.getDef();
+
+    // What this level cannot be finished without.
+    config::OfferKind must = config::OfferKind::Wreck;
+    int needed = 0;
+
+    if (def.objective == ObjectiveKind::OpenWrecks)
+        needed = def.objectiveAmount;
+    else if (def.objective == ObjectiveKind::RecoverRig)
+    {
+        must = config::OfferKind::Cache;
+        needed = 1;
+    }
+
+    const int wanted = std::max(needed,
+                                std::min(config::OffersMost,
+                                         config::OffersBase
+                                             + config::OffersPerDepth * (depth - 1)));
 
     for (int i = 0; i < wanted; ++i)
     {
@@ -2905,11 +2928,25 @@ void Game::placeOffers()
             at = m_arena.randomPointInside();
         }
 
-        // A brood is the dangerous one, so it is held out of the shallows
-        // rather than being the first thing anybody ever finds.
-        const int kinds = depth >= 2 ? 3 : 2;
-        const auto kind = static_cast<config::OfferKind>(
-            static_cast<int>(rng::range(0.0f, static_cast<float>(kinds) - 0.001f)));
+        // Whatever the level is actually asking for goes down first, and the
+        // rest is rolled. A basin that rolls three broods on a level whose
+        // objective is to cut two hulls open is a level that cannot be
+        // finished, and that is the one bug in a goal nobody finds until they
+        // have already played it for ten minutes.
+        config::OfferKind kind;
+
+        if (i < needed)
+        {
+            kind = must;
+        }
+        else
+        {
+            // A brood is the dangerous one, so it is held out of the shallows
+            // rather than being the first thing anybody ever finds.
+            const int kinds = depth >= 2 ? 3 : 2;
+            kind = static_cast<config::OfferKind>(
+                static_cast<int>(rng::range(0.0f, static_cast<float>(kinds) - 0.001f)));
+        }
 
         const config::OfferDef& def = config::OfferTable[static_cast<std::size_t>(kind)];
 
@@ -2927,7 +2964,10 @@ void Game::takeOffer(Offer& offer)
     offer.open = true;
 
     for (int piece = 0; piece < def.pieces; ++piece)
+    {
         ++m_hold[rollSalvage(m_level.getDepth(), def.floor)];
+        m_level.notifySalvageLifted();
+    }
 
     addHitRing(offer.position, def.radius * 3.0f, def.colour);
     effects::ventBurst(m_effects, offer.position, def.radius);
@@ -2936,12 +2976,15 @@ void Game::takeOffer(Offer& offer)
     {
         case config::OfferKind::Wreck:
             m_audio.playAt(Sfx::HullGive, offer.position, 1.0f, occlusionAt(offer.position));
+            m_level.notifyWreckOpened();
             break;
         case config::OfferKind::Hive:
             m_audio.playAt(Sfx::BroodBurn, offer.position, 1.0f, occlusionAt(offer.position));
             break;
         default:
             m_audio.playAt(Sfx::RigLog, offer.position, 1.0f, occlusionAt(offer.position));
+            m_level.notifyRigFound();
+            keepLog(offer.log);
             break;
     }
 
@@ -2973,6 +3016,17 @@ void Game::takeOffer(Offer& offer)
         default:
             break;
     }
+}
+
+void Game::keepLog(std::size_t which)
+{
+    const int index = static_cast<int>(which % config::DiverLogs.size());
+
+    if (std::find(m_save.logs.begin(), m_save.logs.end(), index) != m_save.logs.end())
+        return;
+
+    m_save.logs.push_back(index);
+    persist();
 }
 
 void Game::updateOffers(float deltaTime)
@@ -3259,6 +3313,7 @@ void Game::updateFinds()
         // Into the hold and nowhere else. It is not money until a man on the
         // surface has been handed it, which is the only thing that makes the
         // way back up worth taking before the water is empty.
+        m_level.notifySalvageLifted();
 
         addHitRing(find.position, config::FindPickupRange * 1.4f, def.colour);
 
@@ -6296,6 +6351,96 @@ void Game::drawVictory()
     m_window.draw(text);
 }
 
+int Game::beastRows() const
+{
+    return m_beastLogs ? static_cast<int>(config::DiverLogs.size())
+                       : static_cast<int>(EnemyTypeCount);
+}
+
+void Game::drawRecovered(sf::VertexArray& text)
+{
+    appendHeading(text, "RECOVERED", "ARROWS PICK.  TAB FOR THE ANIMALS.");
+
+    const auto have = [this](int index) {
+        return std::find(m_save.logs.begin(), m_save.logs.end(), index) != m_save.logs.end();
+    };
+
+    const int total = static_cast<int>(config::DiverLogs.size());
+    int found = 0;
+
+    for (int i = 0; i < total; ++i)
+        found += have(i) ? 1 : 0;
+
+    const std::string tally = "RECOVERED " + std::to_string(found) + "/"
+                              + std::to_string(total);
+    pixelfont::append(text, tally, { config::HudMargin, 116.0f }, 1.6f,
+                      config::HudDimTextColor);
+
+    float y = 150.0f;
+
+    for (int i = 0; i < total; ++i)
+    {
+        const bool known = have(i);
+        const bool picked = i == m_beastRow;
+
+        char label[32];
+        std::snprintf(label, sizeof(label), known ? "RIG %02d" : "- - -", i + 1);
+
+        sf::Color colour = config::HudDimTextColor;
+        if (picked)
+            colour = known ? sf::Color::White : config::NodeLockedEdge;
+        else if (known)
+            colour = config::HudTextColor;
+
+        pixelfont::append(text, (picked ? std::string("> ") : std::string("  ")) + label,
+                          { config::HudMargin, y }, 1.7f, colour);
+        y += 30.0f;
+    }
+
+    m_window.draw(text);
+
+    const int row = std::clamp(m_beastRow, 0, total - 1);
+    const bool known = have(row);
+
+    sf::RectangleShape panel;
+    panel.setSize({ 820.0f, 480.0f });
+    panel.setPosition({ 400.0f, 140.0f });
+    panel.setFillColor(sf::Color(4, 12, 18, 210));
+    panel.setOutlineThickness(2.0f);
+    panel.setOutlineColor(known ? config::NodeReadyEdge : config::NodeLockedEdge);
+    m_window.draw(panel);
+
+    sf::VertexArray panelText(sf::PrimitiveType::Triangles);
+
+    if (!known)
+    {
+        // Deliberately not a hint. Reading the book ahead of time would give
+        // the trench away, and the whole value of these is that somebody swam
+        // across a dark basin to get them.
+        const std::string unknown = "STILL DOWN THERE";
+        pixelfont::append(panelText, unknown,
+                          { 400.0f + (820.0f - pixelfont::measure(unknown, 2.4f)) / 2.0f,
+                            350.0f },
+                          2.4f, config::NodeLockedEdge);
+        m_window.draw(panelText);
+        return;
+    }
+
+    const std::string line = config::DiverLogs[static_cast<std::size_t>(row)];
+    const float scale = pixelfont::measure(line, 1.6f) > 760.0f ? 1.25f : 1.6f;
+
+    pixelfont::append(panelText, line,
+                      { 400.0f + (820.0f - pixelfont::measure(line, scale)) / 2.0f, 340.0f },
+                      scale, config::HudTextColor);
+
+    const std::string from = "OFF A RIG ON THE FLOOR";
+    pixelfont::append(panelText, from,
+                      { 400.0f + (820.0f - pixelfont::measure(from, 1.4f)) / 2.0f, 400.0f },
+                      1.4f, config::HudDimTextColor);
+
+    m_window.draw(panelText);
+}
+
 void Game::drawBestiary()
 {
     m_deathOverlay.setFillColor(config::PauseVeil);
@@ -6303,7 +6448,16 @@ void Game::drawBestiary()
     m_deathOverlay.setFillColor(config::DeathOverlayColor);
 
     sf::VertexArray text(sf::PrimitiveType::Triangles);
-    appendHeading(text, "LOGBOOK", "ARROWS PICK.  ESCAPE GOES BACK.");
+
+    // Two pages, because the book holds two different kinds of thing and a
+    // single list of both would be twice as long as the screen is tall.
+    if (m_beastLogs)
+    {
+        drawRecovered(text);
+        return;
+    }
+
+    appendHeading(text, "LOGBOOK", "ARROWS PICK.  TAB FOR THE RECOVERED LOGS.");
 
     const auto killsOf = [this](std::size_t index) {
         return index < m_save.killed.size() ? m_save.killed[index] : 0;
@@ -6670,6 +6824,9 @@ void Game::step(float deltaTime)
 
                 updateProjectiles(deltaTime);
                 updateTorpedoes(deltaTime);
+                // Pushed rather than pulled: the level owns no pointer to the
+                // sub and is not about to grow one for the sake of one bool.
+                m_level.setLampOff(!m_lampOn);
                 m_level.update(deltaTime);
 
                 if (const std::optional<EnemyType> type = m_level.takeSpawn(m_enemies.size()))

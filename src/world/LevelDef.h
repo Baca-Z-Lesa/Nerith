@@ -8,8 +8,15 @@
 // How a level ends.
 enum class ObjectiveKind
 {
-    ClearRoster, // kill everything the level sends, then it is over
-    KillCount,   // hit a quota while the level keeps sending more
+    // Two thirds of the campaign used to be ClearRoster or KillCount, which is
+    // the same level twice and neither of them is what anybody is down here
+    // for. They are gone. What is left asks for the things the game is
+    // actually made of: salvage, the dark, sealed hulls, and the men who came
+    // down before you.
+    LiftQuota,   // fill the hold off the floor
+    RunDark,     // work with the lamp off
+    OpenWrecks,  // cut the sealed hulls open
+    RecoverRig,  // find what is left of the last diver, and their recorder
     SurviveTime, // last out a clock
     DestroyNests, // find every nest in the basin and burn it out
     HaulCargo,    // drag salvage pods back to the mouth while it hunts you
@@ -64,12 +71,12 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // ---------------- DEPTH 1: THE SHALLOWS ----------------
     // Still the teaching level, but no longer a formality: the sub is fragile
     // now and even lurkers will drown you if you stand still.
-    { "FIRST CONTACT", "TEN OF THEM. NOTHING ELSE.",
-      ObjectiveKind::ClearRoster, 0, 1.30f, 5, { 0.90f, 0.95f, 0 },
+    { "FIRST CONTACT", "THE FLOOR IS LITTERED. FILL THE HOLD.",
+      ObjectiveKind::LiftQuota, 5, 1.30f, 5, { 0.90f, 0.95f, 0 },
       { { { EnemyType::Lurker, 10 } } }, false },
 
-    { "THEY COME FASTER", "SOMETHING QUICK MOVES IN THE DARK.",
-      ObjectiveKind::ClearRoster, 0, 1.05f, 6, { 0.88f, 0.96f, 0 },
+    { "RUNNING DARK", "KILL THE LAMP. THEY CANNOT FIND WHAT IS NOT LIT.",
+      ObjectiveKind::RunDark, 40, 1.05f, 6, { 0.88f, 0.96f, 0 },
       { { { EnemyType::Lurker, 6 }, { EnemyType::Lancer, 4 },
           { EnemyType::Lurker, 5 }, { EnemyType::Lancer, 3 } } }, false },
 
@@ -80,8 +87,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       ObjectiveKind::DestroyNests, 3, 1.40f, 7, { 0.92f, 0.98f, 0 },
       { { { EnemyType::Lurker, 5 }, { EnemyType::Lancer, 3 } } }, false },
 
-    { "THE PACK", "ALL OF IT AT ONCE.",
-      ObjectiveKind::ClearRoster, 0, 0.90f, 9, { 0.96f, 1.00f, 0 },
+    { "SEALED", "TWO HULLS NOBODY EVER GOT OPEN. CUT THEM.",
+      ObjectiveKind::OpenWrecks, 2, 0.90f, 9, { 0.96f, 1.00f, 0 },
       { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 8 },
           { EnemyType::Brooder, 2 }, { EnemyType::Lancer, 4 } } }, false },
 
@@ -97,13 +104,13 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { { { EnemyType::Lurker, 6 }, { EnemyType::Warden, 2 },
           { EnemyType::Lancer, 4 }, { EnemyType::Warden, 1 } } }, false },
 
-    { "CROSSFIRE", "THE HEAVY ONES HERD YOU INTO THE GUNS.",
-      ObjectiveKind::ClearRoster, 0, 0.95f, 9, { 1.02f, 1.03f, 0 },
+    { "THE REEF", "WHATEVER SANK HERE, IT SANK LOADED.",
+      ObjectiveKind::LiftQuota, 7, 0.95f, 9, { 1.02f, 1.03f, 0 },
       { { { EnemyType::Warden, 2 }, { EnemyType::Weaver, 5 },
           { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
-    { "THE CHARGE", "THEY AIM BEFORE THEY MOVE. WATCH FOR IT.",
-      ObjectiveKind::ClearRoster, 0, 0.90f, 10, { 1.05f, 1.04f, 0 },
+    { "THE THIRD SUB", "SOMEBODY CAME DOWN BEFORE YOU. FIND HIM.",
+      ObjectiveKind::RecoverRig, 0, 0.90f, 10, { 1.05f, 1.04f, 0 },
       { { { EnemyType::Lancer, 5 }, { EnemyType::Lurker, 7 },
           { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
@@ -118,13 +125,13 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { {} }, true },
 
     // ---------------- DEPTH 3: THE TRENCH ----------------
-    { "THE TRENCH", "THEY CIRCLE. THEY DO NOT CLOSE.",
-      ObjectiveKind::ClearRoster, 0, 0.85f, 10, { 1.30f, 1.12f, 0 },
+    { "LIGHTS OUT", "THE LAMP IS WHAT THEY FOLLOW. SO DO NOT USE IT.",
+      ObjectiveKind::RunDark, 55, 0.85f, 10, { 1.30f, 1.12f, 0 },
       { { { EnemyType::Weaver, 5 }, { EnemyType::Lancer, 5 },
           { EnemyType::Weaver, 4 }, { EnemyType::Lurker, 6 } } }, false },
 
-    { "DEAD WEIGHT", "DO NOT BE STANDING NEXT TO THEM WHEN THEY GO.",
-      ObjectiveKind::ClearRoster, 0, 0.85f, 10, { 1.35f, 1.14f, 0 },
+    { "THE SPILL", "IT CAME OUT OF SOMETHING AND IT IS STILL WORTH MONEY.",
+      ObjectiveKind::LiftQuota, 9, 0.85f, 10, { 1.35f, 1.14f, 0 },
       { { { EnemyType::Bloom, 4 }, { EnemyType::Warden, 2 },
           { EnemyType::Bloom, 3 }, { EnemyType::Weaver, 3 } } }, false },
 
@@ -145,8 +152,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { {} }, true },
 
     // ---------------- DEPTH 4: THE ABYSS ----------------
-    { "THE ABYSS", "SHOOTING THE BIG ONE IN THE FACE WILL NOT WORK.",
-      ObjectiveKind::ClearRoster, 0, 0.90f, 11, { 1.55f, 1.20f, 1 },
+    { "THE CONVOY", "THREE OF THEM WENT DOWN TOGETHER.",
+      ObjectiveKind::OpenWrecks, 3, 0.90f, 11, { 1.55f, 1.20f, 1 },
       { { { EnemyType::Revenant, 3 }, { EnemyType::Lurker, 7 },
           { EnemyType::Warden, 3 }, { EnemyType::Lancer, 5 } } }, false },
 
@@ -161,8 +168,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { { { EnemyType::Revenant, 2 }, { EnemyType::Lancer, 6 },
           { EnemyType::Herald, 3 }, { EnemyType::Lurker, 7 } } }, false },
 
-    { "EVERYTHING", "ALL OF IT. AT ONCE. IN THE DARK.",
-      ObjectiveKind::KillCount, 55, 0.65f, 14, { 1.75f, 1.26f, 1 },
+    { "THE SECOND SUB", "HE GOT FURTHER THAN THE THIRD ONE DID.",
+      ObjectiveKind::RecoverRig, 0, 0.65f, 14, { 1.75f, 1.26f, 1 },
       { { { EnemyType::Revenant, 3 }, { EnemyType::Weaver, 4 },
           { EnemyType::Warden, 3 }, { EnemyType::Herald, 2 },
           { EnemyType::Lurker, 8 }, { EnemyType::Brooder, 2 } } }, false },
@@ -179,22 +186,22 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // dark costs you and the light is worth what it costs. The moth is the
     // first thing down here that is drawn to the beam, and the whole depth is
     // built on taking the lamp away from a player who has learned to need it.
-    { "THE VENTS", "SOMETHING DOWN HERE COMES TO THE LIGHT.",
-      ObjectiveKind::ClearRoster, 0, 1.00f, 10, { 1.85f, 1.26f, 1 },
+    { "THE SEAM", "THE ORE IS WARM. NOTHING AT THIS DEPTH IS WARM.",
+      ObjectiveKind::LiftQuota, 11, 1.00f, 10, { 1.85f, 1.26f, 1 },
       { { { EnemyType::Moth, 3 }, { EnemyType::Lurker, 6 },
           { EnemyType::Moth, 4 }, { EnemyType::Lancer, 4 } } }, false },
 
     // Drill it. A basin full of them and nothing else worth the beam.
-    { "RUN DARK", "PUT IT OUT. ALL OF IT. KEEP GOING.",
-      ObjectiveKind::KillCount, 40, 0.80f, 12, { 1.95f, 1.28f, 2 },
+    { "BLIND", "DOWN HERE THE LAMP IS AN ANNOUNCEMENT.",
+      ObjectiveKind::RunDark, 70, 0.80f, 12, { 1.95f, 1.28f, 2 },
       { { { EnemyType::Moth, 7 }, { EnemyType::Lurker, 7 },
           { EnemyType::Moth, 6 }, { EnemyType::Weaver, 3 } } }, false },
 
     // And then take the choice away. A herald keeps you lit whether you like
     // it or not, so the moths are awake until the herald is dead - which puts
     // the one thing that never attacks at the top of the target list.
-    { "SOMETHING HOLDS A LAMP", "IT IS NOT YOUR LIGHT THEY ARE COMING TO.",
-      ObjectiveKind::ClearRoster, 0, 0.85f, 12, { 2.05f, 1.30f, 2 },
+    { "THE YARD", "SOMEBODY WAS STACKING THEM.",
+      ObjectiveKind::OpenWrecks, 3, 0.85f, 12, { 2.05f, 1.30f, 2 },
       { { { EnemyType::Herald, 2 }, { EnemyType::Moth, 6 },
           { EnemyType::Warden, 2 }, { EnemyType::Herald, 2 },
           { EnemyType::Moth, 5 } } }, false },
@@ -215,8 +222,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // effigy only closes while the sub is under way, so a room of them is
     // crossed in bursts - and everything else in the water is still built to
     // punish exactly that.
-    { "THE CRADLE", "THEY ARE ONLY EVER WHERE YOU LEFT THEM.",
-      ObjectiveKind::ClearRoster, 0, 1.05f, 11, { 2.30f, 1.34f, 2 },
+    { "THE VEIN", "IT RUNS ALL THE WAY DOWN.",
+      ObjectiveKind::LiftQuota, 13, 1.05f, 11, { 2.30f, 1.34f, 2 },
       { { { EnemyType::Effigy, 4 }, { EnemyType::Lurker, 6 },
           { EnemyType::Effigy, 4 }, { EnemyType::Lancer, 4 } } }, false },
 
@@ -229,14 +236,14 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
           { EnemyType::Bloom, 3 } } }, false },
 
     // Both of the deep answers at once: lamp off and feet still.
-    { "NOTHING MOVES HERE", "NOT WHILE YOU ARE WATCHING.",
-      ObjectiveKind::ClearRoster, 0, 0.80f, 13, { 2.60f, 1.38f, 3 },
+    { "THE FIRST SUB", "ELEVEN DAYS. HE IS STILL DOWN HERE.",
+      ObjectiveKind::RecoverRig, 0, 0.80f, 13, { 2.60f, 1.38f, 3 },
       { { { EnemyType::Effigy, 5 }, { EnemyType::Moth, 6 },
           { EnemyType::Effigy, 5 }, { EnemyType::Herald, 2 },
           { EnemyType::Warden, 3 } } }, false },
 
-    { "EVERYTHING THAT IS LEFT", "ALL OF IT. ONE MORE TIME.",
-      ObjectiveKind::KillCount, 70, 0.60f, 15, { 2.75f, 1.40f, 3 },
+    { "NOTHING TO SEE", "THE LAMP DOES NOT HELP YOU HERE.",
+      ObjectiveKind::RunDark, 85, 0.60f, 15, { 2.75f, 1.40f, 3 },
       { { { EnemyType::Effigy, 5 }, { EnemyType::Moth, 6 },
           { EnemyType::Revenant, 4 }, { EnemyType::Warden, 4 },
           { EnemyType::Herald, 3 }, { EnemyType::Weaver, 5 } } }, false },

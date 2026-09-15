@@ -2,60 +2,120 @@
 
 #include <algorithm>
 
-// --- clear the roster ---------------------------------------------------
+// --- fill the hold ------------------------------------------------------
 
-ClearRosterObjective::ClearRosterObjective(int total)
-    : m_total(std::max(1, total))
-    , m_killed(0)
-{
-}
-
-void ClearRosterObjective::onEnemyKilled(EnemyType)
-{
-    ++m_killed;
-}
-
-bool ClearRosterObjective::isComplete() const
-{
-    return m_killed >= m_total;
-}
-
-float ClearRosterObjective::getProgress() const
-{
-    return std::clamp(static_cast<float>(m_killed) / static_cast<float>(m_total), 0.0f, 1.0f);
-}
-
-std::string ClearRosterObjective::getLabel() const
-{
-    return "CLEAR " + std::to_string(m_killed) + "/" + std::to_string(m_total);
-}
-
-// --- kill a quota -------------------------------------------------------
-
-KillCountObjective::KillCountObjective(int target)
+LiftQuotaObjective::LiftQuotaObjective(int target)
     : m_target(std::max(1, target))
-    , m_killed(0)
+    , m_lifted(0)
 {
 }
 
-void KillCountObjective::onEnemyKilled(EnemyType)
+void LiftQuotaObjective::onSalvageLifted()
 {
-    ++m_killed;
+    ++m_lifted;
 }
 
-bool KillCountObjective::isComplete() const
+bool LiftQuotaObjective::isComplete() const
 {
-    return m_killed >= m_target;
+    return m_lifted >= m_target;
 }
 
-float KillCountObjective::getProgress() const
+float LiftQuotaObjective::getProgress() const
 {
-    return std::clamp(static_cast<float>(m_killed) / static_cast<float>(m_target), 0.0f, 1.0f);
+    return std::clamp(static_cast<float>(m_lifted) / static_cast<float>(m_target), 0.0f, 1.0f);
 }
 
-std::string KillCountObjective::getLabel() const
+std::string LiftQuotaObjective::getLabel() const
 {
-    return "KILLS " + std::to_string(m_killed) + "/" + std::to_string(m_target);
+    return "LIFT " + std::to_string(m_lifted) + "/" + std::to_string(m_target);
+}
+
+// --- work in the dark ---------------------------------------------------
+
+RunDarkObjective::RunDarkObjective(float seconds)
+    : m_target(std::max(1.0f, seconds))
+    , m_elapsed(0.0f)
+{
+}
+
+void RunDarkObjective::update(float deltaTime, bool lampOff)
+{
+    // Only while it is actually off. A clock that runs anyway is a survive
+    // level wearing a different label, and the whole point is that the player
+    // has to choose to stop being able to see.
+    if (lampOff)
+        m_elapsed += deltaTime;
+}
+
+bool RunDarkObjective::isComplete() const
+{
+    return m_elapsed >= m_target;
+}
+
+float RunDarkObjective::getProgress() const
+{
+    return std::clamp(m_elapsed / m_target, 0.0f, 1.0f);
+}
+
+std::string RunDarkObjective::getLabel() const
+{
+    const int left = static_cast<int>(std::max(0.0f, m_target - m_elapsed)) + 1;
+    return "RUN DARK " + std::to_string(left) + "S";
+}
+
+// --- cut the hulls open -------------------------------------------------
+
+OpenWrecksObjective::OpenWrecksObjective(int total)
+    : m_total(std::max(1, total))
+    , m_opened(0)
+{
+}
+
+void OpenWrecksObjective::onWreckOpened()
+{
+    ++m_opened;
+}
+
+bool OpenWrecksObjective::isComplete() const
+{
+    return m_opened >= m_total;
+}
+
+float OpenWrecksObjective::getProgress() const
+{
+    return std::clamp(static_cast<float>(m_opened) / static_cast<float>(m_total), 0.0f, 1.0f);
+}
+
+std::string OpenWrecksObjective::getLabel() const
+{
+    return "CUT " + std::to_string(m_opened) + "/" + std::to_string(m_total) + " HULLS";
+}
+
+// --- find the one who came before ---------------------------------------
+
+RecoverRigObjective::RecoverRigObjective()
+    : m_found(false)
+{
+}
+
+void RecoverRigObjective::onRigFound()
+{
+    m_found = true;
+}
+
+bool RecoverRigObjective::isComplete() const
+{
+    return m_found;
+}
+
+float RecoverRigObjective::getProgress() const
+{
+    return m_found ? 1.0f : 0.0f;
+}
+
+std::string RecoverRigObjective::getLabel() const
+{
+    return m_found ? "RECOVERED" : "FIND THE RIG";
 }
 
 // --- burn out the nests -------------------------------------------------
@@ -129,7 +189,7 @@ SurviveTimeObjective::SurviveTimeObjective(float seconds)
 {
 }
 
-void SurviveTimeObjective::update(float deltaTime)
+void SurviveTimeObjective::update(float deltaTime, bool)
 {
     m_elapsed += deltaTime;
 }

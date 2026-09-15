@@ -115,6 +115,7 @@ $Materials = @{
     'reel_station.png' = 'metal'
     'reel_beast.png'   = 'flesh'
     'reel_diver.png'   = 'hardware'
+    'reel_crate.png'   = 'metal'
 
     # --- projectiles and motes ---
     'shot_spitter.png'    = 'glow'

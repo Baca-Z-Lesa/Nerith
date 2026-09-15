@@ -64,19 +64,23 @@ LevelDef levelFor(int number)
     def.maxAlive = std::min<std::size_t>(14, 10 + static_cast<std::size_t>(beyond / 4));
 
     // Alternate the goal so a long run does not become one repeated chore.
-    switch (beyond % 3)
+    switch (beyond % 4)
     {
         case 0:
             def.objective = ObjectiveKind::SurviveTime;
             def.objectiveAmount = 60 + beyond * 2;
             break;
         case 1:
-            def.objective = ObjectiveKind::KillCount;
-            def.objectiveAmount = 26 + beyond * 2;
+            def.objective = ObjectiveKind::LiftQuota;
+            def.objectiveAmount = 12 + beyond / 2;
+            break;
+        case 2:
+            def.objective = ObjectiveKind::RunDark;
+            def.objectiveAmount = 70 + beyond * 2;
             break;
         default:
-            def.objective = ObjectiveKind::ClearRoster;
-            def.objectiveAmount = 0;
+            def.objective = ObjectiveKind::OpenWrecks;
+            def.objectiveAmount = 3;
             break;
     }
 
