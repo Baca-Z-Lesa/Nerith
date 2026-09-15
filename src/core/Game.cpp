@@ -64,6 +64,7 @@ namespace
 
 Game::Game()
     : m_cameraCentre(WorldCentre)
+    , m_cameraZoom(1.0f)
     , m_fullscreen(false)
     , m_arena(WorldCentre, config::ArenaRadius)
     , m_seabed(m_assets, WorldCentre, config::ArenaRadius)
@@ -241,7 +242,10 @@ void Game::updateCamera(float deltaTime)
     // leave the player swimming off the side of the screen.
     sf::Vector2f target = m_player.getPosition();
 
-    const sf::Vector2f half{ config::WindowWidth / 2.0f, config::WindowHeight / 2.0f };
+    // Scaled by the zoom, or a widened view would show past the edge of the
+    // basin that the clamp exists to keep off the screen.
+    const sf::Vector2f half = sf::Vector2f{ config::WindowWidth / 2.0f,
+                                            config::WindowHeight / 2.0f } * m_cameraZoom;
     const sf::Vector2f low = m_arena.getBoundsMin() - half * config::CameraOvershoot;
     const sf::Vector2f high = m_arena.getBoundsMax() + half * config::CameraOvershoot;
 
@@ -259,6 +263,16 @@ void Game::updateCamera(float deltaTime)
 
     const float blend = 1.0f - std::exp(-follow * deltaTime);
     m_cameraCentre += (target - m_cameraCentre) * blend;
+
+    // And how much of the basin the frame holds, which follows the lamp. Eased
+    // on its own clock so buying a lamp widens the view over a second rather
+    // than snapping it, and clamped at one so the shallows are never pulled
+    // back from the frame they were written for.
+    const float wanted = std::clamp(m_arena.getLampReach() / config::CameraLampReference,
+                                    1.0f, config::CameraZoomMax);
+
+    m_cameraZoom += (wanted - m_cameraZoom)
+                    * (1.0f - std::exp(-config::CameraZoomRate * deltaTime));
 }
 
 void Game::aimCamera(float alpha)
@@ -275,6 +289,9 @@ void Game::aimCamera(float alpha)
         centre += sf::Vector2f{ rng::range(-m_shake, m_shake), rng::range(-m_shake, m_shake) };
 
     m_camera.setCenter(centre);
+    m_camera.setSize(sf::Vector2f{ static_cast<float>(config::WindowWidth),
+                                   static_cast<float>(config::WindowHeight) }
+                     * m_cameraZoom);
 }
 
 void Game::addShake(float strength)

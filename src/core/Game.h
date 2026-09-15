@@ -576,6 +576,10 @@ private:
     sf::View         m_camera; // follows the sub through a basin larger than the screen
     sf::View         m_ui;     // fixed 1280x720 for the HUD and the vignette
     sf::Vector2f     m_cameraCentre;
+
+    // How much of the basin the frame holds, as a multiple of the window. One
+    // until the lamp outgrows the screen; see CameraLampReference.
+    float            m_cameraZoom;
     sf::Clock        m_clock;
     sf::Clock        m_pacer;
 

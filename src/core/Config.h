@@ -256,9 +256,15 @@ namespace config
     // square rather than a straight line, so it has no rim to notice.
     inline constexpr float LampConeHalfAngle = 42.0f;   // degrees either side
     inline constexpr float LampConeEdgeFade = 1.35f;    // higher is a softer edge
-    inline constexpr float LampHaloFactor = 0.26f;      // of the beam reach
+    // How far you can see around yourself as opposed to in front of you. At
+    // 0.26 of a 340 pixel beam that was eighty-eight pixels - about three hull
+    // widths - so anything that came at the first floor from outside the cone
+    // arrived already touching the sub, which is not darkness, it is a blind
+    // spot. Nearly half the beam gives about a second of warning against the
+    // slowest thing in the water, which is the least a player can act on.
+    inline constexpr float LampHaloFactor = 0.44f;      // of the beam reach
     inline constexpr float LampHaloBrightness = 0.46f;  // of the theme light
-    inline constexpr float LampHaloBack = 0.20f;        // of that, directly astern
+    inline constexpr float LampHaloBack = 0.26f;        // of that, directly astern
     inline constexpr int   LampHaloRings = 4;           // steps in the falloff
 
     // How much light there is where there is none. Zero, now: outside the lamp
@@ -295,6 +301,16 @@ namespace config
     // controls.
     inline constexpr float CameraLerpLoose = 6.0f;
     inline constexpr float CameraLerpTight = 22.0f;
+
+    // The frame has to hold the light. A finished sonar line throws the beam a
+    // thousand pixels and half the window is six hundred and forty, so the
+    // player spent the last third of the game lighting water that was off the
+    // side of the screen. The view widens with the lamp and with nothing else:
+    // at the reach a fresh sub has it does not move at all, which keeps the
+    // first floor as tight as it was written to be.
+    inline constexpr float CameraLampReference = 340.0f;
+    inline constexpr float CameraZoomMax = 1.45f;
+    inline constexpr float CameraZoomRate = 2.2f; // per second, exponential
     inline constexpr float ArenaLightRadius = 340.0f;
     inline constexpr sf::Color ArenaLightColor{ 32, 78, 90 };
     inline constexpr std::size_t ArenaCausticBands = 7;
