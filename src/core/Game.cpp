@@ -99,7 +99,6 @@ Game::Game()
     , m_bestStreak(0)
     , m_blocks(0)
     , m_carrying(-1)
-    , m_hullLost(0)
     , m_sirenTimer(0.0f)
     , m_optionRow(0)
     , m_beastRow(0)
@@ -1078,16 +1077,6 @@ void Game::beginLevel(int number, bool fresh)
     // improved by a second one arriving with its own agenda.
     if (m_save.stalkerAlive && !m_level.isBoss())
         spawnStalker();
-
-    // Every dive starts in a whole sub - a dive, not a level. Riding the shaft
-    // down is the same dive going further, so it arrives in whatever state the
-    // last floor left it in, and that is the price of greed: the hull you have
-    // when you decide to go one deeper is the hull you are going to have.
-    if (fresh)
-    {
-        m_player.repairHull();
-        m_hullLost = 0;
-    }
 
     m_haveWound = false;
 
@@ -2107,13 +2096,6 @@ int Game::getJetDamage() const
 {
     int damage = std::max(1, m_playerStats.getInt(Stat::ProjectileDamage, config::WaterJetDamage));
 
-    // A cracked gun still fires. It just does not hurt anything much.
-    if (m_player.isBroken(Player::Hull::Gun))
-    {
-        damage = std::max(1, static_cast<int>(std::lround(
-                                 static_cast<float>(damage) * config::BrokenGunDamage)));
-    }
-
     // Predator Eye: the sub bites hardest when it is nearly dead.
     if (m_playerStats.has(Trait::PredatorInstinct)
         && static_cast<float>(m_player.getHealth())
@@ -2309,12 +2291,6 @@ void Game::fireHarpoon()
                  + std::max(0, m_playerStats.getInt(Stat::ProjectileDamage,
                                                     config::WaterJetDamage) / 2);
 
-    if (m_player.isBroken(Player::Hull::Gun))
-    {
-        damage = std::max(1, static_cast<int>(std::lround(
-                                 static_cast<float>(damage) * config::BrokenGunDamage)));
-    }
-
     m_harpoon.emplace(m_assets.torpedo, muzzle, direction, head, damage, 0);
     m_harpoonFrom = muzzle;
 
@@ -2331,12 +2307,6 @@ void Game::firePulse()
     int damage = config::PulseDamage
                  + std::max(0, m_playerStats.getInt(Stat::ProjectileDamage,
                                                     config::WaterJetDamage) / 3);
-
-    if (m_player.isBroken(Player::Hull::Gun))
-    {
-        damage = std::max(1, static_cast<int>(std::lround(
-                                 static_cast<float>(damage) * config::BrokenGunDamage)));
-    }
 
     areaDamage(at, config::PulseRadius, damage);
 
@@ -2486,11 +2456,6 @@ void Game::drawHarpoon()
 
 void Game::fireTorpedo()
 {
-    // A holed tube is a holed tube. Nothing to fire it with, and nothing on
-    // the screen pretending otherwise.
-    if (m_player.isBroken(Player::Hull::Tube))
-        return;
-
     if (!m_player.tryFireTorpedo())
         return;
 
@@ -3874,9 +3839,6 @@ void Game::refreshLamp()
     if (m_siltTimer > 0.0f)
         factor *= config::SiltLamp;
 
-    if (m_player.isBroken(Player::Hull::Lamp))
-        factor *= config::BrokenLampFactor;
-
     m_arena.setLamp(m_playerStats.get(Stat::LampRadius, 0.0f),
                     m_playerStats.get(Stat::LampAngle, 0.0f), factor);
 }
@@ -4128,12 +4090,6 @@ void Game::updateMines(float deltaTime)
 
 void Game::updateSonar(float deltaTime)
 {
-    // Blind first. Losing the sonar costs you the least in a straight fight
-    // and the most in a basin you have to cross, which is why it is the one
-    // that goes first.
-    if (m_player.isBroken(Player::Hull::Sonar))
-        return;
-
     if (!m_playerStats.has(Trait::Sonar))
         return;
 
@@ -4736,35 +4692,6 @@ void Game::hurtPlayer(int amount)
     // Momentum breaks on a hit that actually lands. That is the whole point of
     // it: it is a record of not having been touched.
     m_streak = 0;
-
-    // And so does the sub. Crossing each threshold knocks out the next system
-    // for the rest of the dive, so the hull bar stops being a number counting
-    // down and starts being a list of things that no longer work.
-    {
-        const float left = m_player.getMaxHealth() > 0
-                               ? static_cast<float>(m_player.getHealth())
-                                     / static_cast<float>(m_player.getMaxHealth())
-                               : 0.0f;
-
-        int wanted = 0;
-        for (const float threshold : config::HullBreakAt)
-            wanted += left <= threshold ? 1 : 0;
-
-        while (m_hullLost < wanted && m_player.breakNextPart())
-        {
-            ++m_hullLost;
-            m_audio.play(Sfx::PartBreak, 1.1f);
-            addFlash(config::HullBrokenColor, 0.45f);
-            addShake(config::ShakeBossPart);
-            addHitStop(config::HitStopBossPart);
-            addHitRing(m_player.getPosition(), config::PlayerRadius * 3.4f,
-                       config::HullBrokenColor);
-
-            // Losing the lamp has to be visible the instant it goes, not at
-            // the next time something else happens to touch the light.
-            refreshLamp();
-        }
-    }
 
     // And so does your grip. Being bitten halfway home is what a haul costs,
     // and it has to cost the distance rather than a number.
@@ -7289,7 +7216,6 @@ void Game::render(float alpha)
         // the rock it is carrying, which is the number the decision to push
         // one more room is actually made against.
         info.held = m_diveSalvage + worthOf(m_hold);
-        info.broken = m_player.getBrokenMask();
         info.mode = modeCount() > 1 ? modeName(modeAt(m_fireSlot)) : nullptr;
         info.streakBonus = static_cast<int>(std::lround(
             config::StreakSalvageStep * 100.0f

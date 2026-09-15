@@ -37,7 +37,6 @@ public:
         bool  streakLoud = false;
         int   streakBonus = 0; // per cent extra salvage the run is currently paying
         int   held = 0;        // earned this dive and lost if it ends badly
-        unsigned int broken = 0; // which hull systems this dive has cost
         const char* mode = nullptr; // the fitted gun, when there is a choice
     };
 

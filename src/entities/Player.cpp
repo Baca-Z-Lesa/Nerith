@@ -201,32 +201,16 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
     }
     else
     {
-        const float engine = isBroken(Hull::Engine) ? config::BrokenEngineSpeed : 1.0f;
-        const float speed = m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency()
-                            * m_burden * engine;
+        const float speed =
+            m_stats->get(Stat::MoveSpeed, config::PlayerSpeed) * urgency() * m_burden;
 
         // The sub has mass now. Not much of one - a whole hull is up to speed
         // inside a fortieth of a second, which nobody can feel - but enough
-        // that a broken engine can take that away, and enough that the thing
-        // being steered reads as a submarine rather than as a cursor.
-        sf::Vector2f wanted = steering * speed;
+        // that the thing being steered reads as a submarine rather than as a
+        // cursor.
+        const sf::Vector2f wanted = steering * speed;
 
-        // A cracked rudder cuts the part of the thrust that is ACROSS the way
-        // the sub is already going. Straight on it is fine; a hard turn
-        // becomes a wide one. It never stops the sub answering, which is what
-        // separates it from the engine.
-        if (isBroken(Hull::Rudder) && m_velocity.lengthSquared() > 1.0f)
-        {
-            const sf::Vector2f heading = m_velocity.normalized();
-            const sf::Vector2f along = heading * wanted.dot(heading);
-
-            wanted = along + (wanted - along) * config::BrokenRudderTurn;
-        }
-
-        const bool broken = isBroken(Hull::Engine);
-        const float rate = m_moving
-                               ? config::PlayerAccel * (broken ? config::BrokenEngineAccel : 1.0f)
-                               : config::PlayerDrag * (broken ? config::BrokenEngineDrag : 1.0f);
+        const float rate = m_moving ? config::PlayerAccel : config::PlayerDrag;
 
         m_velocity += (wanted - m_velocity) * std::min(1.0f, rate * deltaTime);
         m_position += m_velocity * deltaTime;
@@ -316,11 +300,6 @@ bool Player::tryFire()
     if (isDesperate())
         cooldown *= config::SecondWindFireRate;
 
-    // A cracked gun cycles slowly. Together with the damage it loses, this is
-    // what makes the third threshold the one you actually feel.
-    if (isBroken(Hull::Gun))
-        cooldown *= config::BrokenGunRate;
-
     // Added rather than assigned, so the fraction of a step the timer had
     // already run past zero is not thrown away. Assigning it rounds every
     // cooldown up to a whole step, which at the top of the weapon line is
@@ -340,34 +319,6 @@ bool Player::tryFireTorpedo()
     return true;
 }
 
-bool Player::isBroken(Hull part) const
-{
-    return (m_broken & (1u << static_cast<unsigned int>(part))) != 0u;
-}
-
-bool Player::breakNextPart()
-{
-    // A fixed order, least crippling first. Random would be less repetitive
-    // and far worse: the player has to be able to predict what the next hit
-    // costs, or the escalation is just noise.
-    for (unsigned int i = 0; i < static_cast<unsigned int>(Hull::Count); ++i)
-    {
-        const unsigned int bit = 1u << i;
-        if ((m_broken & bit) == 0u)
-        {
-            m_broken |= bit;
-            return true;
-        }
-    }
-
-    return false; // nothing left to lose
-}
-
-void Player::repairHull()
-{
-    m_broken = 0;
-}
-
 void Player::applyImpulse(sf::Vector2f push, float seconds)
 {
     if (seconds <= 0.0f)
@@ -384,12 +335,6 @@ void Player::applyImpulse(sf::Vector2f push, float seconds)
 
 bool Player::tryDash(sf::Vector2f steering)
 {
-    // A dead engine is a dead engine. The dash is the one thing the player
-    // reaches for when things go wrong, so losing it is the last and worst of
-    // the four rather than the first.
-    if (isBroken(Hull::Engine))
-        return false;
-
     if (!m_stats->has(Trait::Dash) || m_dashCooldown > 0.0f || m_dashTimer > 0.0f)
         return false;
 
@@ -486,7 +431,6 @@ void Player::reset()
     m_dashTimer = 0.0f;
     m_dashCooldown = 0.0f;
     m_burden = 1.0f;
-    m_broken = 0;
     m_shieldTimer = 0.0f;
     m_shieldCharges = getMaxShieldCharges();
     m_moving = false;

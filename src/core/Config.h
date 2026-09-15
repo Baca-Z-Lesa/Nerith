@@ -672,36 +672,20 @@ namespace config
 
     inline constexpr float BulwarkArc = 78.0f;
 
-    // --- What a beating does to the sub ---
-    // A hull bar that only counts down says nothing about what the damage did.
-    // Crossing each of these fractions knocks out the next system, least
-    // crippling first, and none of it comes back until the dive is over.
-    inline constexpr std::array<float, 6> HullBreakAt{ { 0.82f, 0.68f, 0.54f,
-                                                        0.40f, 0.26f, 0.13f } };
-    inline constexpr float BrokenEngineSpeed = 0.66f;
-
     // How the sub answers the keys. High enough that a whole hull feels
     // immediate - a fortieth of a second to most of its speed, which nobody
-    // can feel - and low enough that losing the engine is something you feel
-    // in your hands rather than read off a bar.
+    // can feel - and low enough that the thing being steered reads as a
+    // submarine rather than as a cursor.
+    //
+    // Six more numbers used to live here, for the system a hit knocked out at
+    // each of six health thresholds: sonar, tube, lamp, rudder, gun, engine.
+    // It is gone. Being hurt already costs a life, the streak, the cargo you
+    // were carrying and the mercy window; taking the lamp and the engine away
+    // on top of that punished the player hardest exactly when they were least
+    // able to recover, and a spiral that starts on the first bite is not a
+    // difficulty curve.
     inline constexpr float PlayerAccel = 26.0f;
     inline constexpr float PlayerDrag = 19.0f;
-    inline constexpr float BrokenEngineAccel = 0.32f;  // multiplies both
-    inline constexpr float BrokenEngineDrag = 0.38f;
-
-    // A cracked rudder does not stop the sub going where you point it. It
-    // stops it going there QUICKLY: the part of the thrust that is across the
-    // way it is already travelling is what gets cut, so a straight line is
-    // fine and a hard turn becomes a wide one.
-    inline constexpr float BrokenRudderTurn = 0.34f;
-
-    // A dead lamp is not a dark lamp. It is a stub of a beam and a halo you
-    // have to lean on, which is the worst thing on this list that is not the
-    // engine.
-    inline constexpr float BrokenLampFactor = 0.42f;
-    inline constexpr float BrokenGunDamage = 0.62f;
-    inline constexpr float BrokenGunRate = 1.45f;   // multiplies the gap between shots
-    inline constexpr sf::Color HullBrokenColor{ 226, 96, 78 };
 
     // Siphon: how near it has to be to take hold, what it takes per bite, and
     // how hard a dash throws it off.

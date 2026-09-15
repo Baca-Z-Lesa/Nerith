@@ -84,26 +84,6 @@ public:
     sf::Vector2f getMuzzlePosition() const;
     sf::Vector2f getSternPosition() const;
 
-    // The four things on the sub that can be knocked out. A hull bar that
-    // only counts down says nothing about what the damage did; losing the
-    // sonar, the tube, the gun and finally the engine says it plainly, and
-    // the sub you limp home in is not the one you dived with.
-    enum class Hull
-    {
-        Sonar,  // no ping, and the map stops filling itself in
-        Tube,   // no torpedoes
-        Lamp,   // the beam drops to a stub and the halo with it
-        Rudder, // it still goes where you point it, just not quickly
-        Gun,    // the jet lands soft and comes slowly
-        Engine, // no dash, two thirds of the speed, and it wallows
-        Count
-    };
-
-    bool isBroken(Hull part) const;
-    bool breakNextPart();   // true when something actually went
-    void repairHull();      // between dives, everything comes back
-    unsigned int getBrokenMask() const { return m_broken; }
-
     // What the sub is dragging, as a multiplier on its speed. One when empty.
     // Kept here rather than in Game so that every thing that reads the speed -
     // the thruster trail, the dash, the urgency bonus - sees the same number.
@@ -155,7 +135,6 @@ private:
 
     // A bitmask rather than four flags: the HUD wants it as one number and
     // nothing else ever asks about the parts individually except by name.
-    unsigned int m_broken = 0;
     float m_dashCooldown;
     float m_shieldTimer;
 

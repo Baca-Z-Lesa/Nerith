@@ -57,6 +57,7 @@ private:
                       const UpgradeNode& node, int salvage);
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
+    void drawBranchLabels(sf::RenderTarget& target, const UpgradeTree& tree);
     void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage);
     void drawLevelStrip(sf::RenderTarget& target);
     sf::FloatRect levelBounds(int level) const;

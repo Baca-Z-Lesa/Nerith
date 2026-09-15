@@ -551,6 +551,54 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
     target.draw(m_text);
 }
 
+void UpgradeScreen::drawBranchLabels(sf::RenderTarget& target, const UpgradeTree& tree)
+{
+    // Each root is labelled at the node where it leaves the hull, so the name
+    // travels with the branch as the view pans instead of sitting in a header
+    // row that the roots grow straight through.
+    //
+    // A label belongs to the TREE, not to the screen, so it is drawn with the
+    // tree - before the nodes, the hovered node's card and the chrome strips.
+    // It used to be drawn with the chrome, which is last of all, so a label
+    // that happened to pan under the open card was printed straight across the
+    // description the player was reading: WEAPONS and TORPEDOES sat inside the
+    // GUN BAY card, which reads as a rendering fault rather than as a label.
+    m_text.clear();
+    m_box.setOutlineColor(sf::Color::Transparent);
+
+    for (const UpgradeNode& node : tree.getNodes())
+    {
+        if (node.column < 0 || node.position.lengthSquared() > 200.0f * 200.0f)
+            continue; // only the first node of each root carries the name
+
+        const char* name = UpgradeTree::getBranchName(node.column);
+        const float width = pixelfont::measure(name, 1.4f);
+
+        // Clear of the circle plus a constant gap: the label text does not
+        // shrink with the zoom, so the gap must not shrink with it either.
+        // Pushed sideways rather than straight out, because straight out is
+        // where the rest of the root is.
+        const sf::Vector2f along = node.position.normalized();
+        const sf::Vector2f across{ -along.y, along.x };
+        const sf::Vector2f label = centreOf(node)
+                                   + along * (nodeRadius() + 10.0f)
+                                   + across * (nodeRadius() + 20.0f);
+
+        m_box.setSize({ width + 14.0f, 18.0f });
+        m_box.setPosition({ label.x - width / 2.0f - 7.0f, label.y - 4.0f });
+        m_box.setFillColor(config::ScreenBackdrop);
+        target.draw(m_box);
+
+        pixelfont::append(m_text, name, { label.x - width / 2.0f, label.y }, 1.4f,
+                          config::HudDimTextColor);
+    }
+
+    target.draw(m_text);
+    m_text.clear();
+
+    m_box.setSize({ config::NodeWidth, config::NodeHeight }); // restore for the node pass
+}
+
 void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree, int salvage,
                                int depth, const std::string& prompt)
 {
@@ -558,8 +606,11 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
 
     // Solid strips top and bottom. The roots pan underneath them, so without
     // these the tree would slide across the text the player is reading.
+    //
+    // Opaque, not almost: at 246 a branch label sitting under the bottom strip
+    // still printed faintly through it, which reads as a smudge on the panel.
     m_box.setOutlineColor(sf::Color::Transparent);
-    m_box.setFillColor(sf::Color(2, 8, 14, 246));
+    m_box.setFillColor(sf::Color(2, 8, 14));
 
     m_box.setSize({ static_cast<float>(config::WindowWidth), 86.0f });
     m_box.setPosition({ 0.0f, 0.0f });
@@ -587,42 +638,6 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
                       { static_cast<float>(config::WindowWidth) - config::HudMargin
                             - pixelfont::measure(depthLine, 1.6f), 54.0f },
                       1.6f, config::HudDimTextColor);
-
-    // Each root is labelled at the node where it leaves the hull, so the name
-    // travels with the branch as the view pans instead of sitting in a header
-    // row that the roots grow straight through.
-    target.draw(m_text);
-    m_text.clear();
-
-    for (const UpgradeNode& node : tree.getNodes())
-    {
-        if (node.column < 0 || node.position.lengthSquared() > 200.0f * 200.0f)
-            continue; // only the first node of each root carries the name
-
-        const char* name = UpgradeTree::getBranchName(node.column);
-        const float width = pixelfont::measure(name, 1.4f);
-
-        // Clear of the circle plus a constant gap: the label text does not
-        // shrink with the zoom, so the gap must not shrink with it either.
-        // Pushed sideways rather than straight out, because straight out is
-        // where the rest of the root is.
-        const sf::Vector2f along = node.position.normalized();
-        const sf::Vector2f across{ -along.y, along.x };
-        const sf::Vector2f label = centreOf(node)
-                                   + along * (nodeRadius() + 10.0f)
-                                   + across * (nodeRadius() + 20.0f);
-
-        m_box.setSize({ width + 14.0f, 18.0f });
-        m_box.setPosition({ label.x - width / 2.0f - 7.0f, label.y - 4.0f });
-        m_box.setFillColor(config::ScreenBackdrop);
-        m_box.setOutlineColor(sf::Color::Transparent);
-        target.draw(m_box);
-
-        pixelfont::append(m_text, name, { label.x - width / 2.0f, label.y }, 1.4f,
-                          config::HudDimTextColor);
-    }
-
-    m_box.setSize({ config::NodeWidth, config::NodeHeight }); // restore for the node pass
 
     float y = 640.0f;
 
@@ -691,8 +706,8 @@ void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, int 
     target.draw(m_backdrop);
 
     drawLinks(target, tree);
+    drawBranchLabels(target, tree);
     drawNodes(target, tree, salvage);
     drawChrome(target, tree, salvage, depth, prompt);
-    // Last, so the branch labels panning past cannot sit on top of it.
     drawLevelStrip(target);
 }

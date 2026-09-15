@@ -756,7 +756,6 @@ private:
     int       m_bestStreak;
     int       m_blocks;      // hits that did not land, for the summary
     int       m_carrying;    // which pod is under tow, or -1
-    int       m_hullLost;    // how many systems this dive has already cost
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
 
     int   m_optionRow;    // which line of the options screen is selected
