@@ -1,4 +1,4 @@
-﻿#include "world/Arena.h"
+#include "world/Arena.h"
 
 #include "core/Config.h"
 #include "core/Mesh.h"
@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <cmath>
 #include <cstdint>
 
@@ -103,6 +104,7 @@ Arena::Arena(sf::Vector2f center, float radius)
     , m_caustics(sf::PrimitiveType::Triangles)
     , m_gloom(sf::PrimitiveType::Triangles)
     , m_dark(sf::PrimitiveType::Triangles)
+    , m_shadow(sf::PrimitiveType::Triangles)
     , m_theme(&themeFor(1))
 {
     generate(1, false);
@@ -2163,6 +2165,108 @@ void Arena::buildDark()
                        sf::Vector2f(config::DarkReach, a1),
                        black, black);
     }
+}
+
+void Arena::castShadows(sf::Vector2f from, sf::Angle aim)
+{
+    // Where the rock stops the beam, as a fan of black wedges built in the
+    // same local space as the dark - origin at the sub, +X along the aim - so
+    // drawing it is the same translate and rotate and no vertex has to know
+    // where in the basin any of this is.
+    //
+    // Marched rather than solved. The basin is a distance field over a few
+    // hundred overlapping shapes and has no closed form to intersect a line
+    // with; but the field says how far the nearest edge is, which means a ray
+    // can stride by exactly that and never step through anything. In open
+    // water that is one stride across the room and against a wall it is a
+    // dozen short ones, so the cost falls where the geometry is.
+    //
+    // One ray per segment BOUNDARY rather than one down the middle of each.
+    // Down the middle, every wedge is a constant radius and a wall running at
+    // a shallow angle to the beam comes out as a flight of stairs with lit
+    // spikes standing in the shadow. Cast on the boundaries, the two ends of a
+    // wedge can differ and its inner edge is a chord that follows the rock.
+    m_shadow.clear();
+
+    const float aimDegrees = aim.asDegrees();
+
+    // Infinity stands for "this ray left the lamp without meeting anything",
+    // which is a different thing from "it met something a long way off".
+    constexpr float Missed = std::numeric_limits<float>::infinity();
+
+    std::array<float, Segments + 1> hit{};
+
+    for (std::size_t i = 0; i <= Segments; ++i)
+    {
+        const float local = segmentAngle(i % Segments).asDegrees();
+        const float reach = lampReachAt(sf::degrees(local).wrapSigned().asDegrees());
+
+        const sf::Vector2f along = sf::Vector2f(1.0f, sf::degrees(aimDegrees + local));
+
+        float travelled = config::ShadowNear;
+        hit[i] = Missed;
+
+        while (travelled < reach)
+        {
+            const float clearance = -depthAt(from + along * travelled);
+
+            if (clearance <= 0.0f)
+            {
+                hit[i] = travelled;
+                break;
+            }
+
+            travelled += std::max(config::ShadowStep, clearance);
+        }
+    }
+
+    const sf::Color clear(0, 0, 0, 0);
+    const sf::Color black(0, 0, 0, 255);
+
+    for (std::size_t i = 0; i < Segments; ++i)
+    {
+        float r0 = hit[i];
+        float r1 = hit[i + 1];
+
+        if (r0 == Missed && r1 == Missed)
+            continue;
+
+        // A wedge with one end in the open is the silhouette of whatever the
+        // other end found. Squaring it off there keeps the shadow conservative:
+        // erring towards a straight edge rather than towards a sliver of light
+        // running up the side of every rock.
+        if (r0 == Missed) r0 = r1;
+        if (r1 == Missed) r1 = r0;
+
+        const sf::Angle a0 = segmentAngle(i);
+        const sf::Angle a1 = segmentAngle(i + 1);
+
+        // Faded in over a short distance rather than switched on, so the line
+        // where the rock cuts the light is a line of shadow and not a cut.
+        appendRingQuad(m_shadow,
+                       sf::Vector2f(r0, a0), sf::Vector2f(r1, a1),
+                       sf::Vector2f(r0 + config::ShadowFade, a0),
+                       sf::Vector2f(r1 + config::ShadowFade, a1),
+                       clear, black);
+
+        appendRingQuad(m_shadow,
+                       sf::Vector2f(r0 + config::ShadowFade, a0),
+                       sf::Vector2f(r1 + config::ShadowFade, a1),
+                       sf::Vector2f(config::DarkReach, a0),
+                       sf::Vector2f(config::DarkReach, a1),
+                       black, black);
+    }
+}
+void Arena::drawShadows(sf::RenderTarget& target, sf::Vector2f from, sf::Angle aim) const
+{
+    if (m_shadow.getVertexCount() == 0)
+        return;
+
+    sf::RenderStates states;
+    states.transform.translate(from);
+    states.transform.rotate(aim);
+
+    target.draw(m_shadow, states);
 }
 
 void Arena::drawDark(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const

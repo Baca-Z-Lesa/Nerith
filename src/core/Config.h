@@ -278,6 +278,15 @@ namespace config
     inline constexpr float DarkFloor = 52.0f;    // never blind inside this radius
     inline constexpr float DarkReach = 4200.0f;  // out past any window
 
+    // --- what the rock does to the beam ---
+    // The ray starts outside the hull, never strides shorter than this however
+    // close the wall says it is, and the black arrives over ShadowFade rather
+    // than at a line - ninety-six wedges meeting a curved wall at ninety-six
+    // slightly different distances is a saw edge otherwise.
+    inline constexpr float ShadowNear = 26.0f;
+    inline constexpr float ShadowStep = 9.0f;
+    inline constexpr float ShadowFade = 26.0f;
+
     inline constexpr float CameraOvershoot = 0.55f;
     // How quickly the view catches up with the sub. At five it took about a
     // fifth of a second to close most of the gap, which does not read as a

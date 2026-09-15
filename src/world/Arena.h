@@ -65,6 +65,18 @@ public:
     // covered by the black rather than tinted by it.
     void drawDark(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const;
 
+    // Rock stops light. The lamp is a mesh built once around the origin, so it
+    // knows nothing about what is in front of it: standing against a wall used
+    // to light the room on the far side of it. This casts one ray per segment
+    // from wherever the sub actually is and paints the far side of whatever it
+    // hits, which is the only thing about the light that has to be worked out
+    // per frame rather than per lamp.
+    //
+    // Call it once a frame before drawing; it is a render concern and touches
+    // nothing the simulation reads.
+    void castShadows(sf::Vector2f from, sf::Angle aim);
+    void drawShadows(sf::RenderTarget& target, sf::Vector2f from, sf::Angle aim) const;
+
     sf::Vector2f getCenter() const { return m_center; }
     float getRadius() const { return m_radius; }
 
@@ -359,6 +371,7 @@ private:
     sf::VertexArray m_caustics;
     sf::VertexArray m_gloom;
     sf::VertexArray m_dark;
+    sf::VertexArray m_shadow;
     const DepthTheme* m_theme;
     float             m_lampBonus = 0.0f;
     float             m_lampFactor = 1.0f;

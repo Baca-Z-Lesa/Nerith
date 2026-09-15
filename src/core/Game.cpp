@@ -6624,6 +6624,15 @@ void Game::presentUpdate(float deltaTime)
 
     m_arena.update(deltaTime);
     m_seabed.update(deltaTime);
+
+    // Where the rock stops the beam. Once a frame rather than once a step:
+    // it is a picture, nothing reads it back, and a machine drawing twice as
+    // often must not pay for it twice.
+    if (m_state == State::Fighting || m_state == State::LevelIntro
+        || m_state == State::LevelClear || m_state == State::GameOver)
+    {
+        m_arena.castShadows(m_player.getPosition(), m_player.getAimDirection().angle());
+    }
     updateFeel(deltaTime);
     updateThreatCue(deltaTime);
     spawnAmbience(deltaTime);
@@ -7120,6 +7129,13 @@ void Game::render(float alpha)
     // dimmed, it is painted out - which is the only reason running with the
     // lamp off costs anything.
     m_arena.drawDark(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
+
+    // And the rock's own share of it: everything on the far side of a wall the
+    // beam ran into. Over the dark rather than part of it, because the two are
+    // different questions - one is how far the lamp carries, the other is what
+    // is in the way - and a creature in a doorway should be lit while the room
+    // behind it is not.
+    m_arena.drawShadows(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
 
     // And then the salvage, over the dark rather than under it. Dead metal does
     // not glow, but a floor you cannot see is a floor with nothing findable on
