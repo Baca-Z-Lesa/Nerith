@@ -716,3 +716,193 @@ foreach ($i in 0..2) {
     Stroke $g (Fade $paintY 110) ($W * (0.16 + 0.08 * $i)) ($H * 0.46) ($W * (0.22 + 0.08 * $i)) ($H * 0.46) (1.4 * $SS)
 }
 Finish $bmp $g $outW $outH "reel_crate.png"
+
+# =====================================================================
+#  LEDGE  -  the foreground every deep shot was missing.
+#
+#  There are no shaders in this project, so a foreground cannot be blurred
+#  and therefore must never be a detailed object: it is a large near-black
+#  silhouette that slides past at twice the speed of everything else, and
+#  that parallax is the only depth cue a flat scene has. It is drawn dark
+#  because the reel tints it down to about {6,9,11} anyway, but with real
+#  internal edges so it is not a blob the moment it crosses a lamp.
+# =====================================================================
+$outW = 640; $outH = 240
+$res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
+$W = $outW * $SS; $H = $outH * $SS
+$rand = New-Object System.Random -ArgumentList 7717
+
+$mass = @( (P 0 ($H * 1.10)), (P ($W * 0.06) ($H * 0.52)),
+           (P ($W * 0.22) ($H * 0.30)), (P ($W * 0.41) ($H * 0.40)),
+           (P ($W * 0.58) ($H * 0.18)), (P ($W * 0.76) ($H * 0.34)),
+           (P ($W * 0.92) ($H * 0.22)), (P $W ($H * 0.46)),
+           (P $W ($H * 1.10)) )
+Blob $g $mass $rock $ink (2.5 * $SS) 0.28
+
+# The lit crest. Even a silhouette needs one, or it reads as a hole cut in
+# the picture rather than as rock between the camera and the light.
+for ($i = 0; $i -lt ($mass.Count - 2); $i++) {
+    Stroke $g (Fade $rockHi 90) $mass[$i].X $mass[$i].Y $mass[$i+1].X $mass[$i+1].Y (2 * $SS)
+}
+
+# Fractures and blocks, so the mass has an inside.
+for ($i = 0; $i -lt 22; $i++) {
+    $fx = $rand.Next(0, $W)
+    $fy = $H * (0.35 + $rand.NextDouble() * 0.6)
+    $lean = ($rand.NextDouble() - 0.5) * 40 * $SS
+    Stroke $g (C 0 0 0 170) $fx $fy ($fx + $lean) ($fy + 30 * $SS) (1.6 * $SS)
+    Stroke $g (Fade $rockHi 50) ($fx - 1.6 * $SS) $fy ($fx - 1.6 * $SS + $lean) ($fy + 30 * $SS) (0.7 * $SS)
+}
+for ($i = 0; $i -lt 16; $i++) {
+    $bx = $rand.Next(0, $W)
+    $by = $H * (0.30 + $rand.NextDouble() * 0.5)
+    Blob $g @( (P ($bx - 18 * $SS) ($by + 10 * $SS)), (P ($bx - 8 * $SS) ($by - 12 * $SS)),
+               (P ($bx + 16 * $SS) ($by - 6 * $SS)), (P ($bx + 10 * $SS) ($by + 14 * $SS)) ) `
+        (C 46 54 58 190) $null 0 0.2
+    Stroke $g (Fade $rockHi 70) ($bx - 8 * $SS) ($by - 12 * $SS) ($bx + 16 * $SS) ($by - 6 * $SS) (1.2 * $SS)
+}
+for ($i = 0; $i -lt 26; $i++) {
+    Disc $g (Fade $growth 60) ($rand.Next(0, $W)) ($H * (0.28 + $rand.NextDouble() * 0.25)) ((1.5 + $rand.NextDouble() * 4) * $SS)
+}
+Finish $bmp $g $outW $outH "reel_ledge.png"
+
+# =====================================================================
+#  WRECK  -  one of the three boats that stopped at the same depth.
+#
+#  It is the strongest thing the prologue has to say and it was being said
+#  in a caption with nothing underneath it. Three hulls at one depth, all
+#  their lights out, all their beacons still going, and every one of them
+#  still on the cable that lowered it.
+# =====================================================================
+$outW = 340; $outH = 160
+$res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
+$W = $outW * $SS; $H = $outH * $SS; $cy = $H * 0.56
+$rand = New-Object System.Random -ArgumentList 4241
+
+$hull = @( (P ($W * 0.97) $cy), (P ($W * 0.84) ($cy - $H * 0.20)),
+           (P ($W * 0.40) ($cy - $H * 0.24)), (P ($W * 0.08) ($cy - $H * 0.16)),
+           (P ($W * 0.04) $cy), (P ($W * 0.08) ($cy + $H * 0.16)),
+           (P ($W * 0.40) ($cy + $H * 0.24)), (P ($W * 0.84) ($cy + $H * 0.20)) )
+Blob $g $hull $steel $ink (2.2 * $SS) 0.35
+Shade $g $hull 0.35 (C 150 162 172 60) (C 8 12 16 120) 0.30 0.34
+Speck $g $hull 0.35 180 331 (C 132 146 156 26) (C 8 10 14 42) (1 * $SS)
+
+for ($i = 0; $i -lt 9; $i++) {
+    $fx = $W * (0.14 + 0.084 * $i)
+    Stroke $g $steelDk $fx ($cy - $H * 0.21) $fx ($cy + $H * 0.21) (1.4 * $SS)
+    Stroke $g (Fade $steelTop 110) ($fx - 1.2 * $SS) ($cy - $H * 0.21) ($fx - 1.2 * $SS) ($cy + $H * 0.21) (0.6 * $SS)
+}
+Rivets $g ($W * 0.12) ($cy + $H * 0.15) ($W * 0.86) ($cy + $H * 0.15) 18 (0.9 * $SS) $steelDk $steelHi
+
+Panel $g ($W * 0.40) ($cy - $H * 0.46) ($W * 0.18) ($H * 0.26) $steelLo $steelHi $steelDk (1.6 * $SS)
+Edge $g $ink ($W * 0.40) ($cy - $H * 0.46) ($W * 0.18) ($H * 0.26) (1.2 * $SS)
+Stroke $g $steelDk ($W * 0.49) ($cy - $H * 0.46) ($W * 0.49) ($cy - $H * 0.66) (1.6 * $SS)
+Blob $g @( (P ($W * 0.30) ($cy + $H * 0.04)), (P ($W * 0.16) ($cy + $H * 0.30)),
+           (P ($W * 0.08) ($cy + $H * 0.26)), (P ($W * 0.22) ($cy + $H * 0.02)) ) $steelLo $ink (1.4 * $SS) 0.3
+Ring $g $steelLo ($W * 0.955) $cy ($H * 0.17) (3 * $SS)
+
+# Five ports, every one of them dark. Nothing on this hull is allowed to be
+# lit except the beacon: the lights being out is the shot.
+foreach ($i in 0..4) {
+    $px = $W * (0.22 + 0.11 * $i)
+    Disc $g $steelDk $px ($cy - $H * 0.02) (4.2 * $SS)
+    Ring $g (Fade $steelTop 150) $px ($cy - $H * 0.02) (3.8 * $SS) (1 * $SS)
+    Disc $g (C 8 11 14) $px ($cy - $H * 0.02) (2.6 * $SS)
+}
+
+# The one thing still working. It has been flashing for eleven days into
+# water with nobody left in it to see it.
+Lamp $g ($W * 0.49) ($cy - $H * 0.40) (3.4 * $SS) (C 236 150 96)
+
+for ($i = 0; $i -lt 12; $i++) {
+    $sx = $W * (0.10 + $rand.NextDouble() * 0.78)
+    Disc $g (Fade $silt 70) $sx ($cy - $H * (0.17 + $rand.NextDouble() * 0.05)) ((1 + $rand.NextDouble() * 3) * $SS)
+}
+for ($i = 0; $i -lt 9; $i++) {
+    $sx = $W * (0.12 + $rand.NextDouble() * 0.72)
+    $sy = $cy + ($rand.NextDouble() - 0.5) * $H * 0.3
+    Stroke $g (C 150 140 150 70) $sx $sy ($sx + (6 + $rand.Next(0, 26)) * $SS) ($sy + (4 - $rand.Next(0, 9)) * $SS) (0.8 * $SS)
+}
+for ($i = 0; $i -lt 10; $i++) {
+    Disc $g (Fade $growth 60) ($W * (0.08 + $rand.NextDouble() * 0.84)) ($cy + ($rand.NextDouble() - 0.5) * $H * 0.36) ((1 + $rand.NextDouble() * 2.6) * $SS)
+}
+Finish $bmp $g $outW $outH "reel_wreck.png"
+
+# =====================================================================
+#  HATCH  -  a close flank of Nerith with five doors standing open.
+#
+#  The prologue's best line is that every hatch is open from the inside,
+#  and it was being carried by a caption over a wide shot in which not one
+#  hatch was legible. This is that line as a picture: doors on the outside
+#  of the hull, every one undogged, every wheel spun right back, and
+#  nothing but black behind any of them.
+# =====================================================================
+$outW = 700; $outH = 400
+$res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
+$W = $outW * $SS; $H = $outH * $SS
+$rand = New-Object System.Random -ArgumentList 8863
+
+$flank = @( (P 0 ($H * 0.14)), (P ($W * 0.5) ($H * 0.06)), (P $W ($H * 0.14)),
+            (P $W ($H * 0.92)), (P ($W * 0.5) ($H * 1.00)), (P 0 ($H * 0.92)) )
+Blob $g $flank $steel $ink (2.5 * $SS) 0.1
+Shade $g $flank 0.1 (C 150 162 172 60) (C 8 12 16 110) 0.22 0.30
+Speck $g $flank 0.1 420 553 (C 132 146 156 24) (C 8 10 14 40) (1.2 * $SS)
+
+for ($i = 0; $i -lt 9; $i++) {
+    $sy = $H * (0.14 + 0.093 * $i)
+    Stroke $g $steelDk 0 $sy $W $sy (2 * $SS)
+    Stroke $g (Fade $steelTop 120) 0 ($sy + 1.6 * $SS) $W ($sy + 1.6 * $SS) (0.8 * $SS)
+    Rivets $g (10 * $SS) ($sy - 3 * $SS) ($W - 10 * $SS) ($sy - 3 * $SS) 30 (1 * $SS) $steelDk $steelHi
+}
+for ($i = 0; $i -lt 5; $i++) {
+    $vx = $W * (0.09 + 0.205 * $i)
+    Stroke $g $steelDk $vx ($H * 0.10) $vx ($H * 0.96) (2.2 * $SS)
+    Stroke $g (Fade $steelTop 100) ($vx - 1.8 * $SS) ($H * 0.10) ($vx - 1.8 * $SS) ($H * 0.96) (0.8 * $SS)
+}
+
+foreach ($i in 0..4) {
+    $dx = $W * (0.145 + 0.205 * $i)
+    $dy = $H * (0.40 + 0.10 * [math]::Sin($i * 1.9))
+    $rad = 26 * $SS
+
+    Disc $g (C 4 7 9) $dx $dy $rad
+    Ring $g $steelDk $dx $dy ($rad + 2.4 * $SS) (3 * $SS)
+    Ring $g (Fade $steelTop 140) $dx $dy ($rad + 4.5 * $SS) (1.2 * $SS)
+    Stroke $g (C 22 28 32 200) ($dx - $rad * 0.5) ($dy - $rad * 0.3) ($dx + $rad * 0.5) ($dy - $rad * 0.3) (1.6 * $SS)
+
+    # The doors swing to alternating sides, so five of them read as five
+    # separate decisions somebody made rather than as a pattern in the hull.
+    if (($i % 2) -eq 0) { $side = 1 } else { $side = -1 }
+    $leafX = $dx + $side * ($rad * 1.5)
+    $leafY = $dy + $rad * 0.35
+
+    Blob $g @( (P ($leafX - $side * $rad * 0.55) ($leafY - $rad * 0.85)),
+               (P ($leafX + $side * $rad * 0.45) ($leafY - $rad * 0.60)),
+               (P ($leafX + $side * $rad * 0.50) ($leafY + $rad * 0.80)),
+               (P ($leafX - $side * $rad * 0.50) ($leafY + $rad * 0.95)) ) $steelLo $ink (2 * $SS) 0.12
+    Rivets $g ($leafX - $side * $rad * 0.40) ($leafY - $rad * 0.6) ($leafX - $side * $rad * 0.40) ($leafY + $rad * 0.7) 4 (1 * $SS) $steelDk $steelHi
+
+    # The wheel, spun right back. Nobody forces a door from outside by
+    # turning the handle that is on the outside of it.
+    Ring $g $steelHi $leafX $leafY ($rad * 0.42) (2.2 * $SS)
+    foreach ($spoke in 0..3) {
+        $a = [math]::PI * $spoke / 4.0 + 0.4
+        Stroke $g $steelHi ($leafX - [math]::Cos($a) * $rad * 0.42) ($leafY - [math]::Sin($a) * $rad * 0.42) `
+            ($leafX + [math]::Cos($a) * $rad * 0.42) ($leafY + [math]::Sin($a) * $rad * 0.42) (1.6 * $SS)
+    }
+    Disc $g $steelDk $leafX $leafY (3 * $SS)
+
+    Stroke $g $steelDk ($dx + $side * $rad) ($dy - $rad * 0.4) $leafX ($leafY - $rad * 0.7) (2.4 * $SS)
+    Stroke $g $steelDk ($dx + $side * $rad) ($dy + $rad * 0.4) $leafX ($leafY + $rad * 0.7) (2.4 * $SS)
+}
+
+for ($i = 0; $i -lt 40; $i++) {
+    $rx = $rand.Next(0, $W)
+    $ry = $H * (0.14 + $rand.NextDouble() * 0.7)
+    Stroke $g (Fade $rust 55) $rx $ry $rx ($ry + (8 + $rand.Next(0, 40)) * $SS) (1.4 * $SS)
+}
+for ($i = 0; $i -lt 60; $i++) {
+    Disc $g (Fade $silt 55) ($rand.Next(0, $W)) ($H * (0.14 + 0.093 * $rand.Next(0, 9)) - 2 * $SS) ((1 + $rand.NextDouble() * 3) * $SS)
+}
+Finish $bmp $g $outW $outH "reel_hatch.png"
+

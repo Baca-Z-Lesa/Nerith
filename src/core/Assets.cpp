@@ -99,7 +99,8 @@ Assets::Assets()
                               config::ReelRigPath, config::ReelBellPath,
                               config::ReelWallPath, config::ReelStationPath,
                               config::ReelBeastPath, config::ReelDiverPath,
-                              config::ReelCratePath })
+                              config::ReelCratePath, config::ReelLedgePath,
+                              config::ReelWreckPath, config::ReelHatchPath })
     {
         want(path);
     }

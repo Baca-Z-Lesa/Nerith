@@ -1264,6 +1264,9 @@ namespace config
     inline constexpr const char* ReelBeastPath   = "assets/textures/reel_beast.png";
     inline constexpr const char* ReelDiverPath   = "assets/textures/reel_diver.png";
     inline constexpr const char* ReelCratePath   = "assets/textures/reel_crate.png";
+    inline constexpr const char* ReelLedgePath   = "assets/textures/reel_ledge.png";
+    inline constexpr const char* ReelWreckPath   = "assets/textures/reel_wreck.png";
+    inline constexpr const char* ReelHatchPath   = "assets/textures/reel_hatch.png";
 
     // Every plate is now painted bigger than the size its shots were framed
     // against, because the station is stretched to nearly three times its own

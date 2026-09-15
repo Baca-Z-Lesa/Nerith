@@ -21,10 +21,12 @@ struct Assets;
 // where a player is actually willing to sit still - and neither of them is
 // words over a pattern. They are shots.
 //
-// Every shot is a painted plate - a rig, a station, a rock face, an animal the
-// length of the screen - and a camera that does not hold still. The line of
-// text underneath is a caption on a picture rather than the other way round,
-// and the picture is doing the talking.
+// Every shot is built in three depth bands. There are no shaders here, so a
+// foreground cannot be blurred, which means a foreground can only ever be a
+// large near-black silhouette moving faster than everything behind it - and
+// that parallax is the only depth a flat scene gets. BACK moves at a quarter
+// of the camera, MID at one, FORE at two and a bit. Every shot names all
+// three, because a shot with only a middle is a painting.
 //
 // Any key skips the whole thing. Always, from the first frame, with the way
 // out printed in the corner: the second time a player sees a cutscene it is an
@@ -69,23 +71,27 @@ public:
     void draw(sf::RenderTarget& target);
 
 private:
-    // What a shot is a picture of.
+    // What a shot is a picture of. Six for the way down and five for the way
+    // back up, where there used to be eight and six: fewer and longer, so a
+    // shot has time to have something happen in it rather than only being a
+    // thing that is shown.
     enum class Scene
     {
-        Rig,     // the thing on the surface, at night, in the rain
-        Lower,   // the bell goes under and the daylight shuts over it
-        Fall,    // rock going past, faster than is comfortable
-        Pass,    // something crosses the beam and the beam stops existing
-        Station, // a dead structure with one light left in it
-        Hatches, // close on it: the doors are open, and one man is still out
-        Trench,  // the floor below comes apart, and it is not a trench
-        Mark,    // the title, resolving out of the dark
+        Rig,      // the rig at night, in the rain, being signed for
+        Shutter,  // the daylight closes over the bell
+        Sounding, // the fall stops, and three dead boats come up past you
+        Nerith,   // the station, whole, with its doors open
+        Trench,   // the floor comes apart and there is something in it
+        Mark,     // the title, resolving out of the dark
 
-        Hatch,   // the floor of the trench opening
-        Climb,   // rising, through everything that came out of it
-        Dawn,    // the surface, from underneath
-        Count,   // the deck, and what you brought up being counted
-        Wake,    // and what followed you
+        Ascent,   // the floor opens under you and everything leaves at once
+        Daylight, // the surface, from underneath, warm for the first time
+        Count,    // the deck, and the hold being weighed and paid for
+        Wake,     // and what came up on its own
+
+        // The two transits, which are not part of either story.
+        Fall,
+        Climb,
     };
 
     struct Shot
@@ -104,18 +110,17 @@ private:
     void drawScene(sf::RenderTarget& target);
 
     void drawRig(sf::RenderTarget& target, float t);
-    void drawLower(sf::RenderTarget& target, float t);
-    void drawFall(sf::RenderTarget& target, float t);
-    void drawPass(sf::RenderTarget& target, float t);
-    void drawStation(sf::RenderTarget& target, float t);
-    void drawHatches(sf::RenderTarget& target, float t);
+    void drawShutter(sf::RenderTarget& target, float t);
+    void drawSounding(sf::RenderTarget& target, float t);
+    void drawNerith(sf::RenderTarget& target, float t);
     void drawTrench(sf::RenderTarget& target, float t);
     void drawMark(sf::RenderTarget& target, float t);
-    void drawHatch(sf::RenderTarget& target, float t);
-    void drawClimb(sf::RenderTarget& target, float t);
-    void drawDawn(sf::RenderTarget& target, float t);
+    void drawAscent(sf::RenderTarget& target, float t);
+    void drawDaylight(sf::RenderTarget& target, float t);
     void drawCount(sf::RenderTarget& target, float t);
     void drawWake(sf::RenderTarget& target, float t);
+    void drawFall(sf::RenderTarget& target, float t);
+    void drawClimb(sf::RenderTarget& target, float t);
 
     // The shared vocabulary. Everything drawn here that is not a plate is one
     // of these.
@@ -123,7 +128,7 @@ private:
 
     // A light rather than a circle: bright in the middle and gone at the rim.
     // A flat disc at low alpha is a brown ball hanging in the shot, which is
-    // what a lamp halo looked like until this existed.
+    // what the halos were until this existed.
     void glow(sf::Vector2f at, float radius, sf::Color colour, float strength,
               int steps = 34);
     void bar(sf::Vector2f from, sf::Vector2f to, float width, sf::Color a, sf::Color b);
@@ -149,13 +154,20 @@ private:
     void plate(sf::RenderTarget& target, sf::Sprite& sprite, sf::Vector2f at, float scale,
                sf::Color tint, float turn = 0.0f);
 
+    // Where a point on a plate lands on the screen once the plate has been put
+    // somewhere. Without this, a lamp painted over a window is a pair of magic
+    // numbers that go wrong the moment the camera moves - which is what every
+    // halo in the first version of these reels was.
+    sf::Vector2f onPlate(const sf::Sprite& sprite, sf::Vector2f at, float scale, float turn,
+                         sf::Vector2f uv) const;
+
     // The rock face, laid across the screen and scrolled. offset is in pixels
     // and may be any size: the texture repeats.
     void rock(sf::RenderTarget& target, float offset, float scale, sf::Color tint);
 
     // What a plate was painted at against what its shots were framed against.
     // Keyed off the sprite itself so that growing a plate is a one line change
-    // in the config and nothing in the thirteen shots has to move.
+    // in the config and nothing in the shots has to move.
     float fitOf(const sf::Sprite& sprite) const;
 
     std::vector<Shot> m_shots;
@@ -163,6 +175,11 @@ private:
     float             m_time = 0.0f;   // into the current shot
     float             m_total = 0.0f;  // into the whole reel, for drifting things
     bool              m_finished = true;
+
+    // How far the rock has scrolled. Kept rather than worked out from the
+    // clock, because the one shot that matters stops the fall dead in the
+    // middle of itself, and a scroll cut from m_total cannot stop.
+    float m_scroll = 0.0f;
 
     // Only the short reels use this: it stands in for the first shot's line.
     std::string m_caption;
@@ -181,4 +198,7 @@ private:
     sf::Sprite m_beast;
     sf::Sprite m_diver;
     sf::Sprite m_crate;
+    sf::Sprite m_ledge;
+    sf::Sprite m_wreck;
+    sf::Sprite m_hatch;
 };
