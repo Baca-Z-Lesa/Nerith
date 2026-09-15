@@ -1228,7 +1228,9 @@ void Game::onLevelComplete()
 
     // Clearing a level is the only thing that opens the next one. Beating it
     // again later is always allowed, which is what makes grinding possible.
-    m_save.unlockedLevel = std::max(m_save.unlockedLevel, m_level.getNumber() + 1);
+    // Clamped to the campaign: there is no level thirty one to open.
+    m_save.unlockedLevel = std::clamp(std::max(m_save.unlockedLevel, m_level.getNumber() + 1),
+                                      1, authoredLevelCount());
 
     persist();
 
@@ -1856,6 +1858,15 @@ void Game::processEvents()
             {
                 if (keyPressed->scancode == sf::Keyboard::Scancode::F11)
                     toggleFullscreen();
+                else if (m_state == State::Credits && m_save.campaignBeaten)
+                {
+                    // Out of the credits and back onto the deck rather than to
+                    // the title. The campaign is over, but the rig is still
+                    // there and every floor can be dived again - dumping the
+                    // player at a menu after the last shot reads as the game
+                    // being taken away from them.
+                    openDeck();
+                }
                 else
                     openMenu();
                 continue;

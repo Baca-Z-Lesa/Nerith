@@ -171,19 +171,17 @@ namespace
             }
         }
 
-        // Past the authored list the trench generates its own, and those still
-        // have to be levels rather than empty water.
-        for (int level = authoredLevelCount() + 1; level <= authoredLevelCount() + 40; ++level)
+        // There is nothing past the campaign any more, and asking for a level
+        // that does not exist has to be safe rather than undefined: the save
+        // file is a text file a player can edit, and it names a level number.
+        for (const int level : { authoredLevelCount() + 1, authoredLevelCount() + 500, 100000 })
         {
             const LevelDef def = levelFor(level);
-            check(def.maxAlive > 0, "a generated level lets something be alive");
-            check(def.isBoss == isBossLevel(level),
-                  "a generated level is a boss level exactly when it should be");
-
-            // A boss level releases nothing, so it has no interval to check.
-            if (!def.isBoss)
-                check(def.spawnInterval > 0.0f, "a generated level releases on a timer");
+            check(def.title == levelFor(authoredLevelCount()).title,
+                  "past the campaign, every level is the last one");
         }
+
+        check(levelFor(-5).title == levelFor(1).title, "and below it, the first");
     }
 
     // ----------------------------------------------------------- upgrade tree

@@ -20,31 +20,6 @@ namespace
     {
         return (static_cast<float>(config::WindowWidth) - pixelfont::measure(text, scale)) / 2.0f;
     }
-
-    // The colour of a body part says what breaking it will cost the creature.
-    sf::Color colourFor(PartRole role)
-    {
-        switch (role)
-        {
-            case PartRole::Eye:      return sf::Color(255, 190, 90);
-            case PartRole::Fin:      return sf::Color(120, 220, 210);
-            case PartRole::Tentacle: return sf::Color(200, 160, 255);
-            case PartRole::Armour:   return sf::Color(170, 185, 200);
-            default:                 return config::HudBossColor;
-        }
-    }
-
-    const char* labelFor(PartRole role)
-    {
-        switch (role)
-        {
-            case PartRole::Eye:      return "EYE";
-            case PartRole::Fin:      return "FIN";
-            case PartRole::Tentacle: return "ARM";
-            case PartRole::Armour:   return "PLATE";
-            default:                 return "ORGAN";
-        }
-    }
 }
 
 Hud::Hud()
@@ -228,48 +203,6 @@ void Hud::drawBossBar(sf::RenderTarget& target, const Boss& boss)
     m_bar.setFillColor(reachable ? config::HudBossColor : config::BossSealedTint);
     target.draw(m_bar);
 
-    // One pip per body part, coloured by what losing it takes away. Organs are
-    // already the bar above, so they are not repeated here.
-    // Only for the one creature whose pieces are things you break. On every
-    // other one they are anatomy, and a pip per limb would be promising the
-    // player a mechanic that is not there.
-    std::size_t shown = 0;
-    for (std::size_t i = 0; i < boss.getPartCount(); ++i)
-    {
-        if (boss.getPartRole(i) != PartRole::Organ)
-            ++shown;
-    }
-
-    if (shown > 0)
-    {
-        const float gap = 8.0f;
-        const float width = (config::BossBarWidth - gap * static_cast<float>(shown - 1))
-                            / static_cast<float>(shown);
-        std::size_t slot = 0;
-
-        for (std::size_t i = 0; i < boss.getPartCount(); ++i)
-        {
-            const PartRole role = boss.getPartRole(i);
-            if (role == PartRole::Organ)
-                continue;
-
-            const float x = left + static_cast<float>(slot) * (width + gap);
-            ++slot;
-
-            m_bar.setSize({ width, 6.0f });
-            m_bar.setPosition({ x, config::BossBarTop + config::BossBarHeight + 6.0f });
-            m_bar.setFillColor(config::HudBarBackColor);
-            target.draw(m_bar);
-
-            if (!boss.isPartAlive(i))
-                continue;
-
-            m_bar.setSize({ width * boss.getPartFraction(i), 6.0f });
-            m_bar.setFillColor(colourFor(role));
-            target.draw(m_bar);
-        }
-    }
-
     m_text.clear();
 
     const std::string name = boss.getName();
@@ -279,28 +212,6 @@ void Hud::drawBossBar(sf::RenderTarget& target, const Boss& boss)
     const std::string state = boss.getStateLabel();
     pixelfont::append(m_text, state, { centredX(state, 1.6f), config::BossBarTop + 44.0f },
                       1.6f, reachable ? config::HudBossColor : config::HudDimTextColor);
-
-    // A legend for the pips, so the colours mean something the first time.
-    float x = left;
-    const float gap = 8.0f;
-    if (shown > 0)
-    {
-        const float width = (config::BossBarWidth - gap * static_cast<float>(shown - 1))
-                            / static_cast<float>(shown);
-        for (std::size_t i = 0; i < boss.getPartCount(); ++i)
-        {
-            const PartRole role = boss.getPartRole(i);
-            if (role == PartRole::Organ)
-                continue;
-
-            const char* text = labelFor(role);
-            pixelfont::append(m_text, text,
-                              { x + (width - pixelfont::measure(text, 1.2f)) / 2.0f,
-                                config::BossBarTop + config::BossBarHeight + 15.0f },
-                              1.2f, boss.isPartAlive(i) ? colourFor(role) : config::HudPipEmptyEdge);
-            x += width + gap;
-        }
-    }
 
     target.draw(m_text);
 }

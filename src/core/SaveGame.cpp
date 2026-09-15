@@ -1,5 +1,7 @@
 #include "core/SaveGame.h"
 
+#include "world/LevelDef.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <fstream>
@@ -159,9 +161,12 @@ SaveGame SaveGame::load()
     data.frameCap = std::max(0, data.frameCap);
 
     // A save written before levels could be replayed has no unlocked_level, so
-    // fall back to however far it had reached.
+    // fall back to however far it had reached - and a save written while the
+    // trench still built its own levels can name one that no longer exists.
     data.unlockedLevel = std::max({ 1, data.unlockedLevel, data.bestLevel, data.selectedLevel });
-    data.selectedLevel = std::min(data.selectedLevel, data.unlockedLevel);
+    data.unlockedLevel = std::min(data.unlockedLevel, authoredLevelCount());
+    data.bestLevel = std::min(data.bestLevel, authoredLevelCount());
+    data.selectedLevel = std::clamp(data.selectedLevel, 1, data.unlockedLevel);
 
     return data;
 }

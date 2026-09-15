@@ -1,4 +1,4 @@
-#include "world/LevelDef.h"
+﻿#include "world/LevelDef.h"
 
 #include <algorithm>
 #include <cmath>
@@ -34,99 +34,13 @@ LevelDef levelFor(int number)
     if (number <= AuthoredCount)
         return AuthoredLevels[static_cast<std::size_t>(number - 1)];
 
-    // Beyond the authored campaign, reuse the shape of the last depth and keep
-    // turning the screws. Stat creep stays capped: the pressure comes from the
-    // count, the pace and the mix, exactly as it does in the authored levels.
-    const int beyond = number - AuthoredCount;
-    const float steps = static_cast<float>(beyond);
-
-    LevelDef def{};
-    def.scaling.health = std::min(3.0f, 1.25f + 0.06f * steps);
-    def.scaling.speed = std::min(1.45f, 1.12f + 0.015f * steps);
-    def.scaling.bonusDamage = 1 + beyond / 10;
-
-    if (isBossLevel(number))
-    {
-        def.title = "THE WARDEN";
-        def.brief = "IT IS BIGGER EVERY TIME.";
-        def.objective = ObjectiveKind::DefeatBoss;
-        def.objectiveAmount = 0;
-        def.spawnInterval = 0.0f;
-        def.maxAlive = 1;
-        def.isBoss = true;
-        def.scaling.health = std::min(5.0f, 2.1f + 0.35f * steps);
-        return def;
-    }
-
-    def.title = "THE DARK";
-    def.brief = "NOTHING DOWN HERE HAS A NAME.";
-    def.spawnInterval = std::max(0.55f, 0.85f - 0.02f * steps);
-    def.maxAlive = std::min<std::size_t>(14, 10 + static_cast<std::size_t>(beyond / 4));
-
-    // Alternate the goal so a long run does not become one repeated chore.
-    switch (beyond % 4)
-    {
-        case 0:
-            def.objective = ObjectiveKind::SurviveTime;
-            def.objectiveAmount = 60 + beyond * 2;
-            break;
-        case 1:
-            def.objective = ObjectiveKind::LiftQuota;
-            def.objectiveAmount = 12 + beyond / 2;
-            break;
-        case 2:
-            def.objective = ObjectiveKind::RunDark;
-            def.objectiveAmount = 70 + beyond * 2;
-            break;
-        default:
-            def.objective = ObjectiveKind::OpenWrecks;
-            def.objectiveAmount = 3;
-            break;
-    }
-
-    // Past the campaign the deep creatures stop being a guest appearance and
-    // become the water. They ramp in one at a time so that a long run keeps
-    // introducing something rather than only multiplying what is there, and
-    // the shallow roster thins out underneath them.
-    const int wave = 4 + beyond / 2;
-    const int deep = 1 + beyond / 3;
-
-    if (beyond < 4)
-    {
-        def.script = { {
-            { EnemyType::Lancer, std::min(7, wave) },
-            { EnemyType::Warden, std::min(4, deep) },
-            { EnemyType::Weaver, std::min(6, 2 + beyond / 3) },
-            { EnemyType::Lurker, std::min(9, wave) },
-            { EnemyType::Effigy, std::min(5, deep + 1) },
-        } };
-    }
-    else if (beyond < 9)
-    {
-        def.script = { {
-            { EnemyType::Revenant, std::min(5, deep) },
-            { EnemyType::Moth, std::min(6, deep + 1) },
-            { EnemyType::Herald, std::min(3, 1 + beyond / 6) },
-            { EnemyType::Lancer, std::min(8, wave) },
-            { EnemyType::Warden, std::min(4, deep) },
-            { EnemyType::Weaver, std::min(5, 1 + beyond / 4) },
-        } };
-    }
-    else
-    {
-        // Past here the water is whatever the bottom two depths were made of.
-        // Both of the deep answers are asked at once and neither of them lets
-        // the other work: the moths want the lamp out and the effigies want
-        // the sub still, and everything else in the mix kills you for both.
-        def.script = { {
-            { EnemyType::Moth, std::min(7, deep + 2) },
-            { EnemyType::Effigy, std::min(6, deep) },
-            { EnemyType::Herald, std::min(4, 1 + beyond / 6) },
-            { EnemyType::Warden, std::min(6, deep) },
-            { EnemyType::Revenant, std::min(6, deep) },
-            { EnemyType::Weaver, std::min(7, deep + 2) },
-        } };
-    }
-
-    return def;
+    // There is nothing past the campaign. The trench used to build its own
+    // levels forever, which meant the hardest hand-authored level was followed
+    // by a generated one holding six fewer creatures - the game got EASIER at
+    // level thirty one - and a generated lift quota eventually asked for more
+    // salvage than a basin holds, so somewhere around level a hundred it
+    // became unfinishable. Neither was ever going to be found by playing.
+    //
+    // Thirty levels, six depths, and the thing at the bottom is the end.
+    return AuthoredLevels[static_cast<std::size_t>(AuthoredCount - 1)];
 }
