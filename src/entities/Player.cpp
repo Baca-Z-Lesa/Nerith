@@ -47,7 +47,8 @@ int Player::getMaxShieldCharges() const
 
 float Player::getDashCooldownFraction() const
 {
-    const float full = std::max(0.1f, m_stats->get(Stat::DashCooldown, config::DashBaseCooldown));
+    const float full =
+        std::max(config::DashMinCooldown, m_stats->get(Stat::DashCooldown, config::DashBaseCooldown));
     return std::clamp(1.0f - m_dashCooldown / full, 0.0f, 1.0f);
 }
 
@@ -396,7 +397,8 @@ bool Player::tryDash(sf::Vector2f steering)
     m_dashDirection = steering.lengthSquared() > 0.0f ? steering : m_aimDirection;
 
     m_dashTimer = config::DashDuration;
-    m_dashCooldown = std::max(0.2f, m_stats->get(Stat::DashCooldown, config::DashBaseCooldown));
+    m_dashCooldown =
+        std::max(config::DashMinCooldown, m_stats->get(Stat::DashCooldown, config::DashBaseCooldown));
     return true;
 }
 
@@ -427,8 +429,18 @@ Player::DamageResult Player::takeDamage(int amount)
 
     // Armour never reduces a hit to nothing: plating is meant to make the sub
     // tough, not immortal.
+    //
+    // It used to stop at one point of damage, which sounds like the same rule
+    // and is not. Almost everything in the water bites for one to three, so a
+    // sub with six plates took exactly one point from every creature in the
+    // game and one from a boss as well - and with the mercy window stacked on
+    // top of that, nothing down there could kill it at any speed. The floor is
+    // a fraction of the hit instead, so plating always matters and a heavy hit
+    // is always heavy.
     const int armour = m_stats->getInt(Stat::Armour, 0);
-    const int taken = std::max(1, amount - armour);
+    const int floor = std::max(1, static_cast<int>(std::ceil(
+                                      static_cast<float>(amount) * config::ArmourFloor)));
+    const int taken = std::clamp(amount - armour, floor, amount);
 
     // What the plating actually ate, so the caller can make something of it.
     // Armour that works silently is armour the player never notices buying.

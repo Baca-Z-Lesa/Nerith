@@ -2166,8 +2166,11 @@ void Game::fireJet(sf::Vector2f muzzle, sf::Vector2f direction, float chargeFact
 
 void Game::handleShooting(float deltaTime)
 {
-    const bool held = m_window.hasFocus()
-                      && sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+    // Through the input frame rather than straight at the mouse. sampleInput
+    // already answered this question once for the whole frame, and asking the
+    // operating system again here meant two steps of the same frame could
+    // disagree about whether the button was down.
+    const bool held = m_input.firing;
 
     // The charge coil turns the fire button into something you hold rather
     // than something you spam: let go early and it is an ordinary jet, hold it
@@ -3265,7 +3268,25 @@ void Game::placeFinds()
     m_finds.clear();
 
     const int depth = m_level.getDepth();
-    const int wanted = config::FindsBase + config::FindsPerDepth * (depth - 1);
+    int wanted = config::FindsBase + config::FindsPerDepth * (depth - 1);
+
+    // Water you have already opened has already been stripped. Kills pay a
+    // fraction on a rerun and the clear bonus pays nothing, but the floor was
+    // paying in full - which made swimming the same basin over and over the
+    // best money in the game, and the floor is a third of the economy.
+    //
+    // Fewer pieces rather than cheaper ones: a crate is a crate, and what has
+    // changed is how much of it is left.
+    if (m_rerun)
+    {
+        // Never below what the level is asking for, or a stripped basin is a
+        // level that cannot be finished.
+        const LevelDef& def = m_level.getDef();
+        const int needed = def.objective == ObjectiveKind::LiftQuota ? def.objectiveAmount + 1 : 1;
+
+        wanted = std::max(needed, static_cast<int>(std::lround(static_cast<float>(wanted)
+                                                               * config::RerunSalvageFactor)));
+    }
 
     for (int i = 0; i < wanted; ++i)
     {

@@ -18,11 +18,17 @@ namespace
         if (weight <= 0)
             return 0;
 
-        // Tuned against the campaign's takings: a clean first run through all
-        // twenty levels pays for roughly half the tree, so half of it is
-        // always a road not taken.
+        // Tuned against the campaign's takings, which the balance table in
+        // tools works out: a clean run through all thirty levels pays for
+        // about a third of the tree, so two thirds of it is always a road not
+        // taken and a second run is a different sub rather than the same one
+        // again with the gaps filled in.
+        //
+        // It was a fifth of this, and a campaign earned six times the whole
+        // tree. By the first boss a player owned everything worth owning,
+        // which is where "the sub is simply too strong" came from.
         return static_cast<int>(
-            std::lround(std::pow(static_cast<float>(weight), 1.22f) * 1.25f));
+            std::lround(std::pow(static_cast<float>(weight), 1.22f) * 4.20f));
     }
 
     // ------------------------------------------------------------------------

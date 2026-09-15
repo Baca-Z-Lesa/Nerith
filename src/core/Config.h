@@ -437,7 +437,7 @@ namespace config
         // fast fragile thing that punishes standing still - because a
         // telegraphed charge teaches the same lesson and can be read.
         { EnemyBehaviour::Lance, "assets/textures/enemy_lancer.png", nullptr,
-          0.75f, 15.0f, 495.0f, 3, 2, 2, 0.0f, 0.0f, 0, 0.0f, 0.45f, 0.80f,
+          0.75f, 15.0f, 495.0f, 3, 2, 1, 0.0f, 0.0f, 0, 0.0f, 0.45f, 0.80f,
           EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.55f },
 
         // Weaver: never closes. It circles at range raking fans across the
@@ -445,14 +445,14 @@ namespace config
         // Spitter's old reach as well, because a creature that plants itself
         // at a range and stops moving is a turret, not a fight.
         { EnemyBehaviour::Orbit, "assets/textures/enemy_weaver.png", "assets/textures/shot_weaver.png",
-          0.75f, 18.0f, 158.0f, 6, 1, 3, 245.0f, 1.25f, 3, 38.0f, 0.0f, 0.0f,
+          0.75f, 18.0f, 158.0f, 6, 1, 1, 245.0f, 1.25f, 3, 38.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.40f },
 
         // Bloom: never chases and cannot be dodged by distance. It denies area
         // with rings of orbs, and it lets go of one last ring on the way out -
         // so killing it while standing next to it is its own mistake.
         { EnemyBehaviour::Drift, "assets/textures/enemy_bloom.png", "assets/textures/shot_bloom.png",
-          0.7f, 26.0f, 38.0f, 8, 1, 3, 0.0f, 1.95f, 14, 360.0f, 0.0f, 0.0f,
+          0.7f, 26.0f, 38.0f, 8, 1, 1, 0.0f, 1.95f, 14, 360.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 14, false, false },
 
         // Spawnling: one jet kills it and it drops nothing. It exists to fill
@@ -463,7 +463,7 @@ namespace config
         // Brooder: the tap the spawnlings come out of. Ignore it and the arena
         // fills up; the answer is always to kill the source, not the swarm.
         { EnemyBehaviour::Brood, "assets/textures/enemy_brooder.png", nullptr,
-          0.9f, 30.0f, 42.0f, 26, 1, 5, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          0.9f, 30.0f, 42.0f, 26, 1, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Spawnling, 4, 2.5f, 0, false, false },
 
         // ---------------- BELOW THE CAMPAIGN ----------------
@@ -476,7 +476,7 @@ namespace config
         // It is also the only thing in the water you cannot simply outshoot,
         // which is the job the Hulk used to hold.
         { EnemyBehaviour::Bulwark, "assets/textures/enemy_warden.png", nullptr,
-          0.95f, 38.0f, 74.0f, 34, 3, 8, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          0.95f, 38.0f, 74.0f, 34, 3, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.90f },
 
         // Revenant: untouchable while it is under the floor, and it is under
@@ -484,14 +484,14 @@ namespace config
         // seconds it is up - and when it is up it is beside you, barely
         // visible, and emptying a fan into the space you were standing in.
         { EnemyBehaviour::Burrow, "assets/textures/enemy_revenant.png", "assets/textures/shot_rift.png",
-          0.85f, 25.0f, 168.0f, 28, 3, 10, 300.0f, 1.60f, 7, 54.0f, 1.30f, 2.40f,
+          0.85f, 25.0f, 168.0f, 28, 3, 2, 300.0f, 1.60f, 7, 54.0f, 1.30f, 2.40f,
           EnemyType::Lurker, 0, 0.0f, 0, true, false },
 
         // Herald: it has nothing to bite with and it is the most dangerous
         // thing in the water. It hardens everything near it and it keeps you
         // lit, so running dark stops working until it is dead.
         { EnemyBehaviour::Chase, "assets/textures/enemy_herald.png", nullptr,
-          0.9f, 27.0f, 58.0f, 40, 1, 13, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
+          0.9f, 27.0f, 58.0f, 40, 1, 3, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f },
 
         // ---------------- BELOW THE ABYSS ----------------
 
@@ -502,7 +502,7 @@ namespace config
         // mistake, and the answer is the one thing twenty levels of dark water
         // taught the player never to do: turn the light off and keep going.
         { EnemyBehaviour::Moth, "assets/textures/enemy_moth.png", nullptr,
-          0.8f, 20.0f, 380.0f, 10, 3, 9, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          0.8f, 20.0f, 380.0f, 10, 3, 2, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, false, false, 0.30f },
 
         // Effigy: it is only ever where you left it. It closes while the sub
@@ -511,7 +511,7 @@ namespace config
         // thing that gets you killed by everything else in the water, and is
         // exactly why they are never sent on their own.
         { EnemyBehaviour::Creep, "assets/textures/enemy_effigy.png", nullptr,
-          1.0f, 30.0f, 306.0f, 22, 3, 12, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          1.0f, 30.0f, 306.0f, 22, 3, 3, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, false, false },
 
         // Stalker: nothing puts it in the water. It is there because you left
@@ -520,7 +520,7 @@ namespace config
         // has already been is the weapon - and if it reaches you it does not
         // bite once, it takes hold.
         { EnemyBehaviour::Serpent, "assets/textures/enemy_coilworm.png", nullptr,
-          0.85f, 24.0f, 198.0f, 46, 3, 18, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
+          0.85f, 24.0f, 198.0f, 46, 3, 4, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f,
           EnemyType::Lurker, 0, 0.0f, 0, false, true, 1.20f },
     } };
 
@@ -999,10 +999,14 @@ namespace config
     //
     // A player is not fighting the level table, they are fighting the level
     // table multiplied by this, so this is where "practically impossible"
-    // lived. The bonus is gone and the other two sit just off neutral: the
-    // curve is now the one that was written down.
-    inline constexpr float GlobalCountScale = 1.12f;
-    inline constexpr float GlobalIntervalScale = 0.94f;
+    // lived.
+    //
+    // All three are neutral now and the curve has been written back into the
+    // rows themselves, where a designer can see it. They are kept because one
+    // dial over the whole campaign is genuinely useful - but the dial is at
+    // one, so what the table says is what the game does.
+    inline constexpr float GlobalCountScale = 1.0f;
+    inline constexpr float GlobalIntervalScale = 1.0f;
     inline constexpr std::size_t GlobalMaxAliveBonus = 0;
 
     // Three settings of the same screws. HARD is the campaign as designed and
@@ -1094,21 +1098,28 @@ namespace config
         int         fromDepth; // and how deep you have to be before it does
     };
 
+    // These were 14 to 370, which sounds like a range and was in fact the
+    // whole economy: a swept floor at depth six paid a quarter of the upgrade
+    // tree by itself, and two thirds of everything a player ever earned came
+    // from swimming over things rather than from fighting or from opening new
+    // water. What is left is the same shape at a fifth of the size.
     inline constexpr std::array<SalvageDef, 6> SalvageTable{ {
-        { "SCRAP",       "assets/textures/find_scrap.png",  { 132, 142, 148 },  14, 1.00f, 1 },
-        { "COPPER LINE", "assets/textures/find_copper.png", { 190, 128,  86 },  30, 0.72f, 1 },
-        { "CORE ROD",    "assets/textures/find_rod.png",    { 126, 200, 184 },  62, 0.48f, 2 },
-        { "BLACK GLASS", "assets/textures/find_glass.png",  { 118, 102, 168 }, 125, 0.30f, 3 },
-        { "GRAVID SAC",  "assets/textures/find_sac.png",    { 216, 152, 162 }, 210, 0.18f, 4 },
-        { "NERITH ORE",  "assets/textures/find_ore.png",    { 240, 178,  98 }, 370, 0.10f, 5 },
+        { "SCRAP",       "assets/textures/find_scrap.png",  { 132, 142, 148 },  2, 1.00f, 1 },
+        { "COPPER LINE", "assets/textures/find_copper.png", { 190, 128,  86 },  4, 0.72f, 1 },
+        { "CORE ROD",    "assets/textures/find_rod.png",    { 126, 200, 184 },  7, 0.48f, 2 },
+        { "BLACK GLASS", "assets/textures/find_glass.png",  { 118, 102, 168 }, 12, 0.30f, 3 },
+        { "GRAVID SAC",  "assets/textures/find_sac.png",    { 216, 152, 162 }, 20, 0.18f, 4 },
+        { "NERITH ORE",  "assets/textures/find_ore.png",    { 240, 178,  98 }, 33, 0.10f, 5 },
     } };
 
     inline constexpr std::size_t SalvageKinds = SalvageTable.size();
 
     // How much of it a basin holds. More the deeper you are, because the whole
     // reason to take the next lift down is that the next floor pays better.
+    // Three more per floor put twenty-five pieces of salvage on the ground in
+    // the last basin, which is a shopping trip rather than a dive.
     inline constexpr int   FindsBase = 7;
-    inline constexpr int   FindsPerDepth = 3;
+    inline constexpr int   FindsPerDepth = 2;
     inline constexpr float FindRadius = 17.0f;
     inline constexpr float FindPickupRange = 44.0f;
     inline constexpr float FindBob = 1.6f;
@@ -1495,8 +1506,8 @@ namespace config
     // way to afford anything is downward rather than round in circles. Without
     // this a player sits in the shallows with more salvage than the tree has
     // things to sell.
-    inline constexpr int   FirstClearBase = 12;
-    inline constexpr int   FirstClearPerLevel = 4;
+    inline constexpr int   FirstClearBase = 8;
+    inline constexpr int   FirstClearPerLevel = 2;
     inline constexpr float RerunSalvageFactor = 0.30f;
     inline constexpr float RespecRefund = 0.70f;
 
@@ -1626,6 +1637,12 @@ namespace config
     inline constexpr float DashSpeed = 900.0f;
     inline constexpr float DashDuration = 0.18f;
     inline constexpr float DashBaseCooldown = 2.2f;
+
+    // And the shortest it may ever get. The engine line takes ninety percent
+    // off between three nodes, which on a two second cooldown is a fifth of a
+    // second - and with GHOST fitted that is a sub that is untouchable half
+    // the time it is moving.
+    inline constexpr float DashMinCooldown = 0.75f;
     inline constexpr float PressureBurstRadius = 118.0f;
     inline constexpr int   PressureBurstDamage = 3;
 
@@ -1702,8 +1719,12 @@ namespace config
     // a little more for the next one, and the first hit that lands takes all
     // of it back. That is the whole point: the counter was a number nobody had
     // a reason to care about until losing it cost something.
-    inline constexpr float StreakSalvageStep = 0.05f;
-    inline constexpr int   StreakSalvageCap = 24;  // +120% and no further
+    inline constexpr float StreakSalvageStep = 0.04f;
+    inline constexpr int   StreakSalvageCap = 12;  // +48% and no further
+
+    // How little of a hit plating may ever leave. Six plates used to reduce
+    // every bite in the game to one point; a third of the hit always lands.
+    inline constexpr float ArmourFloor = 0.34f;
 
     inline constexpr float SlowMotionScale = 0.34f;
     inline constexpr float SlowMotionBossAct = 1.1f;

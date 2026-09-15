@@ -308,23 +308,54 @@ namespace
     {
         std::printf("balance\n");
 
-        // The economy is tuned so a clean run through the authored campaign
-        // pays for roughly half the tree. If either side of that drifts a long
-        // way, the tree stops being a choice - which is the bug this whole
-        // pricing scheme was written to fix.
-        int clearBonuses = 0;
-        for (int level = 1; level <= authoredLevelCount(); ++level)
-            clearBonuses += config::FirstClearBase + config::FirstClearPerLevel * level;
-
+        // How much of the tree a campaign pays for is worked out by the
+        // balance table in tools, which has the whole income model in it and
+        // prints it. It is not asserted twice here: a model kept in two places
+        // is a model that disagrees with itself by the third edit. What IS
+        // asserted here is the handful of things that are true regardless of
+        // how the income is tuned, and that break the game silently.
         UpgradeTree tree;
         int treeTotal = 0;
         for (const UpgradeNode& node : tree.getNodes())
             treeTotal += node.cost;
 
-        check(treeTotal > clearBonuses,
-              "the whole tree costs more than the campaign's clear bonuses");
-        check(treeTotal < clearBonuses * 6,
-              "but not so much more that the tree is unreachable");
+        int clearBonuses = 0;
+        for (int level = 1; level <= authoredLevelCount(); ++level)
+            clearBonuses += config::FirstClearBase + config::FirstClearPerLevel * level;
+
+        check(treeTotal > clearBonuses * 5,
+              "opening water alone never comes close to paying for the tree");
+
+        // Slow at the top and steep at the bottom: the water may never get
+        // lighter as the campaign goes on. Bosses are skipped - they put one
+        // creature in the basin and nothing else.
+        std::size_t previous = 0;
+        for (int level = 1; level <= authoredLevelCount(); ++level)
+        {
+            const LevelDef& def = levelFor(level);
+            if (def.isBoss)
+                continue;
+
+            check(def.maxAlive >= previous, "no level holds less water than the one before it");
+            previous = def.maxAlive;
+        }
+
+        // The ceilings in Stats are the only thing between the tree and a sub
+        // nothing in the water can interact with, so they have to actually
+        // bite: stacking every node that feeds a capped stat must land ON the
+        // cap rather than under it.
+        Stats everything;
+        for (const UpgradeNode& node : tree.getNodes())
+        {
+            for (const StatModifier& modifier : node.effects)
+                everything.apply(modifier);
+        }
+
+        checkNear(everything.get(Stat::Armour, 0.0f), 6.0f, "armour is capped, and the cap bites");
+        checkNear(everything.get(Stat::RicochetCount, 0.0f), 4.0f, "bounces are capped");
+        checkNear(everything.get(Stat::ChargeMultiplier, 1.0f), 6.0f, "the charge coil is capped");
+        checkNear(everything.get(Stat::CritChance, 0.0f), 0.50f, "crit chance is capped");
+        checkNear(everything.get(Stat::SalvageBonus, 0.0f), 1.20f, "the salvage bonus is capped");
 
         check(config::RerunSalvageFactor > 0.0f && config::RerunSalvageFactor < 1.0f,
               "repeat water pays something, but less");
