@@ -52,6 +52,11 @@ public:
     // nothing.
     Post standingAt() const { return m_at; }
 
+    // True on the frame a boot lands, so the caller can put a sound under it.
+    // The deck owns the walk cycle and has no business owning the mixer, so it
+    // reports the step rather than playing one.
+    bool tookStep() const { return m_stepped; }
+
     // Where he is. Nothing in the game asks; the headless preview does, and a
     // getter is cheaper than a preview that has to guess.
     sf::Vector2f getDiver() const { return m_diver; }
@@ -147,6 +152,7 @@ private:
     sf::Angle    m_face;
     float        m_stride = 0.0f;  // where he is in a step, so the boots swing
     float        m_effort = 0.0f;  // 0 standing, 1 walking flat out
+    bool         m_stepped = false; // a boot landed on this frame
 
     sf::VertexArray m_mesh;  // everything that covers up
     sf::VertexArray m_glow;  // everything that adds

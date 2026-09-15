@@ -98,7 +98,8 @@ Assets::Assets()
                               config::DeckBellPath, config::DeckCratePath,
                               config::ReelRigPath, config::ReelBellPath,
                               config::ReelWallPath, config::ReelStationPath,
-                              config::ReelBeastPath, config::ReelDiverPath })
+                              config::ReelBeastPath, config::ReelDiverPath,
+                              config::ReelCratePath })
     {
         want(path);
     }
@@ -111,6 +112,12 @@ Assets::Assets()
     // which the cache collapses.
     for (const config::DeckProp& prop : config::DeckProps)
         want(prop.path);
+
+    // And the six things lying on the floor down there. They used to be three
+    // rings in the kind's colour, which said there was something worth
+    // swimming to and nothing at all about whether it was.
+    for (const config::SalvageDef& kind : config::SalvageTable)
+        want(kind.path);
 
     // The floor and the rail are laid by giving one sprite a rectangle bigger
     // than the tile, which only works on a texture that repeats.

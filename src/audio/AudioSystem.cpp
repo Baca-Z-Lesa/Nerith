@@ -39,6 +39,33 @@ namespace
             case Sfx::HitSoft:    return "assets/audio/hit_soft.wav";
             case Sfx::HitShell:   return "assets/audio/hit_shell.wav";
             case Sfx::HitVoid:    return "assets/audio/hit_void.wav";
+
+            case Sfx::DeckStepA:  return "assets/audio/deck_step_a.wav";
+            case Sfx::DeckStepB:  return "assets/audio/deck_step_b.wav";
+            case Sfx::DeckRig:    return "assets/audio/deck_rig.wav";
+            case Sfx::DeckWinch:  return "assets/audio/deck_winch.wav";
+            case Sfx::DeckPaid:   return "assets/audio/deck_paid.wav";
+            case Sfx::DeckBoard:  return "assets/audio/deck_board.wav";
+            case Sfx::BellIn:     return "assets/audio/deck_bell_in.wav";
+            case Sfx::BellGo:     return "assets/audio/deck_bell_go.wav";
+            case Sfx::LiftHold:   return "assets/audio/lift_hold.wav";
+            case Sfx::LiftGo:     return "assets/audio/lift_go.wav";
+            case Sfx::ShaftHold:  return "assets/audio/shaft_hold.wav";
+            case Sfx::ShaftGo:    return "assets/audio/shaft_go.wav";
+            case Sfx::ShaftOpen:  return "assets/audio/shaft_open.wav";
+            case Sfx::FindSmall:  return "assets/audio/find_small.wav";
+            case Sfx::FindGood:   return "assets/audio/find_good.wav";
+            case Sfx::FindRich:   return "assets/audio/find_rich.wav";
+            case Sfx::CutHull:    return "assets/audio/cut_hull.wav";
+            case Sfx::HullGive:   return "assets/audio/hull_give.wav";
+            case Sfx::BroodBurn:  return "assets/audio/brood_burn.wav";
+            case Sfx::RigLog:     return "assets/audio/rig_log.wav";
+            case Sfx::ReelHorn:   return "assets/audio/reel_horn.wav";
+            case Sfx::ReelFall:   return "assets/audio/reel_fall.wav";
+            case Sfx::ReelClimb:  return "assets/audio/reel_climb.wav";
+            case Sfx::ReelDawn:   return "assets/audio/reel_dawn.wav";
+            case Sfx::ReelMark:   return "assets/audio/reel_mark.wav";
+
             default:              return "assets/audio/impact.wav";
         }
     }
@@ -70,6 +97,29 @@ namespace
             case Sfx::HitSoft:
             case Sfx::HitShell:
             case Sfx::HitVoid:    return config::VolumeImpact;
+
+            // A footstep happens twice a second for as long as somebody is on
+            // the deck, so it is the quietest thing in the game by a distance.
+            case Sfx::DeckStepA:
+            case Sfx::DeckStepB:  return config::VolumeDeckStep;
+            case Sfx::DeckRig:    return config::VolumeDeckRig;
+            case Sfx::FindSmall:
+            case Sfx::FindGood:
+            case Sfx::FindRich:   return config::VolumeFind;
+            case Sfx::CutHull:    return config::VolumeCut;
+            case Sfx::ShaftOpen:
+            case Sfx::HullGive:
+            case Sfx::LiftGo:
+            case Sfx::ShaftGo:
+            case Sfx::BellGo:     return config::VolumeLift;
+            case Sfx::LiftHold:
+            case Sfx::ShaftHold:  return config::VolumeLiftHold;
+            case Sfx::ReelHorn:
+            case Sfx::ReelFall:
+            case Sfx::ReelClimb:
+            case Sfx::ReelDawn:
+            case Sfx::ReelMark:   return config::VolumeReel;
+
             default:              return 60.0f;
         }
     }
@@ -89,8 +139,14 @@ AudioSystem::AudioSystem()
             throw std::runtime_error(std::string("failed to load sound: ") + file);
     }
 
-    if (!m_ambientBuffer.loadFromFile(config::AmbientTrackPath))
-        throw std::runtime_error(std::string("failed to load sound: ") + config::AmbientTrackPath);
+    const char* const ambiencePaths[AmbienceCount] = { config::AmbientTrackPath,
+                                                       config::DeckTrackPath };
+
+    for (std::size_t i = 0; i < AmbienceCount; ++i)
+    {
+        if (!m_ambientBuffers[i].loadFromFile(ambiencePaths[i]))
+            throw std::runtime_error(std::string("failed to load sound: ") + ambiencePaths[i]);
+    }
 
     m_filters.reserve(config::AudioVoiceCount);
     m_voices.reserve(config::AudioVoiceCount);
@@ -148,14 +204,20 @@ AudioSystem::AudioSystem()
             });
     }
 
-    m_ambient = std::make_unique<sf::Sound>(m_ambientBuffer);
-    m_ambient->setLooping(true);
-    m_ambient->setVolume(config::VolumeAmbient);
+    // Both loops run the whole time and only their volumes move. Starting and
+    // stopping them instead would put a click at every surfacing and lose the
+    // one thing a crossfade buys: the moment where you can hear both.
+    for (std::size_t i = 0; i < AmbienceCount; ++i)
+    {
+        m_ambients[i] = std::make_unique<sf::Sound>(m_ambientBuffers[i]);
+        m_ambients[i]->setLooping(true);
+        m_ambients[i]->setVolume(config::VolumeAmbient * m_ambienceLevel[i]);
 
-    // The drone lives in the sub, not in the water, so it must not swing round
-    // the player's head the moment the listener moves.
-    m_ambient->setRelativeToListener(true);
-    m_ambient->setPosition({ 0.0f, 0.0f, 0.0f });
+        // The drone lives in the sub, not in the water, so it must not swing
+        // round the player's head the moment the listener moves.
+        m_ambients[i]->setRelativeToListener(true);
+        m_ambients[i]->setPosition({ 0.0f, 0.0f, 0.0f });
+    }
 
     // The four layers are the same length and start together, so they stay in
     // phase for as long as the game runs. Starting them at different moments
@@ -163,7 +225,8 @@ AudioSystem::AudioSystem()
     const char* const layerPaths[LayerCount] = { config::MusicBedPath,
                                                  config::MusicPulsePath,
                                                  config::MusicDreadPath,
-                                                 config::MusicStalkPath };
+                                                 config::MusicStalkPath,
+                                                 config::MusicReelPath };
 
     for (std::size_t i = 0; i < LayerCount; ++i)
     {
@@ -207,6 +270,23 @@ void AudioSystem::updateMusic(float deltaTime)
         speak(due.sound, due.volume, due.cutoff, &due.at);
     }
 
+    // The two loops trade places. Both are always running; a cut between them
+    // would put a click at every surfacing and lose the one thing a crossfade
+    // is for, which is the second or two where you can hear both.
+    for (std::size_t i = 0; i < AmbienceCount; ++i)
+    {
+        const float want = i == static_cast<std::size_t>(m_ambience) ? 1.0f : 0.0f;
+        const float step = deltaTime / config::AmbienceFade;
+
+        if (m_ambienceLevel[i] < want)
+            m_ambienceLevel[i] = std::min(want, m_ambienceLevel[i] + step);
+        else
+            m_ambienceLevel[i] = std::max(want, m_ambienceLevel[i] - step);
+
+        if (m_ambients[i])
+            m_ambients[i]->setVolume(m_depthVolume * m_musicScale * m_ambienceLevel[i]);
+    }
+
     for (std::size_t i = 0; i < LayerCount; ++i)
     {
         if (!m_music[i])
@@ -227,8 +307,11 @@ void AudioSystem::startAmbient()
     if (m_muted)
         return;
 
-    if (m_ambient)
-        m_ambient->play();
+    for (auto& loop : m_ambients)
+    {
+        if (loop)
+            loop->play();
+    }
 
     for (auto& layer : m_music)
     {
@@ -342,20 +425,29 @@ void AudioSystem::setMusicVolume(float scale)
 {
     m_musicScale = std::clamp(scale, 0.0f, 1.0f);
 
-    if (m_ambient)
-        m_ambient->setVolume(m_depthVolume * m_musicScale);
+    for (std::size_t i = 0; i < AmbienceCount; ++i)
+    {
+        if (m_ambients[i])
+            m_ambients[i]->setVolume(m_depthVolume * m_musicScale * m_ambienceLevel[i]);
+    }
+}
+
+void AudioSystem::setAmbience(Ambience where)
+{
+    m_ambience = where;
 }
 
 void AudioSystem::setMuted(bool muted)
 {
     m_muted = muted;
 
-    if (!m_ambient)
-        return;
-
     if (muted)
     {
-        m_ambient->pause();
+        for (auto& loop : m_ambients)
+        {
+            if (loop)
+                loop->pause();
+        }
         for (auto& voice : m_voices)
             voice->stop();
         for (auto& layer : m_music)
@@ -366,7 +458,12 @@ void AudioSystem::setMuted(bool muted)
     }
     else
     {
-        m_ambient->play();
+        for (auto& loop : m_ambients)
+        {
+            if (loop)
+                loop->play();
+        }
+
         for (auto& layer : m_music)
         {
             if (layer)
@@ -377,10 +474,15 @@ void AudioSystem::setMuted(bool muted)
 
 void AudioSystem::setDepth(float pitch, float volume)
 {
-    if (!m_ambient)
-        return;
-
     m_depthVolume = volume;
-    m_ambient->setPitch(pitch);
-    m_ambient->setVolume(volume * m_musicScale);
+
+    // Only the abyss loop takes the depth: a rig deck does not get lower in
+    // pitch because the water under it got deeper.
+    const std::size_t abyss = static_cast<std::size_t>(Ambience::Abyss);
+
+    if (m_ambients[abyss])
+    {
+        m_ambients[abyss]->setPitch(pitch);
+        m_ambients[abyss]->setVolume(volume * m_musicScale * m_ambienceLevel[abyss]);
+    }
 }

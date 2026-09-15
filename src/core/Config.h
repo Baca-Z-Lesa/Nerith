@@ -1069,6 +1069,7 @@ namespace config
     struct SalvageDef
     {
         const char* name;
+        const char* path;      // what it looks like lying on the floor
         sf::Color   colour;
         int         value;
         float       share;     // how often it is the one that turns up
@@ -1076,12 +1077,12 @@ namespace config
     };
 
     inline constexpr std::array<SalvageDef, 6> SalvageTable{ {
-        { "SCRAP",       { 132, 142, 148 },  14, 1.00f, 1 },
-        { "COPPER LINE", { 190, 128,  86 },  30, 0.72f, 1 },
-        { "CORE ROD",    { 126, 200, 184 },  62, 0.48f, 2 },
-        { "BLACK GLASS", { 118, 102, 168 }, 125, 0.30f, 3 },
-        { "GRAVID SAC",  { 216, 152, 162 }, 210, 0.18f, 4 },
-        { "NERITH ORE",  { 240, 178,  98 }, 370, 0.10f, 5 },
+        { "SCRAP",       "assets/textures/find_scrap.png",  { 132, 142, 148 },  14, 1.00f, 1 },
+        { "COPPER LINE", "assets/textures/find_copper.png", { 190, 128,  86 },  30, 0.72f, 1 },
+        { "CORE ROD",    "assets/textures/find_rod.png",    { 126, 200, 184 },  62, 0.48f, 2 },
+        { "BLACK GLASS", "assets/textures/find_glass.png",  { 118, 102, 168 }, 125, 0.30f, 3 },
+        { "GRAVID SAC",  "assets/textures/find_sac.png",    { 216, 152, 162 }, 210, 0.18f, 4 },
+        { "NERITH ORE",  "assets/textures/find_ore.png",    { 240, 178,  98 }, 370, 0.10f, 5 },
     } };
 
     inline constexpr std::size_t SalvageKinds = SalvageTable.size();
@@ -1093,6 +1094,11 @@ namespace config
     inline constexpr float FindRadius = 17.0f;
     inline constexpr float FindPickupRange = 44.0f;
     inline constexpr float FindBob = 1.6f;
+
+    // The art is drawn at 44 px so it stays sharp when the lamp is right on
+    // top of it; on the floor a piece of salvage is about the size of a crate
+    // corner, which is this.
+    inline constexpr float FindScale = 0.82f;
 
     // =====================================================================
     //  THE SURFACE
@@ -1239,22 +1245,30 @@ namespace config
     inline constexpr const char* ReelStationPath = "assets/textures/reel_station.png";
     inline constexpr const char* ReelBeastPath   = "assets/textures/reel_beast.png";
     inline constexpr const char* ReelDiverPath   = "assets/textures/reel_diver.png";
+    inline constexpr const char* ReelCratePath   = "assets/textures/reel_crate.png";
 
-    // What it costs to be put in the water. The bell, the gas, the men on the
-    // winch: none of it is free, and all of it is dearer the further down they
-    // have to lower you. This is the number that turns a dive into a bet.
-    inline constexpr int DiveCostBase = 30;
-    inline constexpr int DiveCostPerLevel = 13;
+    // Every plate is now painted bigger than the size its shots were framed
+    // against, because the station is stretched to nearly three times its own
+    // width in the shot that goes close on its hatches and a stretched texture
+    // is a blurred texture however well it was drawn. Rather than re-derive
+    // thirteen camera moves, each shot still asks for the scale it always did
+    // and the reel divides by what the plate grew by.
+    inline constexpr float ReelFitRig = 460.0f / 640.0f;
+    inline constexpr float ReelFitBell = 180.0f / 240.0f;
+    inline constexpr float ReelFitWall = 300.0f / 420.0f;
+    inline constexpr float ReelFitStation = 560.0f / 1000.0f;
+    inline constexpr float ReelFitBeast = 760.0f / 1120.0f;
+    inline constexpr float ReelFitDiver = 150.0f / 210.0f;
+    inline constexpr float ReelFitCrate = 46.0f / 96.0f;
 
-    constexpr int diveCost(int level)
-    {
-        return DiveCostBase + DiveCostPerLevel * (level > 1 ? level - 1 : 0);
-    }
-
-    // The shallows are always affordable. A player who has spent everything and
-    // drowned with the hold still has to be able to get back in the water, or
-    // the save is dead - so the first level goes on the slate.
-    inline constexpr int DiveFreeBelow = 2;
+    // Going down is free.
+    //
+    // It was not: the bell, the gas and the men on the winch charged by the
+    // fathom, and the price climbed with every floor. On paper that turns a
+    // dive into a bet. In the hand it did the opposite - a bad dive left you
+    // unable to afford the next one, so the game answered a run of bad luck by
+    // taking the game away, and the deeper you got the worse the spiral. The
+    // hold is already the thing you can lose. One tax on failure is enough.
 
     // =====================================================================
     //  WHAT ELSE IS DOWN THERE
@@ -1535,6 +1549,23 @@ namespace config
     inline constexpr const char* MusicDreadPath = "assets/audio/music_dread.wav";
     inline constexpr const char* MusicStalkPath = "assets/audio/music_stalk.wav";
     inline constexpr float VolumeMusic = 30.0f;
+
+    // The surface, and what the rework added under it.
+    inline constexpr float VolumeDeckStep = 13.0f;
+    inline constexpr float VolumeDeckRig = 26.0f;
+    inline constexpr float VolumeFind = 34.0f;
+    inline constexpr float VolumeCut = 30.0f;
+    inline constexpr float VolumeLift = 62.0f;
+    inline constexpr float VolumeLiftHold = 26.0f;
+    inline constexpr float VolumeReel = 56.0f;
+
+    inline constexpr const char* DeckTrackPath = "assets/audio/ambient_deck.wav";
+    inline constexpr const char* MusicReelPath = "assets/audio/music_reel.wav";
+
+    // How long the two ambiences take to trade places. Long enough that
+    // surfacing is a transition rather than a cut, short enough that the deck
+    // is not still carrying the abyss while you are standing in the rain.
+    inline constexpr float AmbienceFade = 1.6f;
     inline constexpr float MusicFadeRate = 0.9f; // per second, so a swell takes about one
 
     // How many creatures actively hunting you counts as full pressure. Low on

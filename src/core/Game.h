@@ -343,9 +343,6 @@ private:
     // The hold survived: move it up the shaft and onto the deck.
     void landHold();
 
-    // What the selected dive is asking for, and nothing when the shallows are
-    // being run on credit.
-    int diveCost() const;
 
     void placeNests();
     void updateNests(float deltaTime);
@@ -661,6 +658,10 @@ private:
     // sitting in it does nothing at all - otherwise every dive would end one
     // second after it began, which is a short game.
     bool         m_liftArmed = false;
+
+    // Which boot is next, and how long until the rig complains again.
+    bool  m_leftFoot = false;
+    float m_deckGroan = 4.0f;
     std::vector<HitRing>    m_hitRings;
     // What last hurt the sub, kept so a death can say what killed it.
     Wound                   m_lastWound;

@@ -1056,6 +1056,8 @@ void Game::beginLevel(int number, bool fresh)
     m_seabed.applyTheme(theme);
     m_audio.setDepth(theme.ambientPitch, theme.ambientVolume);
 
+    m_audio.setAmbience(AudioSystem::Ambience::Abyss);
+
     m_playerShots.clear();
     m_pendingPlayerShots.clear();
     m_pendingEnemyShots.clear();
@@ -1225,6 +1227,7 @@ void Game::onLevelComplete()
     }
 
     m_audio.play(Sfx::LevelClear);
+    m_audio.playAt(Sfx::ShaftOpen, m_shaftAt, 1.0f, 0.0f);
     addFlash(config::HudSalvageColor, 0.35f);
     say("THE WAY DOWN IS OPEN - OR TAKE THE BELL UP WITH WHAT YOU HAVE");
 
@@ -1380,20 +1383,6 @@ void Game::landHold()
     }
 }
 
-int Game::diveCost() const
-{
-    const int level = std::clamp(m_save.selectedLevel, 1, m_save.unlockedLevel);
-    const int asking = config::diveCost(level);
-
-    // The shallows go on the slate when there is nothing left to pay with.
-    // Without this a player who spends everything and then drowns with the
-    // hold owns a save that cannot be played, which is not difficulty.
-    if (level < config::DiveFreeBelow && m_salvage < asking)
-        return 0;
-
-    return asking;
-}
-
 void Game::enterState(State next)
 {
     // The deck is the only state that has to be arrived at rather than simply
@@ -1411,6 +1400,13 @@ void Game::openDeck()
     m_showUpgrades = false;
     m_paused = false;
     m_respecArmed = false;
+
+    // Up out of the water. The abyss loop fades out under the rain rather than
+    // stopping, so surfacing is a place changing and not a scene changing.
+    m_audio.setAmbience(AudioSystem::Ambience::Deck);
+    m_audio.setLayer(AudioSystem::Layer::Pulse, 0.0f);
+    m_audio.setLayer(AudioSystem::Layer::Dread, 0.0f);
+    m_audio.setLayer(AudioSystem::Layer::Stalk, 0.0f);
 
     m_deck.enter();
     updateDeckSigns();
@@ -1434,23 +1430,15 @@ void Game::updateDeckSigns()
     m_deck.setNote(Deck::Post::Bench, std::to_string(m_salvage) + " SALVAGE IN HAND");
 
     const int level = std::clamp(m_save.selectedLevel, 1, m_save.unlockedLevel);
-    const int cost = diveCost();
 
-    std::string say = "LEVEL " + std::to_string(level) + ", DEPTH "
-                      + std::to_string(depthOf(level)) + " - ";
-
-    if (cost <= 0)
-        say += "ON THE SLATE";
-    else if (m_salvage >= cost)
-        say += std::to_string(cost) + " TO BE LOWERED";
-    else
-        say += "NEEDS " + std::to_string(cost) + ", YOU HAVE " + std::to_string(m_salvage);
+    std::string say = "LEVEL " + std::to_string(level) + ", "
+                      + depthName(depthOf(level));
 
     if (m_save.unlockedLevel > 1)
         say += "   [<>]";
 
     m_deck.setNote(Deck::Post::Bell, say);
-    m_deck.setOpen(Deck::Post::Bell, m_salvage >= cost);
+    m_deck.setOpen(Deck::Post::Bell, true);
 }
 
 void Game::useStation()
@@ -1466,7 +1454,8 @@ void Game::useStation()
             m_salvage += paid;
             m_landed.fill(0);
 
-            m_audio.play(Sfx::LevelClear, 0.8f);
+            m_audio.play(Sfx::DeckWinch);
+            m_audio.play(Sfx::DeckPaid, 0.9f);
             persist();
             break;
         }
@@ -1474,6 +1463,7 @@ void Game::useStation()
         case Deck::Post::Bench:
             // The tree, unchanged. It is a board on the bench rather than the
             // hub itself now, which is the only thing that moved.
+            m_audio.play(Sfx::DeckBoard);
             m_state = State::Upgrading;
             m_showUpgrades = false;
             m_upgradeScreen.clearCursor();
@@ -1481,16 +1471,10 @@ void Game::useStation()
             break;
 
         case Deck::Post::Bell:
-        {
-            const int cost = diveCost();
-            if (m_salvage < cost)
-                break;
-
-            m_salvage -= cost;
-            m_audio.play(Sfx::Hatch);
+            m_audio.play(Sfx::BellIn);
+            m_audio.play(Sfx::BellGo, 0.9f);
             diveIntoSelected();
             break;
-        }
 
         default:
             break;
@@ -1597,6 +1581,12 @@ void Game::playFilm(Cinematic::Reel reel, State next, bool once, const std::stri
 
     m_save.storySeen |= bit;
     persist();
+
+    // The long reels get the bed under them. It is not a tune - a melody
+    // played over thirty five seconds of picture is a melody the player will
+    // hum instead of watching - and it has to sit under the way down and the
+    // way back up without picking a side.
+    m_audio.setLayer(AudioSystem::Layer::Reel, 1.0f);
 
     m_film.begin(reel);
     m_afterFilm = next;
@@ -1808,6 +1798,7 @@ void Game::processEvents()
             if (m_state == State::Film)
             {
                 m_film.skip();
+                m_audio.setLayer(AudioSystem::Layer::Reel, 0.0f);
                 m_state = m_afterFilm;
             }
             else if (m_state == State::Menu)
@@ -1828,6 +1819,7 @@ void Game::processEvents()
             if (m_state == State::Film)
             {
                 m_film.skip();
+                m_audio.setLayer(AudioSystem::Layer::Reel, 0.0f);
                 m_state = m_afterFilm;
                 continue;
             }
@@ -2802,6 +2794,11 @@ void Game::updateLifts(float deltaTime)
     if (!m_liftArmed)
         return;
 
+    // The moment it starts taking you, once, so a player who clips the edge of
+    // the bell hears that they have started something.
+    if (m_ride <= 0.0f)
+        m_audio.play(inShaft ? Sfx::ShaftHold : Sfx::LiftHold);
+
     m_rideDown = inShaft;
     m_ride += deltaTime;
 
@@ -2822,6 +2819,8 @@ void Game::updateLifts(float deltaTime)
 
 void Game::takeLift(bool down)
 {
+    m_audio.play(down ? Sfx::ShaftGo : Sfx::LiftGo);
+
     if (down)
     {
         // One floor further from air, with everything still in the hold and
@@ -2932,7 +2931,19 @@ void Game::takeOffer(Offer& offer)
 
     addHitRing(offer.position, def.radius * 3.0f, def.colour);
     effects::ventBurst(m_effects, offer.position, def.radius);
-    m_audio.playAt(Sfx::Hatch, offer.position, 1.0f, occlusionAt(offer.position));
+
+    switch (offer.kind)
+    {
+        case config::OfferKind::Wreck:
+            m_audio.playAt(Sfx::HullGive, offer.position, 1.0f, occlusionAt(offer.position));
+            break;
+        case config::OfferKind::Hive:
+            m_audio.playAt(Sfx::BroodBurn, offer.position, 1.0f, occlusionAt(offer.position));
+            break;
+        default:
+            m_audio.playAt(Sfx::RigLog, offer.position, 1.0f, occlusionAt(offer.position));
+            break;
+    }
 
     switch (offer.kind)
     {
@@ -3250,7 +3261,13 @@ void Game::updateFinds()
         // way back up worth taking before the water is empty.
 
         addHitRing(find.position, config::FindPickupRange * 1.4f, def.colour);
-        m_audio.play(Sfx::Hatch, 1.25f);
+
+        // Which end of fourteen to three hundred and seventy it was. A player
+        // who can hear the difference does not have to read the corner of the
+        // screen to know whether the swim was worth it.
+        m_audio.play(def.value >= 200 ? Sfx::FindRich
+                     : def.value >= 60 ? Sfx::FindGood
+                                       : Sfx::FindSmall);
         effects::impact(m_effects, find.position, { 0.0f, -1.0f });
     }
 }
@@ -3269,35 +3286,56 @@ void Game::drawFinds()
 
         const config::SalvageDef& def = config::SalvageTable[find.kind];
 
-        // Lit by its own worth: the better it is the further the glow carries,
-        // which in water this dark is the only way anybody finds any of it.
+        // The halo is lit by its own worth: the better the piece the further
+        // the glow carries, which in water this dark is how anybody decides
+        // whether a light across the basin is worth the swim.
         const float lift = std::sin(m_presentTime * 1.7f + find.bob) * config::FindBob;
         const sf::Vector2f at = find.position + sf::Vector2f{ 0.0f, lift };
         const float size = config::FindRadius
                            * (0.8f + 0.4f * static_cast<float>(def.value) / 370.0f);
 
-        const auto ring = [&](float radius, sf::Color colour) {
-            constexpr int Steps = 12;
-            for (int i = 0; i < Steps; ++i)
-            {
-                const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / Steps);
-                const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / Steps);
+        constexpr int Steps = 14;
 
-                mesh.append(sf::Vertex{ at, colour });
-                mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a0), colour });
-                mesh.append(sf::Vertex{ at + sf::Vector2f(radius, a1), colour });
-            }
-        };
+        for (int i = 0; i < Steps; ++i)
+        {
+            const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / Steps);
+            const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / Steps);
 
-        sf::Color halo = def.colour;
-        halo.a = 44;
+            sf::Color core = def.colour;
+            core.a = 70;
 
-        ring(size * 2.4f, halo);
-        ring(size, def.colour);
-        ring(size * 0.42f, sf::Color(255, 255, 255, 190));
+            sf::Color rim = def.colour;
+            rim.a = 0;
+
+            mesh.append(sf::Vertex{ at, core });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(size * 2.6f, a0), rim });
+            mesh.append(sf::Vertex{ at + sf::Vector2f(size * 2.6f, a1), rim });
+        }
     }
 
     m_window.draw(mesh);
+
+    // And then the thing itself, over its own halo. A picture says whether it
+    // is a torn plate or a bag of eggs; a coloured ring only ever said that
+    // something was there.
+    for (const Find& find : m_finds)
+    {
+        if (find.taken)
+            continue;
+
+        const config::SalvageDef& def = config::SalvageTable[find.kind];
+        const float lift = std::sin(m_presentTime * 1.7f + find.bob) * config::FindBob;
+
+        sf::Sprite piece(m_assets.byPath(def.path));
+        piece.setOrigin(sf::Vector2f(piece.getTexture().getSize()) * 0.5f);
+        piece.setPosition(find.position + sf::Vector2f{ 0.0f, lift });
+        piece.setScale({ config::FindScale, config::FindScale });
+
+        // Turned a little and never the same way twice, because six textures
+        // laid out in a grid of identical rotations reads as a tile set.
+        piece.setRotation(sf::degrees(find.bob * 57.3f));
+        m_window.draw(piece);
+    }
 }
 
 void Game::drawLifts()
@@ -4777,7 +4815,8 @@ void Game::handleCollisions()
                 offer.flash = config::EnemyHitFlashDuration;
 
                 effects::impact(m_effects, shot.getPosition(), shot.getDirection());
-                m_audio.play(Sfx::Impact);
+                m_audio.playAt(Sfx::CutHull, offer.position, 1.0f,
+                               occlusionAt(offer.position));
                 addHitRing(shot.getPosition(), config::JetRingRadius, def.colour);
 
                 if (offer.health <= 0)
@@ -6498,10 +6537,30 @@ void Game::presentUpdate(float deltaTime)
     switch (m_state)
     {
         case State::Film:
+        {
             m_film.update(deltaTime);
+
+            // One sound per cut. The reel decides where the cuts are and this
+            // decides what they sound like, which keeps the mixer out of the
+            // drawing code and the drawing out of the mixer.
+            switch (m_film.takeSting())
+            {
+                case Cinematic::Sting::Horn:  m_audio.play(Sfx::ReelHorn); break;
+                case Cinematic::Sting::Fall:  m_audio.play(Sfx::ReelFall); break;
+                case Cinematic::Sting::Climb: m_audio.play(Sfx::ReelClimb); break;
+                case Cinematic::Sting::Dawn:  m_audio.play(Sfx::ReelDawn); break;
+                case Cinematic::Sting::Mark:  m_audio.play(Sfx::ReelMark); break;
+                default: break;
+            }
+
             if (m_film.isFinished())
+            {
+                m_audio.setLayer(AudioSystem::Layer::Reel, 0.0f);
                 enterState(m_afterFilm);
+            }
+
             break;
+        }
 
         case State::Deck:
         {
@@ -6513,6 +6572,25 @@ void Game::presentUpdate(float deltaTime)
             };
 
             m_deck.update(deltaTime, drive);
+
+            // Alternating, because the same footstep sample twice a second for
+            // a minute is the fastest way to make a player turn the sound off.
+            if (m_deck.tookStep())
+            {
+                m_audio.play(m_leftFoot ? Sfx::DeckStepA : Sfx::DeckStepB,
+                             0.9f + rng::range(0.0f, 0.2f));
+                m_leftFoot = !m_leftFoot;
+            }
+
+            // And the rig itself, every so often, working against the swell.
+            m_deckGroan -= deltaTime;
+
+            if (m_deckGroan <= 0.0f)
+            {
+                m_deckGroan = rng::range(5.0f, 13.0f);
+                m_audio.play(Sfx::DeckRig, 0.8f + rng::range(0.0f, 0.4f));
+            }
+
             break;
         }
 

@@ -39,6 +39,41 @@ enum class Sfx
     HitSoft,
     HitShell,
     HitVoid,
+
+    // The surface, and everything the rework added under it. None of these
+    // existed until the deck did, and a deck you walk about on in silence is
+    // a screenshot with a man on it.
+    DeckStepA,
+    DeckStepB,
+    DeckRig,      // steel complaining about the swell
+    DeckWinch,    // the crane taking the hold off you
+    DeckPaid,     // and what it hands back
+    DeckBoard,    // the tree, opening
+    BellIn,       // the hatch, from inside
+    BellGo,       // and the winch letting you down
+
+    LiftHold,     // sitting in the bell, waiting for it to decide
+    LiftGo,       // and it has
+    ShaftHold,
+    ShaftGo,
+    ShaftOpen,    // the way down unlocking, heard from anywhere in the basin
+
+    // Three, because the sound has to say which end of fourteen to three
+    // hundred and seventy the thing on the floor was.
+    FindSmall,
+    FindGood,
+    FindRich,
+
+    CutHull,      // a torch on somebody else's plate
+    HullGive,     // and the moment it stops being sealed
+    BroodBurn,
+    RigLog,       // a dead man's recorder finding the end of its tape
+
+    ReelHorn,     // the four stings the cutscenes are cut against
+    ReelFall,
+    ReelClimb,
+    ReelDawn,
+    ReelMark,
     Count
 };
 
@@ -76,7 +111,14 @@ public:
     // two up and down as the fight gets worse. Nothing here is a tune - a
     // melody would wear out inside one level - so it can sit under a fight for
     // as long as the fight lasts.
-    enum class Layer { Bed, Pulse, Dread, Stalk, Count };
+    enum class Layer { Bed, Pulse, Dread, Stalk, Reel, Count };
+
+    // Where the listener is standing, which decides which of the two loops is
+    // under everything. They crossfade rather than cut, because surfacing is
+    // meant to feel like coming up and not like a scene change.
+    enum class Ambience { Abyss, Deck, Count };
+
+    void setAmbience(Ambience where);
 
     void setLayer(Layer layer, float target); // 0..1, faded to over a second
     void updateMusic(float deltaTime);
@@ -100,8 +142,10 @@ private:
 
     static constexpr std::size_t LayerCount = static_cast<std::size_t>(Layer::Count);
 
+    static constexpr std::size_t AmbienceCount = static_cast<std::size_t>(Ambience::Count);
+
     std::array<sf::SoundBuffer, SfxCount> m_buffers;
-    sf::SoundBuffer m_ambientBuffer;
+    std::array<sf::SoundBuffer, AmbienceCount> m_ambientBuffers;
 
     std::array<sf::SoundBuffer, LayerCount>              m_musicBuffers;
     std::array<std::unique_ptr<sf::Sound>, LayerCount>   m_music;
@@ -126,7 +170,12 @@ private:
 
     // unique_ptr so the pool never needs sf::Sound to be copyable or movable.
     std::vector<std::unique_ptr<sf::Sound>> m_voices;
-    std::unique_ptr<sf::Sound>              m_ambient;
+    std::array<std::unique_ptr<sf::Sound>, AmbienceCount> m_ambients;
+
+    // Which loop should be at full and how far each one has got. Both are
+    // always playing; only their volumes move.
+    Ambience m_ambience = Ambience::Abyss;
+    std::array<float, AmbienceCount> m_ambienceLevel{ 1.0f, 0.0f };
 
     // A sound waiting to be played again as its own echo. The pool has no
     // notion of deferred playback otherwise, and a delay line per voice would

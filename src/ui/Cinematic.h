@@ -59,6 +59,13 @@ public:
 
     bool isFinished() const { return m_finished; }
 
+    // Which sting the shot that just came up wants under it, or Count for a
+    // shot that wants nothing. The reel owns the cutting and has no business
+    // owning the mixer, so it reports the cut and the caller plays it.
+    enum class Sting { Horn, Fall, Climb, Dawn, Mark, Count };
+
+    Sting takeSting();
+
     void draw(sf::RenderTarget& target);
 
 private:
@@ -87,6 +94,9 @@ private:
         float       seconds;
         const char* line; // null on a title card
     };
+
+    // What a scene sounds like when it arrives.
+    static Sting stingFor(Scene scene);
 
     const Shot& current() const;
     float shotTime() const; // 0..1 through the shot on screen
@@ -143,6 +153,11 @@ private:
     // and may be any size: the texture repeats.
     void rock(sf::RenderTarget& target, float offset, float scale, sf::Color tint);
 
+    // What a plate was painted at against what its shots were framed against.
+    // Keyed off the sprite itself so that growing a plate is a one line change
+    // in the config and nothing in the thirteen shots has to move.
+    float fitOf(const sf::Sprite& sprite) const;
+
     std::vector<Shot> m_shots;
     std::size_t       m_shot = 0;
     float             m_time = 0.0f;   // into the current shot
@@ -151,6 +166,9 @@ private:
 
     // Only the short reels use this: it stands in for the first shot's line.
     std::string m_caption;
+
+    // What the shot on screen asked for when it started, taken once.
+    Sting m_sting = Sting::Count;
 
     sf::RectangleShape m_fill;
     sf::VertexArray    m_mesh;
@@ -163,5 +181,4 @@ private:
     sf::Sprite m_beast;
     sf::Sprite m_diver;
     sf::Sprite m_crate;
-    sf::Sprite m_crane;
 };

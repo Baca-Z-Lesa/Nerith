@@ -78,8 +78,7 @@ Cinematic::Cinematic(const Assets& assets)
     , m_station(assets.byPath(config::ReelStationPath))
     , m_beast(assets.byPath(config::ReelBeastPath))
     , m_diver(assets.byPath(config::ReelDiverPath))
-    , m_crate(assets.byPath(config::DeckCratePath))
-    , m_crane(assets.byPath(config::DeckCranePath))
+    , m_crate(assets.byPath(config::ReelCratePath))
 {
     m_fill.setFillColor(sf::Color::Black);
 }
@@ -132,6 +131,33 @@ void Cinematic::begin(Reel reel, const std::string& caption)
     m_time = 0.0f;
     m_total = 0.0f;
     m_finished = m_shots.empty();
+    m_sting = m_finished ? Sting::Count : stingFor(current().scene);
+}
+
+Cinematic::Sting Cinematic::stingFor(Scene scene)
+{
+    switch (scene)
+    {
+        case Scene::Rig:
+        case Scene::Count:   return Sting::Horn;
+        case Scene::Fall:
+        case Scene::Lower:
+        case Scene::Hatch:   return Sting::Fall;
+        case Scene::Climb:
+        case Scene::Trench:  return Sting::Climb;
+        case Scene::Dawn:    return Sting::Dawn;
+        case Scene::Mark:
+        case Scene::Pass:
+        case Scene::Wake:    return Sting::Mark;
+        default:             return Sting::Count;
+    }
+}
+
+Cinematic::Sting Cinematic::takeSting()
+{
+    const Sting due = m_sting;
+    m_sting = Sting::Count;
+    return due;
 }
 
 void Cinematic::update(float deltaTime)
@@ -148,6 +174,8 @@ void Cinematic::update(float deltaTime)
 
         if (++m_shot >= m_shots.size())
             m_finished = true;
+        else
+            m_sting = stingFor(current().scene);
     }
 }
 
@@ -290,9 +318,23 @@ void Cinematic::flush(sf::RenderTarget& target)
     m_mesh.clear();
 }
 
+float Cinematic::fitOf(const sf::Sprite& sprite) const
+{
+    if (&sprite == &m_rig)     return config::ReelFitRig;
+    if (&sprite == &m_bell)    return config::ReelFitBell;
+    if (&sprite == &m_station) return config::ReelFitStation;
+    if (&sprite == &m_beast)   return config::ReelFitBeast;
+    if (&sprite == &m_diver)   return config::ReelFitDiver;
+    if (&sprite == &m_crate)   return config::ReelFitCrate;
+
+    return 1.0f;
+}
+
 void Cinematic::plate(sf::RenderTarget& target, sf::Sprite& sprite, sf::Vector2f at, float scale,
                       sf::Color tint, float turn)
 {
+    scale *= fitOf(sprite);
+
     // Whatever has been put in the mesh belongs behind the plate, and a sprite
     // cannot be batched into it, so the mesh goes out first.
     flush(target);
@@ -312,6 +354,11 @@ void Cinematic::rock(sf::RenderTarget& target, float offset, float scale, sf::Co
     flush(target);
 
     const float band = Bottom - Top;
+
+    // The wall goes the other way from every other plate: its scale divides
+    // the rectangle it takes off the texture, so a bigger texture needs a
+    // bigger number to show the same apparent rock.
+    scale /= config::ReelFitWall;
 
     m_wall.setOrigin({ 0.0f, 0.0f });
     m_wall.setTextureRect(sf::IntRect({ 0, static_cast<int>(offset) },

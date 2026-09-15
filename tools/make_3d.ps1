@@ -82,6 +82,32 @@ $Materials = @{
     'deck_bell.png'  = 'metal'
     'deck_crate.png' = 'hardware'
 
+    # Everything lying about on the deck. The chamber and the shack are the
+    # only two big enough for the relief pass to have had to be normalised
+    # against them.
+    'deck_quad.png'    = 'hardware'
+    'deck_basket.png'  = 'metal'
+    'deck_chain.png'   = 'metal'
+    'deck_drums.png'   = 'hardware'
+    'deck_chamber.png' = 'metal'
+    'deck_reel.png'    = 'hardware'
+    'deck_shack.png'   = 'metal'
+    'deck_hatch.png'   = 'metal'
+    'deck_weights.png' = 'metal'
+    'deck_chest.png'   = 'hardware'
+    'deck_welder.png'  = 'hardware'
+    'deck_hose.png'    = 'hardware'
+    'deck_raft.png'    = 'hardware'
+    'deck_bitts.png'   = 'metal'
+
+    # --- what is lying on the floor down there ---
+    'find_scrap.png'  = 'metal'
+    'find_copper.png' = 'metal'
+    'find_rod.png'    = 'hardware'
+    'find_glass.png'  = 'shell'
+    'find_sac.png'    = 'flesh'
+    'find_ore.png'    = 'rock'
+
     # --- the cutscene plates ---
     # The rock face is a tiling sheet and is listed further down instead.
     'reel_rig.png'     = 'metal'
@@ -116,7 +142,8 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_shots.ps1', 'make_nest.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
                       'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1',
-                      'make_deck.ps1', 'make_reel.ps1')) {
+                      'make_deck.ps1', 'make_deckprops.ps1', 'make_salvage.ps1',
+                      'make_reel.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null
 }

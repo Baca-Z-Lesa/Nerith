@@ -232,7 +232,13 @@ void Deck::update(float deltaTime, sf::Vector2f drive)
 
     const float pace = m_speed.length();
     m_effort = std::clamp(pace / config::DeckWalkSpeed, 0.0f, 1.0f);
+
+    // A boot lands every half turn of the stride, which is the same phase the
+    // sprite swings on - so the sound and the picture cannot drift apart.
+    const float was = m_stride;
     m_stride += pace * deltaTime * config::DeckStride;
+    m_stepped = pace > 20.0f
+                && std::floor(was / 3.14159265f) != std::floor(m_stride / 3.14159265f);
 
     // Turn toward where he is going rather than snapping, and keep the last
     // heading when he stops: a man who halts does not face north.
