@@ -422,13 +422,32 @@ public static class Synth
 
     static void Loop(float[] b, float seconds)
     {
-        // Crossfades the tail into the head so the loop point is inaudible.
+        // Crossfades the tail into the head, and this is NOT enough on its
+        // own: it moves the first sample and leaves the last one exactly where
+        // it was, so the one join a looping player actually makes is the one
+        // join it does not touch. Measured on the bed, the wrap stepped 0.045
+        // against a sample to sample slope of 0.0008 - sixty times the signal's
+        // own rate of change, which is a faint tick every sixteen seconds for
+        // as long as the game is running.
+        //
+        // So it also walks the tail back down to meet the head. Over a tenth
+        // of a second, which is far longer than any transient in a drone and
+        // far shorter than anything the ear hears as a fade.
         int fade = Count(0.6f);
         int n = b.Length;
         for (int i = 0; i < fade && i < n / 2; i++)
         {
             float f = (float)i / fade;
             b[i] = b[i] * f + b[n - fade + i] * (1f - f);
+        }
+
+        int meet = Count(0.10f);
+        if (meet > n / 4) meet = n / 4;
+
+        for (int i = 0; i < meet; i++)
+        {
+            float f = (float)i / meet;
+            b[n - meet + i] = b[n - meet + i] * (1f - f) + b[0] * f;
         }
     }
 

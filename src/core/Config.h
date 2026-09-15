@@ -326,10 +326,17 @@ namespace config
     inline constexpr float PlayerFireCooldown = 0.21f;
     inline constexpr float PlayerMuzzleOffset = 30.0f;
     inline constexpr float PlayerSternOffset = 26.0f;
-    // Three hits. The campaign is meant to be beaten by learning a level, not
-    // by having enough hull to walk through it.
-    inline constexpr int   PlayerMaxHealth = 3;
-    inline constexpr float PlayerInvulnerabilityDuration = 0.62f;
+    // Four hits. It was three, which is the right number for a game about
+    // learning a level and the wrong one for a game about searching a dark
+    // basin with your back to things: half of what kills you now is something
+    // you never saw, and a sub that dies to three of those is a sub that
+    // punishes exploring. The fourth plate is the difference between a mistake
+    // and a run.
+    inline constexpr int   PlayerMaxHealth = 4;
+
+    // And longer after one lands, because the thing that actually ends dives
+    // is being hit twice by the same creature before the sub has moved.
+    inline constexpr float PlayerInvulnerabilityDuration = 0.78f;
     inline constexpr float PlayerBlinkInterval = 0.16f;
     inline constexpr float PlayerBubbleInterval = 0.045f;
 
@@ -983,9 +990,20 @@ namespace config
     // already driving the thing the curve has to answer.
     inline constexpr float PowerFullShare = 0.72f;
 
-    inline constexpr float GlobalCountScale = 1.45f;    // more of everything
-    inline constexpr float GlobalIntervalScale = 0.74f; // arriving sooner
-    inline constexpr std::size_t GlobalMaxAliveBonus = 3;
+    // Three screws over the whole campaign, and they were all wound the wrong
+    // way. The level table was authored and balanced one level at a time, and
+    // then these were laid on top of every row of it: half again as many
+    // creatures, arriving a quarter sooner, and - the one that actually did
+    // the damage - three MORE of them alive at once than any level ever asked
+    // for. Level one says five and the game was running eight.
+    //
+    // A player is not fighting the level table, they are fighting the level
+    // table multiplied by this, so this is where "practically impossible"
+    // lived. The bonus is gone and the other two sit just off neutral: the
+    // curve is now the one that was written down.
+    inline constexpr float GlobalCountScale = 1.12f;
+    inline constexpr float GlobalIntervalScale = 0.94f;
+    inline constexpr std::size_t GlobalMaxAliveBonus = 0;
 
     // Three settings of the same screws. HARD is the campaign as designed and
     // as balanced; the other two sit either side of it so somebody meeting the

@@ -1405,9 +1405,23 @@ public static class SurfaceSynth
 
     public static float[] MusicReel(float seconds)
     {
-        int n = Count(seconds);
+        // Composed exactly periodic and it still wrapped with a jump of 0.24
+        // against a sample to sample step of 0.004 - sixty four times the
+        // signal's own slope, which is a click every twenty seconds under the
+        // most deliberately slow piece in the game.
+        //
+        // Crossfading in place does not fix it: that pulls the tail into the
+        // head and leaves the last sample exactly where it was, so the one
+        // join that matters is the one it does not touch. The only thing that
+        // works on a fixed length loop is to write more than is kept and then
+        // fold the overrun back over the start, which is what Wrap does.
+        float overrun = 1.4f;
+        int n = Count(seconds + overrun);
         float[] b = new float[n];
 
+        // Off the asked-for length rather than off the buffer, so the bars
+        // stay where they were and the overrun is genuinely a second copy of
+        // the opening rather than a fifth bar.
         float barLen = seconds / 4f;
         float cross = 1.6f;
 
@@ -1475,8 +1489,9 @@ public static class SurfaceSynth
         for (int i = 0; i < n; i++)
             b[i] += salt[i] * 0.10f * (0.5f - 0.5f * (float)Math.Cos(2 * Math.PI * T(i) / seconds));
 
-        Aim(b, 0.75f);
-        return b;
+        float[] outBuf = Wrap(b, seconds);
+        Aim(outBuf, 0.75f);
+        return outBuf;
     }
 }
 "@
