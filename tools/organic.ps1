@@ -269,3 +269,65 @@ function Mottle($g, $spine, $col, $count, $seed) {
     $g.Restore($saved)
     $path.Dispose()
 }
+
+# ---------------------------------------------------------------------------
+#  Built things
+#
+#  The creatures got a vocabulary and the hardware never did, which is the
+#  whole reason the deck and the cutscene plates look like placeholder art
+#  next to an animal: a lurker is 19 marks per thousand pixels and the rig
+#  was 0.34. These three are the hardware equivalents of Body, Mottle and
+#  Lamp - one call that lays down enough marks for a thing to read as built
+#  rather than as filled.
+# ---------------------------------------------------------------------------
+
+# A plate of steel from above: the face, a light edge on the two sides the
+# relief pass lights from, and a dark edge on the other two. Five marks
+# instead of one is the entire difference between a box and a piece of a ship.
+function Panel($g, $x, $y, $w, $h, $face, $hi, $lo, $bevel) {
+    $g.FillRectangle((Brush $face), (RectF $x $y $w $h))
+    $g.FillRectangle((Brush $hi),   (RectF $x $y $w $bevel))
+    $g.FillRectangle((Brush $hi),   (RectF $x $y $bevel $h))
+    $g.FillRectangle((Brush $lo),   (RectF $x ($y + $h - $bevel) $w $bevel))
+    $g.FillRectangle((Brush $lo),   (RectF ($x + $w - $bevel) $y $bevel $h))
+}
+
+# A row of rivets along a line. The cap is offset up and left of the seat, so
+# each one reads as a dome; offset the other way - which is what the deck
+# plate used to do - and the same two discs read as a hole.
+function Rivets($g, $x0, $y0, $x1, $y1, $count, $rad, $seat, $cap) {
+    for ($i = 0; $i -lt $count; $i++) {
+        $t = ($i + 0.5) / $count
+        $x = $x0 + ($x1 - $x0) * $t
+        $y = $y0 + ($y1 - $y0) * $t
+        Disc $g $seat ($x + $rad * 0.28) ($y + $rad * 0.28) $rad
+        Disc $g $cap  ($x - $rad * 0.30) ($y - $rad * 0.30) ($rad * 0.62)
+    }
+}
+
+# Lattice: two chords, N alternating diagonals, a node disc at every joint.
+# A rig leg drawn as one stroke is a table leg; this is why offshore steel
+# looks like offshore steel from a mile away.
+function Truss($g, $x0, $y0, $x1, $y1, $span, $bays, $chord, $web, $node, $wide) {
+    $dx = $x1 - $x0
+    $dy = $y1 - $y0
+    $len = [math]::Sqrt($dx * $dx + $dy * $dy)
+    if ($len -lt 1) { return }
+
+    $px = -$dy / $len * $span * 0.5
+    $py = $dx / $len * $span * 0.5
+
+    Stroke $g $chord ($x0 + $px) ($y0 + $py) ($x1 + $px) ($y1 + $py) $wide
+    Stroke $g $chord ($x0 - $px) ($y0 - $py) ($x1 - $px) ($y1 - $py) $wide
+
+    for ($i = 0; $i -lt $bays; $i++) {
+        $a = $i / [double]$bays
+        $b = ($i + 1) / [double]$bays
+        if (($i % 2) -eq 0) { $s = 1 } else { $s = -1 }
+
+        Stroke $g $web ($x0 + $dx * $a + $px * $s) ($y0 + $dy * $a + $py * $s) `
+                       ($x0 + $dx * $b - $px * $s) ($y0 + $dy * $b - $py * $s) ($wide * 0.55)
+        Disc $g $node ($x0 + $dx * $a + $px * $s) ($y0 + $dy * $a + $py * $s) ($wide * 0.7)
+        Disc $g $node ($x0 + $dx * $a - $px * $s) ($y0 + $dy * $a - $py * $s) ($wide * 0.7)
+    }
+}

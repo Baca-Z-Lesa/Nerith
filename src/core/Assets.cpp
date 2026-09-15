@@ -107,6 +107,11 @@ Assets::Assets()
     // once, so it has to repeat the same way the deck plate does.
     m_bossTextures.at(config::ReelWallPath).setRepeated(true);
 
+    // And everything lying about on the deck. Two of them are placed twice,
+    // which the cache collapses.
+    for (const config::DeckProp& prop : config::DeckProps)
+        want(prop.path);
+
     // The floor and the rail are laid by giving one sprite a rectangle bigger
     // than the tile, which only works on a texture that repeats.
     m_bossTextures.at(config::DeckPlatePath).setRepeated(true);

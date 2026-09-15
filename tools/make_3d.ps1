@@ -165,6 +165,26 @@ foreach ($file in (Get-ChildItem "$TexDir\*.png" | Sort-Object Name)) {
 
     $material = New-Material -Kind $Materials[$name] -Seed (Seed-For $name)
 
+    # The relief pass was tuned against an eighty pixel creature, and half of
+    # it is in absolute pixels while the other half is a fraction of the short
+    # side. On a 560 pixel cutscene plate both ends come apart at once: the
+    # dome is wider than any part of the picture, so every leg and strut goes
+    # flat and nearly black, while the plate grooves and pores come out finer
+    # than cloth. Normalising against eighty leaves every sprite in the game
+    # exactly as it was - they are all at or under it - and gives the big
+    # plates the same lighting the small ones get.
+    $probe = [System.Drawing.Image]::FromFile($file.FullName)
+    $short = [math]::Min($probe.Width, $probe.Height)
+    $probe.Dispose()
+
+    $k = [math]::Max(1.0, $short / 80.0)
+
+    $material.Softness     = $material.Softness / $k
+    $material.PlateSpacing = $material.PlateSpacing * $k
+    $material.PoreSpacing  = $material.PoreSpacing * $k
+    $material.LipInset     = $material.LipInset * $k
+    $material.RimWidth     = $material.RimWidth * [math]::Sqrt($k)
+
     [Relief]::Apply("$FlatDir\$name", $file.FullName, $material)
 
     # The preview folder is what gets looked at, so it gets the lit version too.

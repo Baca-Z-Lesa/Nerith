@@ -1117,6 +1117,120 @@ namespace config
     inline constexpr const char* DeckBellPath  = "assets/textures/deck_bell.png";
     inline constexpr const char* DeckCratePath = "assets/textures/deck_crate.png";
 
+    // What is actually lying about on the working deck of a dive support
+    // vessel. None of it is a station and none of it does anything: it is
+    // there because a rig that has only the three things you can use on it is
+    // a menu with a floor drawn under it.
+    struct DeckProp
+    {
+        const char*  path;
+        sf::Vector2f at;
+        float        turn;   // degrees, so the loose gear is not all square
+        float        solid;  // radius you cannot walk through, 0 to walk over
+    };
+
+    inline constexpr std::array<DeckProp, 21> DeckProps{ {
+        // The goods end, round the crane.
+        { "assets/textures/deck_quad.png",    { 222.0f, 188.0f },   0.0f, 40.0f },
+        { "assets/textures/deck_quad.png",    { 222.0f, 272.0f },   3.0f, 40.0f },
+        { "assets/textures/deck_basket.png",  { 243.0f, 352.0f },  -7.0f, 36.0f },
+        { "assets/textures/deck_chain.png",   { 330.0f, 352.0f },  18.0f,  0.0f },
+        { "assets/textures/deck_drums.png",   { 330.0f, 474.0f }, -12.0f, 26.0f },
+
+        // The saturation spread along the bottom. This is the half of a dive
+        // support vessel that has no equivalent anywhere else in the game, and
+        // it is what makes the rig read as saturation diving rather than as a
+        // warehouse with a hole in it.
+        { "assets/textures/deck_shack.png",   { 238.0f, 579.0f },   0.0f, 74.0f },
+        { "assets/textures/deck_chamber.png", { 470.0f, 590.0f },   0.0f, 92.0f },
+        { "assets/textures/deck_reel.png",    { 700.0f, 578.0f },   0.0f, 40.0f },
+        { "assets/textures/deck_reel.png",    { 880.0f, 586.0f },   2.0f, 40.0f },
+        { "assets/textures/deck_hatch.png",   { 1006.0f, 596.0f },  0.0f, 26.0f },
+        { "assets/textures/deck_weights.png", { 620.0f, 620.0f },  -5.0f,  0.0f },
+
+        // The work end, round the bench.
+        { "assets/textures/deck_chest.png",   { 1058.0f, 214.0f },  4.0f, 24.0f },
+        { "assets/textures/deck_welder.png",  { 1052.0f, 300.0f }, -6.0f, 28.0f },
+        { "assets/textures/deck_hose.png",    { 1074.0f, 380.0f },  0.0f, 20.0f },
+
+        // The safety line along the top rail, and one hose down the port
+        // walkway. A rig without a raft on it is a rig nobody expects to have
+        // to leave.
+        { "assets/textures/deck_raft.png",    { 516.0f, 142.0f },   0.0f, 26.0f },
+        { "assets/textures/deck_raft.png",    { 764.0f, 142.0f },   0.0f, 26.0f },
+        { "assets/textures/deck_hose.png",    { 434.0f, 138.0f },   0.0f, 20.0f },
+        { "assets/textures/deck_bitts.png",   { 300.0f, 108.0f },   0.0f,  0.0f },
+        { "assets/textures/deck_bitts.png",   { 880.0f, 108.0f },   0.0f,  0.0f },
+        { "assets/textures/deck_bitts.png",   { 300.0f, 634.0f },   0.0f,  0.0f },
+        { "assets/textures/deck_bitts.png",   { 1076.0f, 634.0f },  0.0f,  0.0f },
+    } };
+
+    // --- The deck at night ---
+    //
+    //  The first version of the deck was lit like a car park: one flat grey
+    //  plate at full brightness, which is why it read as a menu with a man on
+    //  it rather than as a place. It is night now, it is raining, and the only
+    //  light is five floodlights, one window and whatever the bell is doing in
+    //  the hole. Everything below is either the dark, or something that adds
+    //  to it.
+    //
+    //  The ambient is a multiply on every sprite rather than a veil over the
+    //  whole screen: a multiply costs nothing, a veil would grey the lights
+    //  out again, and a shader is not available to this project.
+    inline constexpr sf::Color DeckNightSea{ 6, 11, 16 };
+    inline constexpr sf::Color DeckNightSwell{ 20, 32, 40 };
+    inline constexpr sf::Color DeckNightFoam{ 58, 78, 86 };
+
+    inline constexpr sf::Color DeckNightTint{ 70, 78, 92 };
+    inline constexpr sf::Color DeckNightDiver{ 96, 102, 112 };
+    inline constexpr sf::Color DeckNightBell{ 84, 92, 104 };
+
+    inline constexpr sf::Color DeckFlood{ 242, 226, 186 };     // halide, warmed
+    inline constexpr sf::Color DeckFloodCore{ 252, 246, 228 };
+    inline constexpr sf::Color DeckShack{ 238, 172, 104 };     // the one warm window
+    inline constexpr sf::Color DeckMoon{ 150, 212, 220 };
+    inline constexpr sf::Color DeckHelmet{ 196, 224, 216 };
+    inline constexpr sf::Color DeckRain{ 150, 176, 190 };
+    inline constexpr sf::Color DeckPuddle{ 10, 18, 26 };
+    inline constexpr sf::Color DeckDrip{ 104, 134, 146 };
+    inline constexpr sf::Color DeckVignette{ 2, 5, 9 };
+
+    // A floodlight on a mast. The pool it throws is an ellipse whose long axis
+    // points away from its own mast, which is the only thing that makes five
+    // lamps read as five lamps instead of five decals: the shadows under them
+    // all splay the same way the light does.
+    struct DeckLight
+    {
+        sf::Vector2f mast;
+        sf::Vector2f pool;
+        sf::Vector2f radii;    // long axis first, along mast -> pool
+        float        turn;     // degrees of that long axis
+        float        strength; // 0..1 of DeckFlood
+        float        flicker;  // 0 is a lamp nobody has to think about
+        bool         failing;  // and this one drops out every few seconds
+    };
+
+    inline constexpr std::array<DeckLight, 5> DeckLights{ {
+        { { 236.0f, 148.0f }, { 352.0f, 292.0f }, { 246.0f, 176.0f }, 51.2f, 0.62f, 0.04f, false },
+        { { 1052.0f, 146.0f }, { 930.0f, 280.0f }, { 238.0f, 172.0f }, 132.3f, 0.60f, 0.03f, false },
+        { { 218.0f, 604.0f }, { 382.0f, 508.0f }, { 232.0f, 168.0f }, -30.3f, 0.56f, 0.11f, true },
+        { { 1064.0f, 606.0f }, { 898.0f, 512.0f }, { 236.0f, 170.0f }, -150.5f, 0.58f, 0.04f, false },
+        { { 640.0f, 108.0f }, { 640.0f, 232.0f }, { 250.0f, 186.0f }, 90.0f, 0.48f, 0.05f, false },
+    } };
+
+    // One knob over the whole rig. The per-lamp strengths above are the shape
+    // of the lighting - which lamp is the strong one, which one is failing -
+    // and this is how much of it there is. Five overlapping pools at their
+    // paper strength add up to a deck that is uniformly white, which is the
+    // same mistake as no lighting at all wearing a different hat.
+    inline constexpr float DeckLightGain = 0.86f;
+    inline constexpr float DeckSheen = 0.020f;   // the broad wet glimmer
+    inline constexpr float DeckCore = 0.52f;     // the hot middle of a pool
+
+    inline constexpr int   DeckRainCount = 260;
+    inline constexpr float DeckRainFall = 1180.0f;   // pixels a second
+    inline constexpr float DeckRainAngle = 76.0f;    // down and to starboard
+
     // The cutscene plates. Painted once and then moved, panned and lit by the
     // reel, because a rig is not a thing anybody draws out of triangles.
     inline constexpr const char* ReelRigPath     = "assets/textures/reel_rig.png";
