@@ -248,6 +248,10 @@ private:
     void holdSplit();
     void holdTower();
     void holdCoil();
+
+    // How far from a link the creature can be touched. Not the same rule for
+    // every body: see the comment on the definition.
+    float segmentReach(std::size_t index) const;
     void placeParts(float deltaTime);
     bool organExposed(const Part& part) const;
     bool bodyBlocks(sf::Vector2f position, float radius) const;

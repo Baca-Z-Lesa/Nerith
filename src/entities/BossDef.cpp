@@ -172,13 +172,15 @@ namespace
         // =================================================================
         {
             "THE FURNACE", "IT IS SITTING ON THE HOLE IN THE FLOOR.",
-            // Still a bell, for the same reason the mother is: BossBody::Tower
-            // is written and drawFurnace reads only links.front(), so the
-            // courses would be hitboxes nobody can see.
-            BossBody::Bell, BossMind::Spiral, BossSkin::Furnace,
+            // A field of chimneys on a hub that never travels. What it does
+            // instead of chasing is grow: every act pushes the courses out,
+            // so the room the player has left shrinks without the creature
+            // taking a step. It was a dome with tentacles, which is what the
+            // creature two depths above it also was.
+            BossBody::Tower, BossMind::Spiral, BossSkin::Furnace,
             nullptr, "assets/textures/shot_furnace.png",
             nullptr, nullptr,
-            1.0f, 1.0f, 1.0f, 0, 0.0f, 92.0f,
+            1.0f, 0.66f, 0.90f, 12, 0.0f, 92.0f,
             3, 58,
             30.0f, 300.0f,
             0.34f, 5, 90.0f,
@@ -212,16 +214,18 @@ namespace
         {
             "THE MOTHER", "IT IS WHERE THEY ALL CAME FROM.",
 
-            // Still a bell. BossBody::Split exists and lays this creature out as
-            // two arcs on the same slow swing - but drawMother reads only
-            // links.front(), so the extra segments would be hitboxes with
-            // nothing drawn on them. A creature that can be shot where it
-            // visibly is not is worse than one that looks like another
-            // creature, so the plan waits for the art.
-            BossBody::Bell, BossMind::Prowler, BossSkin::Mother,
+            // It comes apart. Two lobes on one slow swing, half a turn out of
+            // phase, joined by a strand of tissue that thins as they separate
+            // - so one half is never where the other is, there is no
+            // silhouette to learn, and the thing worth shooting is the middle
+            // that has not let go yet. The gap opens with every act.
+            //
+            // The segment scale is low because it is what the lobes are hit
+            // at, not what they are drawn at: see Boss::segmentReach.
+            BossBody::Split, BossMind::Prowler, BossSkin::Mother,
             nullptr, "assets/textures/shot_mother.png",
             nullptr, nullptr,
-            1.0f, 1.0f, 1.0f, 0, 0.0f, 96.0f,
+            1.0f, 0.62f, 1.0f, 8, 0.0f, 96.0f,
             3, 72,
             104.0f, 330.0f,
             2.0f, 7, 200.0f,

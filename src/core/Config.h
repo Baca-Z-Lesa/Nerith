@@ -824,7 +824,7 @@ namespace config
     // Two halves on the same slow swing, half a turn out of phase, so one is
     // never where the other is. The gap opens with every act: by the last one
     // it is not an animal, it is two things that used to be.
-    inline constexpr float BossSplitGap = 168.0f;
+    inline constexpr float BossSplitGap = 244.0f;
     inline constexpr float BossSplitSwing = 0.42f; // radians a second
     inline constexpr float BossSplitArm = 104.0f;
     inline constexpr float BossSplitCurl = 1.35f;  // radians the arc bends over
@@ -833,7 +833,7 @@ namespace config
     // A chimney that never leaves the hole it is sitting on. What it does
     // instead of chasing is grow, so the room the player has left shrinks
     // without the creature taking a step.
-    inline constexpr float BossTowerBase = 96.0f;
+    inline constexpr float BossTowerBase = 132.0f;
     inline constexpr float BossTowerGrowth = 0.55f;
     inline constexpr float BossTowerTaper = 0.22f; // each course in by this much
     inline constexpr float BossTowerSpin = 0.16f;  // degrees a frame
@@ -850,6 +850,11 @@ namespace config
 
     // How wide the burst is when a creature crosses into its next act.
     inline constexpr float BossTurnBurst = 210.0f;
+
+    // For the bodies whose links are laid away from the animal rather than
+    // behind it, the hit radius comes off the girth the art is drawn at
+    // instead of off the head. Roughly the widest the drawn shape gets.
+    inline constexpr float BossLimbHitFactor = 1.9f;
 
     inline constexpr int   BossUltraFromAct = 1;
     inline constexpr float BossUltraInterval = 15.0f;

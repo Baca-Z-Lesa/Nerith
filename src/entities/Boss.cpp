@@ -1506,12 +1506,30 @@ Boss::Hit Boss::tryHit(sf::Vector2f position, float radius, int damage, float we
     return result;
 }
 
+float Boss::segmentReach(std::size_t index) const
+{
+    const float scale = m_segments[index].scale;
+
+    // A chain is one animal: every link is as thick as the head and the hit
+    // radius follows the head's.
+    if (index == 0 || m_def->body == BossBody::Serpent || m_def->body == BossBody::Bell)
+        return m_def->headRadius * scale;
+
+    // The plans that put their links AWAY from the body cannot use that. A
+    // bell's headRadius is ninety-six because it is one dome; give its
+    // lobes the same and the creature has a contact footprint half a screen
+    // across, most of it over open water. What the player can be touched by
+    // has to be what the player can see, so these measure off the girth the
+    // art is actually drawn at.
+    return config::BossDrawnGirth * scale * config::BossLimbHitFactor;
+}
+
 bool Boss::bodyBlocks(sf::Vector2f position, float radius) const
 {
-    for (const Segment& segment : m_segments)
+    for (std::size_t i = 0; i < m_segments.size(); ++i)
     {
-        const float reach = radius + m_def->headRadius * segment.scale * config::BossBlockRadiusFactor;
-        if ((segment.position - position).lengthSquared() <= reach * reach)
+        const float reach = radius + segmentReach(i) * config::BossBlockRadiusFactor;
+        if ((m_segments[i].position - position).lengthSquared() <= reach * reach)
             return true;
     }
     return false;
@@ -1519,10 +1537,10 @@ bool Boss::bodyBlocks(sf::Vector2f position, float radius) const
 
 bool Boss::touches(sf::Vector2f position, float radius) const
 {
-    for (const Segment& segment : m_segments)
+    for (std::size_t i = 0; i < m_segments.size(); ++i)
     {
-        const float reach = radius + m_def->headRadius * segment.scale;
-        if ((segment.position - position).lengthSquared() <= reach * reach)
+        const float reach = radius + segmentReach(i);
+        if ((m_segments[i].position - position).lengthSquared() <= reach * reach)
             return true;
     }
     return false;

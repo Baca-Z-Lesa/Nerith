@@ -1406,29 +1406,60 @@ namespace
         const Skin skin{ at, unit(head.angle), 0.0f, tile };
         const float radius = head.girth * 2.0f;
 
-        // The mound: layered crust, each layer a ragged ring, because a chimney
-        // is built a millimetre at a time out of what the water drops.
-        for (int layer = 0; layer < 4; ++layer)
+        // A field of chimneys, not one dome. Every link is its own stack, so
+        // the body reads as something the floor grew over centuries rather
+        // than as a head with limbs on it - which is what it was, and what the
+        // creature two depths above it also was.
+        //
+        // Drawn furthest out first, so the near stacks overlap the far ones
+        // and the pile has a front and a back.
+        for (std::size_t link = body.links.size(); link-- > 0;)
         {
-            const float t = static_cast<float>(layer) / 4.0f;
-            const float size = radius * (1.0f - t * 0.62f);
+            const bossart::Link& course = body.links[link];
+            const sf::Vector2f base = course.at;
+            const float span = course.girth * 2.0f;
 
-            std::vector<sf::Vector2f> rim;
-            for (int i = 0; i < 15; ++i)
+            // The mound: layered crust, each layer a ragged ring, because a
+            // chimney is built a millimetre at a time out of what the water
+            // drops.
+            for (int layer = 0; layer < 4; ++layer)
             {
-                const sf::Angle a = sf::degrees(360.0f * static_cast<float>(i) / 15.0f);
-                const float wobble = 0.88f + 0.16f * std::sin(a.asRadians() * 3.0f
-                                                              + static_cast<float>(layer) * 2.1f);
-                rim.push_back(at + unit(a) * (size * wobble));
+                const float t = static_cast<float>(layer) / 4.0f;
+                const float size = span * (1.0f - t * 0.62f);
+
+                std::vector<sf::Vector2f> rim;
+                for (int i = 0; i < 15; ++i)
+                {
+                    const sf::Angle a = sf::degrees(360.0f * static_cast<float>(i) / 15.0f);
+
+                    // Seeded off the link as well as the layer, so no two
+                    // stacks in the field are the same lump of rock.
+                    const float wobble =
+                        0.88f + 0.16f * std::sin(a.asRadians() * 3.0f
+                                                 + static_cast<float>(layer) * 2.1f
+                                                 + static_cast<float>(link) * 1.7f);
+
+                    rim.push_back(base + unit(a) * (size * wobble));
+                }
+
+                // Second wind: the crust does not come off, it lights up. What
+                // is under a chimney is the thing the chimney was built by.
+                const sf::Color stone = layer == 0   ? furnace::CrustLo
+                                        : layer == 3 ? furnace::CrustHi
+                                                     : furnace::Crust;
+
+                shape(skinned, rim, fade(shed(stone, body.shed, 0.85f), alpha), skin);
             }
 
-            // Second wind: the crust does not come off, it lights up. What is
-            // under a chimney is the thing the chimney was built by.
-            const sf::Color stone = layer == 0   ? furnace::CrustLo
-                                    : layer == 3 ? furnace::CrustHi
-                                                 : furnace::Crust;
+            // The outlying stacks get a mouth of their own, banked rather than
+            // burning: the hub is the one that is actually open.
+            if (link > 0)
+            {
+                const float heat = 0.18f + 0.14f * std::sin(body.breath * Tau
+                                                            + static_cast<float>(link));
 
-            shape(skinned, rim, fade(shed(stone, body.shed, 0.85f), alpha), skin);
+                disc(plain, base, span * 0.26f, fade(furnace::Ember, alpha * heat), Skin{}, 10);
+            }
         }
 
         // Cracks, with the heat under them. They breathe with the thing.
@@ -1625,6 +1656,96 @@ namespace
                     disc(plain, egg - unit(a) * (size * 0.25f), size * 0.45f,
                          fade(mother::EggLit, alpha * 0.8f), Skin{}, 7);
                 }
+            }
+        }
+
+        // The two halves, and the tissue that has not let go yet.
+        //
+        // This creature comes apart: BossBody::Split lays its links in two
+        // arcs on one slow swing, half a turn out of phase, so one lobe is
+        // never where the other is. Drawn before the mantle so the mantle -
+        // which is the core, and the thing worth shooting - sits over the
+        // strand between them.
+        if (body.links.size() > 2)
+        {
+            const std::size_t rest = body.links.size() - 1;
+            const std::size_t half = (rest + 1) / 2;
+
+            sf::Vector2f lobe[2]{ {}, {} };
+            float counted[2]{ 0.0f, 0.0f };
+
+            for (std::size_t i = 1; i < body.links.size(); ++i)
+            {
+                const std::size_t which = (i - 1) >= half ? 1u : 0u;
+                lobe[which] += body.links[i].at;
+                counted[which] += 1.0f;
+            }
+
+            for (int which = 0; which < 2; ++which)
+            {
+                if (counted[which] > 0.0f)
+                    lobe[which] /= counted[which];
+                else
+                    lobe[which] = at;
+            }
+
+            // The strand: thick at each lobe, pinched in the middle, and
+            // thinner the further apart they have got. By the last act it is
+            // barely there, which is the second phase without a colour change.
+            const sf::Vector2f span = lobe[1] - lobe[0];
+            const float apart = span.length();
+
+            if (apart > 1.0f)
+            {
+                const sf::Vector2f along = span / apart;
+                const sf::Vector2f edge = across(along);
+                const float pinch = head.girth * 0.55f
+                                    / (1.0f + apart / std::max(1.0f, head.girth * 4.0f));
+
+                for (int i = 0; i < 8; ++i)
+                {
+                    const float t0 = static_cast<float>(i) / 8.0f;
+                    const float t1 = static_cast<float>(i + 1) / 8.0f;
+
+                    const auto waist = [&](float t) {
+                        // Fat at both ends, narrow in the middle, and sagging
+                        // across itself so it reads as tissue under tension
+                        // rather than as a drawn line.
+                        const float bulge = 0.35f + 0.65f * std::abs(t - 0.5f) * 2.0f;
+                        return pinch * bulge;
+                    };
+
+                    const sf::Vector2f a0 = lobe[0] + along * (apart * t0)
+                                            + edge * (std::sin(t0 * 3.14159265f) * pinch * 0.4f);
+                    const sf::Vector2f a1 = lobe[0] + along * (apart * t1)
+                                            + edge * (std::sin(t1 * 3.14159265f) * pinch * 0.4f);
+
+                    quad(skinned, a0 + edge * waist(t0), a0 - edge * waist(t0),
+                         a1 - edge * waist(t1), a1 + edge * waist(t1),
+                         fade(shed(mother::SkinLo, body.shed), alpha * 0.9f), skin);
+                }
+            }
+
+            // And a lobe of mantle over each end of it, so the halves are
+            // bodies rather than the ends of a rope.
+            for (int which = 0; which < 2; ++which)
+            {
+                const sf::Vector2f face = apart > 1.0f
+                                              ? (which == 0 ? -span / apart : span / apart)
+                                              : nose;
+                const sf::Vector2f rim = across(face);
+                const float reach = head.girth * 1.15f;
+                const float across_ = head.girth * 0.92f;
+
+                shape(skinned, { lobe[which] + face * (reach * 0.70f),
+                                 lobe[which] + face * (reach * 0.10f) - rim * across_,
+                                 lobe[which] - face * (reach * 0.72f) - rim * (across_ * 0.55f),
+                                 lobe[which] - face * (reach * 0.72f) + rim * (across_ * 0.55f),
+                                 lobe[which] + face * (reach * 0.10f) + rim * across_ },
+                      fade(shed(mother::Skin_, body.shed), alpha), skin);
+
+                disc(plain, lobe[which] + face * (reach * 0.26f), head.girth * 0.22f,
+                     fade(mother::Spot, alpha * (0.4f + 0.5f * body.tell)), Skin{}, 9);
             }
         }
 
