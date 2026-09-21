@@ -69,6 +69,11 @@ $Materials = @{
     'coral_b.png' = 'plant'
     'kelp.png'    = 'plant'
     'nest.png'    = 'shell'
+    'gear_wreck.png' = 'metal'
+    'gear_hive.png'  = 'flesh'
+    'gear_cache.png' = 'hardware'
+    'gear_shaft.png' = 'metal'
+    'gear_vent.png'  = 'rock'
     'cargo.png'   = 'hardware'
 
     # --- the surface ---
@@ -147,6 +152,7 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
                       'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1',
                       'make_deck.ps1', 'make_deckprops.ps1', 'make_salvage.ps1',
+                      'make_gear.ps1',
                       'make_reel.ps1')) {
     Write-Host "  $script"
     & "$PSScriptRoot\$script" | Out-Null

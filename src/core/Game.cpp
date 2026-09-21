@@ -3148,6 +3148,11 @@ void Game::drawOffers()
     if (m_offers.empty())
         return;
 
+    // The halo and the progress ring are still a mesh - they are light and a
+    // readout, not objects - but the thing itself is a picture now. Every one
+    // of these used to be a fan of triangles in the kind's colour, which meant
+    // the objects a player crosses a dark basin FOR were the only things down
+    // there that were not drawn.
     sf::VertexArray mesh(sf::PrimitiveType::Triangles);
 
     for (const Offer& offer : m_offers)
@@ -3173,68 +3178,6 @@ void Game::drawOffers()
         sf::Color halo = def.colour;
         halo.a = 40;
         disc(def.radius * 2.2f, halo, 14);
-
-        switch (offer.kind)
-        {
-            case config::OfferKind::Wreck:
-            {
-                // Buckled plate lying on its side with a cut started in it.
-                const sf::Color hull(74, 78, 82);
-                const sf::Color lip = offer.flash > 0.0f ? sf::Color(240, 230, 210) : def.colour;
-
-                for (int i = 0; i < 7; ++i)
-                {
-                    const sf::Angle a0 = sf::degrees(-40.0f + 24.0f * static_cast<float>(i));
-                    const sf::Angle a1 = sf::degrees(-40.0f + 24.0f * static_cast<float>(i + 1));
-                    const float r0 = def.radius * (0.82f + 0.18f * ((i % 2) ? 1.0f : 0.0f));
-
-                    mesh.append(sf::Vertex{ at, hull });
-                    mesh.append(sf::Vertex{ at + sf::Vector2f(r0, a0), hull });
-                    mesh.append(sf::Vertex{ at + sf::Vector2f(def.radius, a1), hull });
-                }
-
-                disc(def.radius * 0.62f, hull, 12);
-                disc(def.radius * 0.26f, lip, 10);
-                break;
-            }
-
-            case config::OfferKind::Cache:
-            {
-                // A helmet and a tank, half in the silt.
-                disc(def.radius * 0.9f, sf::Color(52, 56, 58), 12);
-                disc(def.radius * 0.55f, def.colour, 12);
-                disc(def.radius * 0.24f, sf::Color(232, 244, 248), 8);
-                break;
-            }
-
-            case config::OfferKind::Hive:
-            {
-                const sf::Color sac = offer.flash > 0.0f ? sf::Color(240, 230, 210) : def.colour;
-
-                for (int i = 0; i < 6; ++i)
-                {
-                    const sf::Angle spoke = sf::degrees(60.0f * static_cast<float>(i));
-                    const sf::Vector2f lobe = at + sf::Vector2f(def.radius * 0.62f, spoke);
-
-                    for (int step = 0; step < 10; ++step)
-                    {
-                        const sf::Angle b0 = sf::degrees(36.0f * static_cast<float>(step));
-                        const sf::Angle b1 = sf::degrees(36.0f * static_cast<float>(step + 1));
-                        const float r = def.radius * 0.46f;
-
-                        mesh.append(sf::Vertex{ lobe, sac });
-                        mesh.append(sf::Vertex{ lobe + sf::Vector2f(r, b0), sac });
-                        mesh.append(sf::Vertex{ lobe + sf::Vector2f(r, b1), sac });
-                    }
-                }
-
-                disc(def.radius * 0.5f, sf::Color(90, 40, 54), 12);
-                break;
-            }
-
-            default:
-                break;
-        }
 
         // How far through it is, as a ring that tightens - the same language
         // the nests speak, so a player already knows how to read it.
@@ -3265,6 +3208,46 @@ void Game::drawOffers()
     }
 
     m_window.draw(mesh);
+
+    // And the objects themselves, over the halo. Flashing white when they are
+    // hit, which is the one thing the old fan of triangles did well.
+    for (const Offer& offer : m_offers)
+    {
+        if (offer.open)
+            continue;
+
+        const config::OfferDef& def = config::OfferTable[static_cast<std::size_t>(offer.kind)];
+
+        const char* path = config::WreckTexturePath;
+        if (offer.kind == config::OfferKind::Cache)
+            path = config::CacheTexturePath;
+        else if (offer.kind == config::OfferKind::Hive)
+            path = config::HiveTexturePath;
+
+        sf::Sprite body(m_assets.byPath(path));
+        body.setOrigin(sf::Vector2f(body.getTexture().getSize()) / 2.0f);
+        body.setPosition(offer.position);
+
+        // Scaled off the hitbox rather than drawn at its own size, so moving a
+        // radius in config moves the picture with it and the two can never
+        // disagree about how big the thing is.
+        const float across = static_cast<float>(body.getTexture().getSize().x);
+        body.setScale(sf::Vector2f{ 1.0f, 1.0f } * (def.radius * 2.4f / std::max(1.0f, across)));
+
+        if (offer.flash > 0.0f)
+        {
+            const float hit = std::clamp(offer.flash, 0.0f, 1.0f);
+            const auto lift = [hit](std::uint8_t channel) {
+                return static_cast<std::uint8_t>(
+                    std::clamp(static_cast<float>(channel) + (255.0f - channel) * hit,
+                               0.0f, 255.0f));
+            };
+
+            body.setColor(sf::Color(lift(255), lift(255), lift(255)));
+        }
+
+        m_window.draw(body);
+    }
 }
 
 std::size_t Game::rollSalvage(int depth, int floorKind) const
@@ -3492,6 +3475,22 @@ void Game::drawLifts()
 
     const float beat = m_presentTime * 2.2f;
 
+    // The mouth of the shaft, under everything else this function draws: a
+    // dressed rim rather than a dark circle with a ring on it. The light
+    // coming up out of it is still a mesh, and it goes over the top.
+    if (m_shaftOpen)
+    {
+        sf::Sprite rim(m_assets.byPath(config::ShaftTexturePath));
+        rim.setOrigin(sf::Vector2f(rim.getTexture().getSize()) / 2.0f);
+        rim.setPosition(m_shaftAt);
+
+        const float across = static_cast<float>(rim.getTexture().getSize().x);
+        rim.setScale(sf::Vector2f{ 1.0f, 1.0f }
+                     * (config::LiftRadius * 2.5f / std::max(1.0f, across)));
+
+        m_window.draw(rim);
+    }
+
     // --- the bell, at the mouth --------------------------------------------
     // Drawn over the dark rather than under it. It has its own lamps on it and
     // it is the way home: a way home you cannot find is not one.
@@ -3516,10 +3515,10 @@ void Game::drawLifts()
     // --- the shaft down ----------------------------------------------------
     if (m_shaftOpen)
     {
-        // A hole with nothing in it and a light coming up out of it.
-        disc(m_shaftAt, config::LiftRadius, sf::Color(4, 8, 10, 235));
+        // The light coming up out of it. The hole and its rim are the sprite
+        // underneath; what is left here is the part that moves.
         ring(m_shaftAt, config::LiftRadius * 0.88f, config::LiftRadius,
-             sf::Color(122, 104, 60));
+             sf::Color(122, 104, 60, 120));
 
         const float pulse = 0.5f + 0.5f * std::sin(beat * 0.8f);
         ring(m_shaftAt, config::LiftRadius * (0.22f + 0.5f * pulse),
@@ -4438,6 +4437,22 @@ void Game::updateVents(float deltaTime)
 
 void Game::drawVents()
 {
+    // The chimney itself, under the warning. A vent used to be a ring that
+    // brightened, which said perfectly well WHEN it was about to go off and
+    // nothing at all about what it was.
+    for (const Vent& vent : m_vents)
+    {
+        sf::Sprite stack(m_assets.byPath(config::VentTexturePath));
+        stack.setOrigin(sf::Vector2f(stack.getTexture().getSize()) / 2.0f);
+        stack.setPosition(vent.position);
+
+        const float across = static_cast<float>(stack.getTexture().getSize().x);
+        stack.setScale(sf::Vector2f{ 1.0f, 1.0f }
+                       * (vent.radius * 2.2f / std::max(1.0f, across)));
+
+        m_window.draw(stack);
+    }
+
     for (const Vent& vent : m_vents)
     {
         // Dormant it is a dull ring; as the pressure builds the ring brightens

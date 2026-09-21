@@ -860,8 +860,13 @@ for ($i = 0; $i -lt 5; $i++) {
     Stroke $g (Fade $steelTop 100) ($vx - 1.8 * $SS) ($H * 0.10) ($vx - 1.8 * $SS) ($H * 0.96) (0.8 * $SS)
 }
 
+# Packed into the middle four fifths of the plate. They used to run from
+# 0.145 to 0.965 of the width with a door radius of 0.037 and a leaf swinging
+# another 0.056 past that, so the fifth door and its open leaf were both cut
+# in half by the edge of the canvas - which in the shot reads as the texture
+# being broken rather than as the hull carrying on.
 foreach ($i in 0..4) {
-    $dx = $W * (0.145 + 0.205 * $i)
+    $dx = $W * (0.10 + 0.185 * $i)
     $dy = $H * (0.40 + 0.10 * [math]::Sin($i * 1.9))
     $rad = 26 * $SS
 

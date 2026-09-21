@@ -67,12 +67,15 @@ for ($i = 0; $i -lt 4; $i++) {
     }
 }
 
-# The body: wide at the shield, tapering to a soft unarmoured tail.
+# The body: wide at the shield, tapering to a soft unarmoured stalk. It used
+# to run to 0.88 of the frame and simply stop - a wall that walks, with no
+# back end at all, which on the biggest creature in the water is the one thing
+# nobody could unsee. It ends at 0.74 now and the rest is tail.
 $spine = @()
 for ($i = 0; $i -le 12; $i++) {
     $t = $i / 12.0
-    $x = $W * (0.14 + 0.74 * $t)
-    $half = $H * (0.30 - 0.19 * $t * $t)
+    $x = $W * (0.14 + 0.60 * $t)
+    $half = $H * (0.30 - 0.21 * $t * $t)
     $spine += , @($x, $cy, $half)
 }
 Body $g $spine $flesh $fleshLo (C 196 128 128) 0.5
@@ -103,7 +106,27 @@ Stroke $g $plateLo ($W * 0.455) ($cy - $H * 0.24) ($W * 0.455) ($cy + $H * 0.24)
 Eye $g ($W * 0.47) ($cy - $H * 0.15) ($H * 0.036) (C 232 176 72) $true
 Eye $g ($W * 0.47) ($cy + $H * 0.15) ($H * 0.036) (C 232 176 72) $true
 
-Gills $g ($W * 0.60) $cy 4 ($W * 0.045) ($H * 0.20) $fleshLo
+Gills $g ($W * 0.58) $cy 4 ($W * 0.042) ($H * 0.19) $fleshLo
+
+# The tail. Bare like the rest of the back half: a short muscular stalk and a
+# fluke, which is what a thing this heavy would need to move at all. Drawn
+# after the body so the stalk sits over the taper rather than beside it.
+$stalk = @()
+for ($i = 0; $i -le 6; $i++) {
+    $t = $i / 6.0
+    $stalk += , @(($W * (0.68 + 0.20 * $t)), $cy, ($H * (0.135 - 0.088 * $t)))
+}
+Body $g $stalk $flesh $fleshLo (C 196 128 128) 0.5
+
+# Two flukes off the stalk, swept back, and a pair of small braces where they
+# meet it - the same joint the legs have, because it is the same animal.
+foreach ($side in @(-1, 1)) {
+    [void](Fin $g ($W * 0.815) $cy ($W * 0.975) ($cy + $side * $H * 0.315) ($H * 0.115) $flesh $fleshLo 5)
+}
+
+Stroke $g $fleshLo ($W * 0.74) ($cy - $H * 0.06) ($W * 0.86) $cy ($H * 0.014)
+Stroke $g $fleshLo ($W * 0.74) ($cy + $H * 0.06) ($W * 0.86) $cy ($H * 0.014)
+
 Finish $bmp $g $outW $outH "enemy_warden.png"
 
 # =====================================================================

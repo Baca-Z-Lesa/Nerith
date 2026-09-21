@@ -1069,6 +1069,14 @@ namespace config
     // --- Nests, and going dark ---
     // A nest is a tap that does not move. Killing one is worth crossing the
     // basin for; leaving one is a level that never ends.
+    // The things standing on the floor of a basin. Every one of these was a
+    // fan of triangles until there was a picture of it; see tools/make_gear.ps1.
+    inline constexpr const char* WreckTexturePath = "assets/textures/gear_wreck.png";
+    inline constexpr const char* HiveTexturePath  = "assets/textures/gear_hive.png";
+    inline constexpr const char* CacheTexturePath = "assets/textures/gear_cache.png";
+    inline constexpr const char* ShaftTexturePath = "assets/textures/gear_shaft.png";
+    inline constexpr const char* VentTexturePath  = "assets/textures/gear_vent.png";
+
     inline constexpr const char* NestTexturePath = "assets/textures/nest.png";
     inline constexpr const char* CargoTexturePath = "assets/textures/cargo.png";
 
