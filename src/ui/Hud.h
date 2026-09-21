@@ -59,6 +59,7 @@ public:
         int   damageTaken = 0;
         int   blocks = 0;      // hits that never landed
         int   bestStreak = 0;  // the longest run without being touched
+        int   landed = -1;     // what came up in the hold; -1 leaves the row out
         float seconds = 0.0f;
         float accuracy = 0.0f; // 0..1
     };

@@ -87,6 +87,12 @@ void Stats::fit(ShipPart part)
     m_parts.set(static_cast<std::size_t>(part));
 }
 
+float Stats::ceilingOf(Stat stat)
+{
+    const auto index = static_cast<std::size_t>(stat);
+    return index < StatCount ? Ceiling[index] : Uncapped;
+}
+
 float Stats::get(Stat stat, float base) const
 {
     const auto index = static_cast<std::size_t>(stat);

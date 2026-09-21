@@ -6,7 +6,9 @@
 #include "world/LevelDef.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
+#include <vector>
 
 namespace
 {
@@ -254,7 +256,7 @@ void Hud::drawSummary(sf::RenderTarget& target, const Summary& summary, float al
 
     // Two columns of label and value, so the numbers line up under each other
     // instead of wandering with the width of the words.
-    const std::string rows[7][2] = {
+    std::vector<std::array<std::string, 2>> rows{
         { "KILLS",   std::to_string(summary.kills) },
         { "SALVAGE", "+" + std::to_string(summary.salvage) },
         { "TIME",    std::to_string(static_cast<int>(summary.seconds)) + "S" },
@@ -263,6 +265,11 @@ void Hud::drawSummary(sf::RenderTarget& target, const Summary& summary, float al
         { "BLOCKED", std::to_string(summary.blocks) },
         { "DAMAGE TAKEN", std::to_string(summary.damageTaken) },
     };
+
+    // Only on the deck, where it is the point: a hold is not yours until it
+    // is up, so mid campaign the row would be a promise rather than a total.
+    if (summary.landed >= 0)
+        rows.push_back({ "LANDED", std::to_string(summary.landed) });
 
     const float scale = 1.7f;
     const float labelX = static_cast<float>(config::WindowWidth) / 2.0f - 150.0f;

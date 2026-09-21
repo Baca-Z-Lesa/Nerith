@@ -44,7 +44,10 @@ public:
 
     std::optional<std::size_t> getHovered() const { return m_hovered; }
 
-    void draw(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth,
+    // stats is what the sub already has, so a node can say when its numbers
+    // would land on a ceiling and do nothing.
+    void draw(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats,
+              int salvage, int depth,
               const std::string& prompt);
 
 private:
@@ -53,12 +56,17 @@ private:
     sf::Vector2f centreOf(const UpgradeNode& node) const;
     sf::FloatRect boundsOf(const UpgradeNode& node) const;
     float nodeRadius() const;
-    void drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
+    // True when every number a node carries is already on its ceiling, so
+    // buying it would change nothing.
+    static bool alreadyAtTheTop(const Stats& stats, const UpgradeNode& node);
+
+    void drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats,
                       const UpgradeNode& node, int salvage);
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
     void drawBranchLabels(sf::RenderTarget& target, const UpgradeTree& tree);
-    void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage);
+    void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats,
+                   int salvage);
     void drawLevelStrip(sf::RenderTarget& target);
     sf::FloatRect levelBounds(int level) const;
     void drawChrome(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth,

@@ -366,6 +366,15 @@ private:
 
     void placeMarks();
     void updateEscape();
+
+    // What the dive just did, gathered for the deck to show.
+    void takeReport();
+
+    // A nudge towards the job, and only for a player who has stopped making
+    // any progress on it at all. See config::LostAfter.
+    std::optional<sf::Vector2f> objectiveAt() const;
+    void updateLost(float deltaTime);
+    void drawLostArrow();
     void updateMarks(float deltaTime);
     void drawMarks();
 
@@ -682,6 +691,17 @@ private:
     // Whether this level has already put its quarry in the water. One hunt is
     // one creature; without this every spawn after the first would be one too.
     bool                    m_markedQuarry = false;
+
+    // The dive that just ended, held over the deck for a few seconds. The
+    // clear banner only ever showed this when the objective was finished, and
+    // most dives end because the player chose to go up.
+    Hud::Summary            m_report;
+    float                   m_reportTimer = 0.0f;
+
+    // How long the objective bar has not moved, and where it was when it last
+    // did. Presentation only: nothing in the fight reads either.
+    float                   m_lostTimer = 0.0f;
+    float                   m_lastProgress = -1.0f;
     std::vector<Cargo>      m_cargo;
     std::vector<Find>       m_finds;
     std::vector<Offer>      m_offers;

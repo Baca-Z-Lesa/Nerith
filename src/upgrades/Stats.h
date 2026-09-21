@@ -120,6 +120,11 @@ public:
     float get(Stat stat, float base) const;
     int getInt(Stat stat, int base) const;
 
+    // What a stat is never allowed past, or infinity when nothing caps it.
+    // The tree has to be able to say so on the node: a player who buys "+3
+    // bounces" and gets one has found a bug, unless the screen told them.
+    static float ceilingOf(Stat stat);
+
     bool has(Trait trait) const;
     bool fitted(ShipPart part) const;
 

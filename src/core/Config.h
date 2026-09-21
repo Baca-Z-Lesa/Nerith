@@ -1378,6 +1378,22 @@ namespace config
         "HIS LOG: \"IT IS NOT DEEP. IT IS OPEN AT THE BOTTOM.\"",
     } };
 
+    // How long the dive report stays up on the deck, and how much of that is
+    // spent fading out. It clears on any key as well, so it is a thing shown
+    // rather than a thing sat through.
+    // How long the objective bar has to sit completely still before the game
+    // points at the job, how long the arrow takes to arrive, how solid it ever
+    // gets and how far out in front of the sub it sits. Late enough that a
+    // player working through a room is never nagged; the basin is the size of
+    // a town and being lost in it is not a skill.
+    inline constexpr float LostAfter = 26.0f;
+    inline constexpr float LostFade = 1.4f;
+    inline constexpr float LostAlpha = 0.5f;
+    inline constexpr float LostReach = 118.0f;
+
+    inline constexpr float ReportHold = 7.0f;
+    inline constexpr float ReportFade = 1.2f;
+
     inline constexpr float NoticeDuration = 5.2f;
 
     // --- The way out, and the way further in ---

@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "ui/PixelFont.h"
+#include "upgrades/Stats.h"
 #include "world/LevelDef.h"
 
 #include <SFML/Window/Keyboard.hpp>
@@ -368,7 +369,8 @@ void UpgradeScreen::drawLinks(sf::RenderTarget& target, const UpgradeTree& tree)
     target.draw(m_lines);
 }
 
-void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, int salvage)
+void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
+                              const Stats& stats, int salvage)
 {
     m_text.clear();
     m_icons.clear();
@@ -464,11 +466,35 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
     target.draw(m_text);
 
     if (m_hovered)
-        drawNodeCard(target, tree, nodes[*m_hovered], salvage);
+        drawNodeCard(target, tree, stats, nodes[*m_hovered], salvage);
+}
+
+bool UpgradeScreen::alreadyAtTheTop(const Stats& stats, const UpgradeNode& node)
+{
+    // A node that switches something on or bolts something to the hull is
+    // never wasted, whatever its numbers do.
+    if (!node.traits.empty() || !node.visuals.empty() || node.effects.empty())
+        return false;
+
+    // Applied to a copy and compared: exact, rather than a guess about which
+    // stats have ceilings and what their bases are. The base is unknown here
+    // - it lives in config next to whatever reads the stat - so both sides
+    // are measured from zero, which can only ever under-report.
+    Stats after = stats;
+    for (const StatModifier& modifier : node.effects)
+        after.apply(modifier);
+
+    for (const StatModifier& modifier : node.effects)
+    {
+        if (after.get(modifier.stat, 0.0f) > stats.get(modifier.stat, 0.0f) + 0.0005f)
+            return false;
+    }
+
+    return true;
 }
 
 void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tree,
-                                 const UpgradeNode& node, int salvage)
+                                 const Stats& stats, const UpgradeNode& node, int salvage)
 {
     const sf::Vector2f centre = centreOf(node);
 
@@ -539,6 +565,14 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
     {
         status = "COSTS " + std::to_string(node.cost) + " SALVAGE";
         statusColour = config::NodePricyEdge;
+    }
+    else if (alreadyAtTheTop(stats, node))
+    {
+        // Nine roots feed the same handful of numbers and most of them have a
+        // ceiling, so a player who buys "+3 bounces" and gets one has found a
+        // bug unless the screen said so first.
+        status = "EVERY NUMBER ON IT IS ALREADY AT ITS LIMIT";
+        statusColour = config::NodeLockedEdge;
     }
     else
     {
@@ -700,14 +734,15 @@ void UpgradeScreen::drawChrome(sf::RenderTarget& target, const UpgradeTree& tree
     target.draw(m_text);
 }
 
-void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, int salvage, int depth,
+void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats,
+                         int salvage, int depth,
                          const std::string& prompt)
 {
     target.draw(m_backdrop);
 
     drawLinks(target, tree);
     drawBranchLabels(target, tree);
-    drawNodes(target, tree, salvage);
+    drawNodes(target, tree, stats, salvage);
     drawChrome(target, tree, salvage, depth, prompt);
     drawLevelStrip(target);
 }

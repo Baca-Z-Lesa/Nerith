@@ -1083,6 +1083,8 @@ void Game::beginLevel(int number, bool fresh)
     m_mines.clear();
     m_hitRings.clear();
     m_markedQuarry = false;
+    m_lostTimer = 0.0f;
+    m_lastProgress = -1.0f;
 
     placeVents();
     placeNests();
@@ -1579,6 +1581,26 @@ void Game::drawDeck()
                       1.1f, config::HudDimTextColor);
 
     m_window.draw(text);
+
+    // And the dive that just ended, for a few seconds after arriving. The
+    // clear banner only ever showed this when the objective was finished, and
+    // most dives end because the player decided they had enough - so the run
+    // they actually played was the one nobody ever got a number for.
+    if (m_reportTimer > 0.0f)
+    {
+        const float alpha = std::min(1.0f, m_reportTimer / config::ReportFade);
+
+        sf::RectangleShape veil({ static_cast<float>(config::WindowWidth),
+                                  static_cast<float>(config::WindowHeight) });
+        sf::Color wash = config::PauseVeil;
+        wash.a = static_cast<std::uint8_t>(static_cast<float>(wash.a) * alpha * 0.8f);
+        veil.setFillColor(wash);
+        m_window.draw(veil);
+
+        m_hud.drawBanner(m_window, "DIVE " + std::to_string(m_level.getNumber()), "SURFACED",
+                         "", config::HudSalvageColor, alpha);
+        m_hud.drawSummary(m_window, m_report, alpha);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2867,6 +2889,10 @@ void Game::takeLift(bool down)
     // Up. Surfacing is the only thing that makes a hold yours, and walking
     // away from water you have not finished is allowed to be the right call.
     followedDown();
+
+    // Taken before the hold is landed, because landing it empties it.
+    takeReport();
+
     bankSalvage();
     m_save.selectedLevel = m_level.getNumber();
 
@@ -3606,6 +3632,186 @@ sf::Vector2f Game::preyFor(const Enemy& enemy) const
     }
 
     return me;
+}
+
+std::optional<sf::Vector2f> Game::objectiveAt() const
+{
+    // The nearest thing the level is actually asking for. Nothing here is a
+    // new idea: every one of these already exists in the water and already
+    // has a mark on the map. This only answers WHICH, so the nudge points at
+    // one thing rather than at the average of all of them.
+    std::optional<sf::Vector2f> best;
+    float nearest = 1.0e9f;
+
+    const sf::Vector2f me = m_player.getPosition();
+
+    const auto consider = [&](sf::Vector2f at) {
+        const float distance = (at - me).length();
+        if (distance < nearest)
+        {
+            nearest = distance;
+            best = at;
+        }
+    };
+
+    switch (m_level.getDef().objective)
+    {
+        case ObjectiveKind::LiftQuota:
+            for (const Find& find : m_finds)
+            {
+                if (!find.taken)
+                    consider(find.position);
+            }
+            break;
+
+        case ObjectiveKind::DestroyNests:
+            for (const Nest& nest : m_nests)
+            {
+                if (nest.alive)
+                    consider(nest.position);
+            }
+            break;
+
+        case ObjectiveKind::OpenWrecks:
+        case ObjectiveKind::RecoverRig:
+            for (const Offer& offer : m_offers)
+            {
+                if (!offer.open)
+                    consider(offer.position);
+            }
+            break;
+
+        case ObjectiveKind::HaulCargo:
+            // Carrying one, the errand is the mouth; empty handed it is the
+            // next pod. Which is the whole of what a haul is.
+            if (m_carrying >= 0)
+            {
+                consider(m_arena.getStart());
+                break;
+            }
+
+            for (const Cargo& pod : m_cargo)
+            {
+                if (!pod.delivered && !pod.carried)
+                    consider(pod.position);
+            }
+            break;
+
+        case ObjectiveKind::Restore:
+            for (const Mark& mark : m_marks)
+            {
+                if (!mark.lit)
+                    consider(mark.position);
+            }
+            break;
+
+        case ObjectiveKind::Hunt:
+            for (const Enemy& enemy : m_enemies)
+            {
+                if (enemy.isAlive() && enemy.isQuarry())
+                    consider(enemy.getPosition());
+            }
+            break;
+
+        case ObjectiveKind::Escape:
+            consider(m_arena.getStart());
+            break;
+
+        case ObjectiveKind::Defend:
+            // The winch is the level, so it is always what the arrow means -
+            // and being away from it is exactly when the player needs telling.
+            if (!m_marks.empty())
+                consider(m_marks.front().position);
+            break;
+
+        // Nothing to point at: a clock runs wherever you are standing, and a
+        // boss is the only thing in the room.
+        case ObjectiveKind::RunDark:
+        case ObjectiveKind::SurviveTime:
+        case ObjectiveKind::DefeatBoss:
+            break;
+    }
+
+    return best;
+}
+
+void Game::updateLost(float deltaTime)
+{
+    const float progress = m_level.getProgress();
+
+    // Any movement on the bar at all means the player knows what they are
+    // doing, so the clock goes back to the start. Only standing completely
+    // still on it counts as being lost.
+    if (std::abs(progress - m_lastProgress) > 0.0005f)
+    {
+        m_lastProgress = progress;
+        m_lostTimer = 0.0f;
+        return;
+    }
+
+    m_lostTimer += deltaTime;
+}
+
+void Game::drawLostArrow()
+{
+    if (m_lostTimer < config::LostAfter)
+        return;
+
+    const std::optional<sf::Vector2f> target = objectiveAt();
+    if (!target)
+        return;
+
+    const sf::Vector2f away = *target - m_player.getPosition();
+    if (away.lengthSquared() < 1.0f)
+        return;
+
+    // Faded in over a second, so it arrives rather than appears, and never
+    // fully solid: it is a hint about which way to swim, not a waypoint.
+    const float shown = std::min(1.0f, (m_lostTimer - config::LostAfter) / config::LostFade)
+                        * config::LostAlpha;
+
+    const sf::Vector2f along = away.normalized();
+    const sf::Vector2f side{ -along.y, along.x };
+
+    // Out at a fixed distance from the sub rather than pinned to the edge of
+    // the screen: on the screen it reads as part of the water, and at the edge
+    // it would read as part of the HUD.
+    const sf::Vector2f at = m_player.getPosition() + along * config::LostReach;
+
+    sf::Color ink = config::HudSalvageColor;
+    ink.a = static_cast<std::uint8_t>(std::clamp(shown, 0.0f, 1.0f) * 255.0f);
+
+    sf::Color faint = ink;
+    faint.a = 0;
+
+    sf::VertexArray mark(sf::PrimitiveType::Triangles);
+
+    mark.append(sf::Vertex{ at + along * 16.0f, ink });
+    mark.append(sf::Vertex{ at - along * 8.0f + side * 13.0f, faint });
+    mark.append(sf::Vertex{ at - along * 8.0f - side * 13.0f, faint });
+
+    m_window.draw(mark);
+}
+
+void Game::takeReport()
+{
+    m_report = Hud::Summary{};
+    m_report.kills = m_tally.kills;
+    m_report.salvage = m_tally.salvage;
+    m_report.seconds = m_tally.seconds;
+    m_report.damageTaken = m_tally.damageTaken;
+    m_report.blocks = m_blocks;
+    m_report.bestStreak = m_bestStreak;
+    m_report.accuracy = m_tally.shotsFired > 0
+                            ? static_cast<float>(m_tally.shotsHit)
+                                  / static_cast<float>(m_tally.shotsFired)
+                            : 0.0f;
+
+    // What is actually coming up in the hold, which is the number the dive was
+    // about. Read before landHold, because landing it empties it.
+    m_report.landed = worthOf(m_hold);
+
+    m_reportTimer = config::ReportHold;
 }
 
 void Game::updateEscape()
@@ -6051,8 +6257,21 @@ void Game::drawPauseOverlay()
 
     const std::string title = "HOLDING AT DEPTH";
     pixelfont::append(text, title,
-                      { (config::WindowWidth - pixelfont::measure(title, 4.0f)) / 2.0f, 250.0f },
+                      { (config::WindowWidth - pixelfont::measure(title, 4.0f)) / 2.0f, 210.0f },
                       4.0f, config::HudTextColor);
+
+    // What the level actually wants, on the screen a player is looking at
+    // after being away from the game for a day. The bar in the corner says it
+    // while they are playing; nobody reads the corner on the way back in.
+    const std::string brief = m_level.getDef().brief;
+    pixelfont::append(text, brief,
+                      { (config::WindowWidth - pixelfont::measure(brief, 1.8f)) / 2.0f, 272.0f },
+                      1.8f, config::HudDimTextColor);
+
+    const std::string doing = m_level.getObjectiveLabel();
+    pixelfont::append(text, doing,
+                      { (config::WindowWidth - pixelfont::measure(doing, 2.4f)) / 2.0f, 298.0f },
+                      2.4f, config::HudSalvageColor);
 
     // One block, two columns: the keys line up under each other and the block
     // as a whole is centred, rather than every row being centred on its own.
@@ -6069,7 +6288,7 @@ void Game::drawPauseOverlay()
     const float keyX = static_cast<float>(config::WindowWidth) / 2.0f - 210.0f;
     const float whatX = keyX + 130.0f;
 
-    float y = 356.0f;
+    float y = 372.0f;
     for (const Row& row : rows)
     {
         pixelfont::append(text, row.key, { keyX, y }, scale, config::HudDimTextColor);
@@ -7003,6 +7222,9 @@ void Game::presentUpdate(float deltaTime)
                 (isHeld(Action::Down) ? 1.0f : 0.0f) - (isHeld(Action::Up) ? 1.0f : 0.0f)
             };
 
+            if (m_reportTimer > 0.0f)
+                m_reportTimer = std::max(0.0f, m_reportTimer - deltaTime);
+
             m_deck.update(deltaTime, drive);
 
             // Alternating, because the same footstep sample twice a second for
@@ -7121,6 +7343,7 @@ void Game::step(float deltaTime)
                 updateFinds();
                 updateMarks(deltaTime);
                 updateEscape();
+                updateLost(deltaTime);
                 updateOffers(deltaTime);
                 updateLifts(deltaTime);
 
@@ -7288,6 +7511,7 @@ void Game::render(float alpha)
     drawVents();
     drawNests();
     drawMarks();
+    drawLostArrow();
     drawOffers();
     drawCargo();
 
@@ -7530,7 +7754,7 @@ void Game::render(float alpha)
                      + " SALVAGE";
         }
 
-        m_upgradeScreen.draw(m_window, m_tree, m_salvage, getDepth(), prompt);
+        m_upgradeScreen.draw(m_window, m_tree, m_playerStats, m_salvage, getDepth(), prompt);
     }
     else
     {
