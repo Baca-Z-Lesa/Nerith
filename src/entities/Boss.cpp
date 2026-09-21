@@ -1,4 +1,4 @@
-﻿#include "entities/Boss.h"
+#include "entities/Boss.h"
 
 #include "core/Assets.h"
 #include "entities/BossArt.h"
@@ -132,7 +132,7 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     m_core = m_coreMax;
 
     refreshVitals();
-    followChain();
+    holdShape();
     placeParts(0.0f);
 }
 
@@ -182,6 +182,294 @@ void Boss::steer(float deltaTime, sf::Vector2f target, float turnScale)
 void Boss::advance(float deltaTime, float speed)
 {
     m_segments[0].position += m_heading * speed * deltaTime;
+}
+
+void Boss::holdShape()
+{
+    switch (m_def->body)
+    {
+        case BossBody::Ring:  holdRing(); break;
+        case BossBody::Split: holdSplit(); break;
+        case BossBody::Tower: holdTower(); break;
+        case BossBody::Coil:  holdCoil(); break;
+        default:              followChain(); break;
+    }
+}
+
+void Boss::holdRing()
+{
+    // A closed circle of body, turning, with nothing in the middle of it.
+    //
+    // The whale fall's own brief says "IT IS A RING OF BONE. NOTHING LIVES IN
+    // THE MIDDLE OF IT" and it was drawn as a chain trailing behind a head,
+    // which is the shape of every other creature in the game. The skin draws
+    // whatever the links do, so this is the whole change: put the links on a
+    // circle instead of in a line, and a spine curls into a ring.
+    //
+    // segments[0] is still the head and still what everything else reads as
+    // the creature's position - it is the centre of the ring now rather than
+    // a point on it, and the rest of the body is laid round it.
+    const std::size_t links = m_segments.size();
+    if (links < 2)
+        return;
+
+    Segment& hub = m_segments[0];
+
+    // It tightens as the fight goes on. A ring that closes is the one threat
+    // a player cannot answer by backing off, which is what this creature is
+    // for - and it is the second act made visible without a colour change.
+    const float closing = 1.0f - config::BossRingClose * std::clamp(
+                                     static_cast<float>(m_act) * 0.5f, 0.0f, 1.0f);
+
+    const float radius = config::BossRingRadius * closing;
+
+    // And it turns. Faster the further in, so the last act is a millstone.
+    m_ringTurn += config::BossRingSpin * (1.0f + 0.7f * static_cast<float>(m_act))
+                  * (6.283185307f / 360.0f) * config::MotionAmount;
+
+    const float step = 6.283185307f / static_cast<float>(links - 1);
+
+    for (std::size_t i = 1; i < links; ++i)
+    {
+        Segment& segment = m_segments[i];
+
+        const float around = m_ringTurn + step * static_cast<float>(i - 1);
+
+        // Breathing in and out along the radius, out of phase round the
+        // circle, so the ring is never a perfect wheel - a perfect wheel is a
+        // machine and this is an animal.
+        const float breathe =
+            1.0f + config::BossRingWobble * std::sin(m_time * 1.4f + around * 2.0f);
+
+        segment.position = hub.position
+                           + sf::Vector2f{ std::cos(around), std::sin(around) }
+                                 * (radius * breathe);
+
+        // Tangential, so the vertebrae lie along the ring rather than all
+        // pointing outward like spokes.
+        segment.angle = sf::radians(around + 1.5707963f);
+
+        if (segment.sprite)
+        {
+            segment.sprite->setPosition(segment.position);
+            segment.sprite->setRotation(segment.angle);
+        }
+    }
+
+    // The hub is the animal's own heading, kept so the rest of the fight -
+    // which asks what it is looking at - still gets an answer.
+    if (hub.sprite)
+    {
+        hub.sprite->setPosition(hub.position);
+        hub.sprite->setRotation(hub.angle);
+    }
+}
+
+void Boss::holdSplit()
+{
+    // A body that comes apart. Two arcs of it hunting on their own clocks,
+    // drifting away from each other and back together, so there is no one
+    // place to stand that is away from all of it and no one silhouette to
+    // learn. Every other creature in this game is one shape; this is the only
+    // one that is two, and the point of it is that you can never have both
+    // halves in front of you.
+    //
+    // It comes further apart with every act, which is the second phase made
+    // visible: by the last one the thing is not an animal any more, it is two
+    // things that used to be.
+    const std::size_t links = m_segments.size();
+    if (links < 3)
+    {
+        followChain();
+        return;
+    }
+
+    Segment& hub = m_segments[0];
+
+    const float spread = config::BossSplitGap
+                         * (0.45f + 0.55f * std::clamp(static_cast<float>(m_act) * 0.5f,
+                                                       0.0f, 1.0f));
+
+    // The two halves swing about the hub on the same slow clock, a half turn
+    // out of phase, so when one is in front of the player the other is not.
+    const float swing = m_time * config::BossSplitSwing;
+
+    const sf::Vector2f sides[2] = {
+        hub.position + sf::Vector2f{ std::cos(swing), std::sin(swing) } * spread,
+        hub.position + sf::Vector2f{ std::cos(swing + 3.14159265f),
+                                     std::sin(swing + 3.14159265f) } * spread,
+    };
+
+    const std::size_t half = (links - 1 + 1) / 2;
+
+    for (std::size_t i = 1; i < links; ++i)
+    {
+        Segment& segment = m_segments[i];
+
+        const bool second = (i - 1) >= half;
+        const std::size_t within = second ? (i - 1) - half : (i - 1);
+        const std::size_t count = second ? (links - 1) - half : half;
+
+        const sf::Vector2f anchor = sides[second ? 1 : 0];
+
+        // Each half is a short arc rather than a line: a curl of arm, which
+        // is what an octopus does with one when it is not using it.
+        const float t = count > 1 ? static_cast<float>(within)
+                                        / static_cast<float>(count - 1)
+                                  : 0.0f;
+
+        const float bend = (second ? -1.0f : 1.0f) * config::BossSplitCurl;
+        const float around = swing + (second ? 3.14159265f : 0.0f) + bend * t;
+        const float reach = config::BossSplitArm * (0.35f + 0.65f * t);
+
+        segment.position = anchor
+                           + sf::Vector2f{ std::cos(around), std::sin(around) } * reach;
+        segment.angle = sf::radians(around);
+
+        if (segment.sprite)
+        {
+            segment.sprite->setPosition(segment.position);
+            segment.sprite->setRotation(segment.angle);
+        }
+    }
+
+    if (hub.sprite)
+    {
+        hub.sprite->setPosition(hub.position);
+        hub.sprite->setRotation(hub.angle);
+    }
+}
+
+void Boss::holdTower()
+{
+    // A chimney. It is sitting on the hole in the floor and it does not leave
+    // it: the links are laid in rings at fixed radii round a hub that never
+    // travels, widest at the base, so from above it reads as a stack rather
+    // than as an animal with limbs.
+    //
+    // What it does instead of moving is GROW. Each act pushes the rings out,
+    // so the room the player has left shrinks without the creature taking a
+    // single step - which is the only way a thing that cannot chase you is
+    // still a fight in the last minute of it.
+    const std::size_t links = m_segments.size();
+    if (links < 2)
+        return;
+
+    Segment& hub = m_segments[0];
+
+    const float grown = 1.0f + config::BossTowerGrowth
+                                   * std::clamp(static_cast<float>(m_act) * 0.5f, 0.0f, 1.0f);
+
+    m_ringTurn += config::BossTowerSpin * (6.283185307f / 360.0f) * config::MotionAmount;
+
+    for (std::size_t i = 1; i < links; ++i)
+    {
+        Segment& segment = m_segments[i];
+
+        // Two to a ring, so the stack has courses rather than one long spiral.
+        const std::size_t course = (i - 1) / config::BossTowerPerCourse;
+        const std::size_t within = (i - 1) % config::BossTowerPerCourse;
+
+        const float radius = config::BossTowerBase * grown
+                             * (1.0f - config::BossTowerTaper * static_cast<float>(course));
+
+        // Every course turned against the one below it, and the whole stack
+        // turning slowly: a vent does not spin, but the water coming off one
+        // never stops moving and this is what that looks like from above.
+        const float around = m_ringTurn * (course % 2 == 0 ? 1.0f : -0.7f)
+                             + 6.283185307f * static_cast<float>(within)
+                                   / static_cast<float>(config::BossTowerPerCourse)
+                             + static_cast<float>(course) * 0.7f;
+
+        const float boil = 1.0f + config::BossTowerBoil
+                                      * std::sin(m_time * 2.1f + static_cast<float>(i));
+
+        segment.position = hub.position
+                           + sf::Vector2f{ std::cos(around), std::sin(around) }
+                                 * (radius * boil);
+
+        // Pointing out of the stack, because everything this creature does
+        // comes out of it rather than round it.
+        segment.angle = sf::radians(around);
+
+        if (segment.sprite)
+        {
+            segment.sprite->setPosition(segment.position);
+            segment.sprite->setRotation(segment.angle);
+        }
+    }
+
+    if (hub.sprite)
+    {
+        hub.sprite->setPosition(hub.position);
+        hub.sprite->setRotation(hub.angle);
+    }
+}
+
+void Boss::holdCoil()
+{
+    // Coiled, not swimming. A bobbit worm spends its life in a hole with its
+    // body wound under the floor and only the jaws out, and it was drawn as a
+    // snake being towed round the basin nose first - which is the leviathan's
+    // silhouette with a different skin on it.
+    //
+    // The links are a spiral tightening inward from the head, and the spiral
+    // UNWINDS while it strikes: at rest it is a knot on the floor, and mid
+    // lunge it is the longest thing in the game.
+    const std::size_t links = m_segments.size();
+    if (links < 2)
+        return;
+
+    Segment& head = m_segments[0];
+
+    // getTell is 0 at rest and 1 at the top of a wind-up, so the body is
+    // visibly loading before the strike lands rather than after it.
+    const float open = std::clamp(getTell(), 0.0f, 1.0f);
+
+    const float pitch = config::BossCoilPitch * (1.0f + config::BossCoilOpen * open);
+    const float wind = config::BossCoilWind * (1.0f - 0.72f * open);
+
+    const sf::Vector2f back = -unit(head.angle);
+    const sf::Vector2f side{ -back.y, back.x };
+
+    float along = 0.0f;
+    float around = 0.0f;
+
+    for (std::size_t i = 1; i < links; ++i)
+    {
+        Segment& segment = m_segments[i];
+
+        along += pitch;
+        around += wind;
+
+        // Behind the head along its own axis, and swung further off that axis
+        // with every link - which is a spiral drawn in the head's frame
+        // rather than in the world's, so the whole coil turns with it.
+        const float swing = std::sin(around) * config::BossCoilWidth
+                            * (1.0f - 0.55f * open)
+                            * (0.35f + 0.65f * static_cast<float>(i)
+                                           / static_cast<float>(links - 1));
+
+        segment.position = head.position + back * along + side * swing;
+
+        const sf::Vector2f lead = (i == 1 ? head.position : m_segments[i - 1].position)
+                                  - segment.position;
+
+        if (lead.lengthSquared() > 0.0001f)
+            segment.angle = lead.angle();
+
+        if (segment.sprite)
+        {
+            segment.sprite->setPosition(segment.position);
+            segment.sprite->setRotation(segment.angle);
+        }
+    }
+
+    if (head.sprite)
+    {
+        head.sprite->setPosition(head.position);
+        head.sprite->setRotation(head.angle);
+    }
 }
 
 void Boss::followChain()
@@ -888,10 +1176,26 @@ void Boss::updateActs()
     // start again because it got a moment's peace.
     const float core = getCoreFraction();
 
+    const int was = m_act;
+
     if (m_act < 1 && core < config::BossActTwo)
         m_act = 1;
     if (m_act < 2 && core < config::BossActThree)
         m_act = 2;
+
+    // Reported once, for the frame it happens on. The only sign a creature
+    // had changed its mind used to be that it went a different colour, which
+    // on a screen this dark and this busy is no sign at all - and the bodies
+    // that visibly change shape at an act, the ring tightening and the coil
+    // throwing itself out, still need the moment marked.
+    m_turned = m_act > was;
+}
+
+bool Boss::tookTurn()
+{
+    const bool turned = m_turned;
+    m_turned = false;
+    return turned;
 }
 
 void Boss::closeTheBasin(sf::Vector2f centre)
@@ -1122,7 +1426,7 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
     // just chose, and it has to be the one that wins.
     considerSpecial(deltaTime, playerPosition);
 
-    followChain();
+    holdShape();
     placeParts(deltaTime);
 }
 
@@ -1166,7 +1470,7 @@ void Boss::confine(sf::Vector2f center, float maxDistance)
     m_heading = safeNormal(center - m_segments[0].position, m_heading);
     m_segments[0].angle = m_heading.angle();
 
-    followChain();
+    holdShape();
     placeParts(0.0f);
 }
 

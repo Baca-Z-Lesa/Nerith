@@ -175,6 +175,10 @@ public:
     const char* getBrief() const;
     std::string getStateLabel() const;
 
+    // True once, on the frame the creature crossed into its next act. Taken
+    // rather than read, so exactly one caller can act on it.
+    bool tookTurn();
+
     std::size_t getPartCount() const { return m_parts.size(); }
     bool isPartAlive(std::size_t index) const;
     float getPartFraction(std::size_t index) const;
@@ -235,7 +239,15 @@ private:
     void refreshVitals();
     void steer(float deltaTime, sf::Vector2f target, float turnScale);
     void advance(float deltaTime, float speed);
+    // Where the body puts itself. One of these runs every frame, chosen by
+    // the definition's BossBody: the skins draw whatever the links do, so this
+    // is what makes two creatures look like two creatures.
+    void holdShape();
     void followChain();
+    void holdRing();
+    void holdSplit();
+    void holdTower();
+    void holdCoil();
     void placeParts(float deltaTime);
     bool organExposed(const Part& part) const;
     bool bodyBlocks(sf::Vector2f position, float radius) const;
@@ -320,6 +332,12 @@ private:
     int   m_coreMax = 0;
     int   m_fallen = 0;   // 0 first wind, 1 second, 2 whatever is under that
     float m_shed = 0.0f;  // 0..1, how far through coming apart it is
+
+    // How far round a ring body has turned. Only the circle reads it.
+    float m_ringTurn = 0.0f;
+
+    // Whether the act changed this frame, waiting to be taken.
+    bool  m_turned = false;
     bool  m_enraged;
     bool  m_hasEntered;
     bool  m_dead;

@@ -23,6 +23,20 @@ enum class BossBody
 {
     Serpent, // a head towing a chain of segments that follow it
     Bell,    // a single pulsing dome with tentacles hanging off it
+
+    // Two shapes and six creatures is why four of them read as the same
+    // animal in different colours: a core with limbs on it, again. What
+    // decides whether two bosses look alike is not the skin - the skins are
+    // a reptile, a jellyfish, a bobbit worm, a whale fall, a vent and an
+    // octopus - it is where the body PUTS itself, and there were only ever
+    // two answers to that.
+    //
+    // A skin draws whatever the links do, so a new plan is a new layout and
+    // not a new drawing. These are the layouts.
+    Ring,    // a closed circle that turns and tightens; it does not travel
+    Split,   // two halves that come apart and hunt on their own clocks
+    Tower,   // courses stacked on a hub that never moves, and grows instead
+    Coil,    // wound on the floor at rest, and the longest thing here mid strike
 };
 
 // What actually gets put on the screen. A sprite is the right answer for

@@ -82,10 +82,14 @@ namespace
         // =================================================================
         {
             "THE TRENCH WORM", "THE FLOOR MOVES. THAT IS NOT SILT.",
-            BossBody::Serpent, BossMind::Burrower, BossSkin::Worm,
+            // Wound, not swimming. A bobbit worm is a hole with a body in it:
+            // at rest it is a knot on the floor and mid strike it is the
+            // longest thing in the game. Drawn as a chain towed nose first it
+            // was the leviathan's silhouette with a different skin on it.
+            BossBody::Coil, BossMind::Burrower, BossSkin::Worm,
             nullptr, "assets/textures/shot_worm.png",
             nullptr, nullptr,
-            0.95f, 0.9f, 0.94f, 6, 44.0f, 44.0f,
+            0.95f, 0.9f, 0.96f, 9, 44.0f, 44.0f,
             2, 52,
             132.0f, 0.0f,
             1.5f, 5, 54.0f,
@@ -116,12 +120,19 @@ namespace
         // =================================================================
         {
             "THE HOLLOW", "IT IS A RING OF BONE. NOTHING LIVES IN THE MIDDLE OF IT.",
-            BossBody::Serpent, BossMind::Spiral, BossSkin::Hollow,
+
+            // A ring, at last. Its own brief has said so since the day it was
+            // written and it was drawn as a chain trailing behind a head -
+            // which is the shape of every other creature in the game. Nine
+            // links, because a circle needs enough of them to be a circle,
+            // and a speed low enough that it drifts rather than travels: the
+            // ring is not chasing anybody, it is closing.
+            BossBody::Ring, BossMind::Spiral, BossSkin::Hollow,
             nullptr, "assets/textures/shot_hollow.png",
             nullptr, nullptr,
-            1.0f, 0.82f, 0.90f, 5, 66.0f, 58.0f,
+            1.0f, 0.86f, 1.0f, 9, 66.0f, 58.0f,
             3, 96,
-            96.0f, 330.0f,
+            34.0f, 330.0f,
             0.30f, 4, 90.0f,
             { 0.70f, 1.20f, 2, 1.0f },
             // core, emitters, lives
@@ -161,6 +172,9 @@ namespace
         // =================================================================
         {
             "THE FURNACE", "IT IS SITTING ON THE HOLE IN THE FLOOR.",
+            // Still a bell, for the same reason the mother is: BossBody::Tower
+            // is written and drawFurnace reads only links.front(), so the
+            // courses would be hitboxes nobody can see.
             BossBody::Bell, BossMind::Spiral, BossSkin::Furnace,
             nullptr, "assets/textures/shot_furnace.png",
             nullptr, nullptr,
@@ -197,6 +211,13 @@ namespace
         // =================================================================
         {
             "THE MOTHER", "IT IS WHERE THEY ALL CAME FROM.",
+
+            // Still a bell. BossBody::Split exists and lays this creature out as
+            // two arcs on the same slow swing - but drawMother reads only
+            // links.front(), so the extra segments would be hitboxes with
+            // nothing drawn on them. A creature that can be shot where it
+            // visibly is not is worse than one that looks like another
+            // creature, so the plan waits for the art.
             BossBody::Bell, BossMind::Prowler, BossSkin::Mother,
             nullptr, "assets/textures/shot_mother.png",
             nullptr, nullptr,

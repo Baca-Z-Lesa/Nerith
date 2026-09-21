@@ -809,6 +809,48 @@ namespace config
     inline constexpr float BossFlexHz = 0.55f;
     inline constexpr float BossFlexLag = 0.85f; // radians of wave per link
 
+    // --- the ring ---
+    // A closed circle of body that turns and tightens rather than a chain
+    // that trails. How wide it stands, how much of that it gives up by the
+    // last act, how fast it turns, and how much it breathes in and out round
+    // its own circumference - a perfect wheel is a machine, and this is an
+    // animal.
+    inline constexpr float BossRingRadius = 190.0f;
+    inline constexpr float BossRingClose = 0.34f;
+    inline constexpr float BossRingSpin = 0.34f;   // degrees per frame at act zero
+    inline constexpr float BossRingWobble = 0.11f; // of the radius
+
+    // --- the split ---
+    // Two halves on the same slow swing, half a turn out of phase, so one is
+    // never where the other is. The gap opens with every act: by the last one
+    // it is not an animal, it is two things that used to be.
+    inline constexpr float BossSplitGap = 168.0f;
+    inline constexpr float BossSplitSwing = 0.42f; // radians a second
+    inline constexpr float BossSplitArm = 104.0f;
+    inline constexpr float BossSplitCurl = 1.35f;  // radians the arc bends over
+
+    // --- the tower ---
+    // A chimney that never leaves the hole it is sitting on. What it does
+    // instead of chasing is grow, so the room the player has left shrinks
+    // without the creature taking a step.
+    inline constexpr float BossTowerBase = 96.0f;
+    inline constexpr float BossTowerGrowth = 0.55f;
+    inline constexpr float BossTowerTaper = 0.22f; // each course in by this much
+    inline constexpr float BossTowerSpin = 0.16f;  // degrees a frame
+    inline constexpr float BossTowerBoil = 0.09f;
+    inline constexpr std::size_t BossTowerPerCourse = 4;
+
+    // --- the coil ---
+    // Wound on the floor at rest and thrown out straight mid strike, which is
+    // what a bobbit worm actually is: a hole with a body in it.
+    inline constexpr float BossCoilPitch = 18.0f;  // back along its own axis per link
+    inline constexpr float BossCoilOpen = 1.15f;   // how much longer it gets striking
+    inline constexpr float BossCoilWind = 1.18f;   // radians of turn per link
+    inline constexpr float BossCoilWidth = 72.0f;
+
+    // How wide the burst is when a creature crosses into its next act.
+    inline constexpr float BossTurnBurst = 210.0f;
+
     inline constexpr int   BossUltraFromAct = 1;
     inline constexpr float BossUltraInterval = 15.0f;
 

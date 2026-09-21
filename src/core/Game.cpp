@@ -4989,6 +4989,22 @@ void Game::updateBoss(float deltaTime)
 
     m_boss->update(deltaTime, m_player.getPosition());
 
+    // It has changed its mind. Marked properly rather than by a colour: the
+    // music drops out, the room shakes, the creature lights up, and the
+    // screen says so - because on a screen this dark a boss going from one
+    // shade of purple to another is not an event the player can see.
+    if (m_boss->tookTurn())
+    {
+        bigMoment(m_boss->getPosition(), config::HudBossColor, config::ShakeBossPart,
+                  config::SlowMotionBossAct);
+
+        m_audio.play(Sfx::BossPhase, 0.7f);
+        addFlash(config::HudBossColor, 0.55f);
+        effects::ventBurst(m_effects, m_boss->getPosition(), config::BossTurnBurst);
+
+        say(std::string(m_boss->getName()) + " - " + m_boss->getStateLabel());
+    }
+
     // The announcement gets a sound of its own. A tell nobody hears is a tell
     // that only works when the player happens to be looking at the creature,
     // and at this size they are usually looking at the water around it.
