@@ -1,6 +1,7 @@
 #include "core/Assets.h"
 
 #include "core/Config.h"
+#include "world/DepthTheme.h"
 #include "entities/BossDef.h"
 
 #include <stdexcept>
@@ -119,6 +120,26 @@ Assets::Assets()
     // swimming to and nothing at all about whether it was.
     for (const config::SalvageDef& kind : config::SalvageTable)
         want(kind.path);
+
+    // The things standing on it: a wreck, a brood, a dead man's case, the hole
+    // down to the next floor, and a vent.
+    for (const char* path : { config::WreckTexturePath, config::HiveTexturePath,
+                              config::CacheTexturePath, config::ShaftTexturePath,
+                              config::VentTexturePath })
+    {
+        want(path);
+    }
+
+    // And whatever each depth dresses its floor with. Walked off the table
+    // rather than listed, so adding a depth or a piece of dressing is a row
+    // there and nothing here - which is the rule every other block in this
+    // function already follows, and the one that stops a texture being named
+    // in a table and never loaded.
+    for (int depth = 1; depth <= depthCount(); ++depth)
+    {
+        for (const char* path : themeFor(depth).dressing)
+            want(path);
+    }
 
     // The floor and the rail are laid by giving one sprite a rectangle bigger
     // than the tile, which only works on a texture that repeats.

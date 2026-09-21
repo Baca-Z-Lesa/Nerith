@@ -32,6 +32,22 @@ public:
 
     void update(float deltaTime);
 
+    // One thing standing on the floor.
+    struct Prop
+    {
+        sf::Sprite sprite;
+        sf::Color  baseTint; // before the depth theme is multiplied in
+        float baseRotation; // degrees
+        float swayAmount;   // degrees; zero for anything rigid
+        float swaySpeed;
+        float swayPhase;
+    };
+
+    // What was actually scattered. Only the depth check in tools reads this:
+    // whether one floor looks like another is a question about which textures
+    // were handed out, and there is no other way to ask it.
+    const std::vector<Prop>& propsForTest() const { return m_props; }
+
     // The floor and everything standing on it. Drawn under the fight.
     // The rock the whole world is made of, which the basin is then cut out
     // of. It has to go down before the arena draws its floor, or it paints
@@ -56,16 +72,6 @@ public:
     void drawNear(sf::RenderTarget& target, sf::Vector2f cameraCentre) const;
 
 private:
-    struct Prop
-    {
-        sf::Sprite sprite;
-        sf::Color  baseTint; // before the depth theme is multiplied in
-        float baseRotation; // degrees
-        float swayAmount;   // degrees; zero for anything rigid
-        float swaySpeed;
-        float swayPhase;
-    };
-
     struct Critter
     {
         sf::Sprite   sprite;

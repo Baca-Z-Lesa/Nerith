@@ -1041,6 +1041,15 @@ void Game::beginLevel(int number, bool fresh)
     m_arena.generate(static_cast<unsigned int>(number)
                          ^ static_cast<unsigned int>(rng::range(0.0f, 1.0e9f)),
                      m_level.isBoss());
+
+    // The depth before the dressing. What a floor is littered with is part of
+    // the theme now, and reshape reads it - so scattering first handed every
+    // basin the PREVIOUS depth's bones and pipe, which is a bug that would
+    // have looked exactly like the feature working.
+    const DepthTheme& theme = themeFor(m_level.getDepth());
+    m_arena.applyTheme(theme);
+    m_seabed.applyTheme(theme);
+
     m_seabed.reshape(m_arena);
 
     // The little map is cut from the basin, so it is cut when the basin is.
@@ -1066,10 +1075,8 @@ void Game::beginLevel(int number, bool fresh)
     m_hurtFlash = 0.0f;
 
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
-    // change together, so descending is felt rather than announced.
-    const DepthTheme& theme = themeFor(m_level.getDepth());
-    m_arena.applyTheme(theme);
-    m_seabed.applyTheme(theme);
+    // change together, so descending is felt rather than announced. The two
+    // that dress the basin were applied further up, before it was dressed.
     m_audio.setDepth(theme.ambientPitch, theme.ambientVolume);
 
     m_audio.setAmbience(AudioSystem::Ambience::Abyss);

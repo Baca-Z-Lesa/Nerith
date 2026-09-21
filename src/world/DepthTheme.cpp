@@ -16,7 +16,10 @@ namespace
           { 80, 175, 185 }, 1.00f,
           242, 1.00f,
           { 255, 255, 255 },
-          1.00f, 34.0f },
+          1.00f, 34.0f,
+          // Nothing but weed and rock. The shallows are the one floor where
+          // what is down there is only what grew there.
+          { { nullptr, nullptr, nullptr } }, 0.00f },
 
         { "THE SHELF",
           { 2, 4, 8 }, { 12, 25, 33 }, { 7, 15, 22 },
@@ -24,7 +27,9 @@ namespace
           { 60, 150, 172 }, 0.82f,
           246, 0.90f,
           { 224, 230, 240 },
-          0.94f, 36.0f },
+          0.94f, 36.0f,
+          // The first floor anybody worked. Pipe, split crates, cut cable.
+          { { "assets/textures/deep_pipes.png", nullptr, nullptr } }, 0.22f },
 
         { "THE TRENCH",
           { 3, 3, 8 }, { 14, 16, 32 }, { 8, 9, 19 },
@@ -32,7 +37,10 @@ namespace
           { 72, 92, 186 }, 0.62f,
           249, 0.79f,
           { 202, 198, 228 },
-          0.88f, 38.0f },
+          0.88f, 38.0f,
+          // Still their gear, and the first thing that fell and stayed.
+          { { "assets/textures/deep_pipes.png", "assets/textures/deep_bones.png",
+              nullptr } }, 0.28f },
 
         { "THE ABYSS",
           { 3, 2, 4 }, { 17, 12, 17 }, { 9, 7, 10 },
@@ -40,7 +48,10 @@ namespace
           { 116, 62, 126 }, 0.46f,
           251, 0.69f,
           { 190, 168, 182 },
-          0.82f, 40.0f },
+          0.82f, 40.0f,
+          // And the first course of block nobody laid.
+          { { "assets/textures/deep_bones.png", "assets/textures/deep_wall.png",
+              nullptr } }, 0.32f },
 
         // The floor is open here and what comes out of it is the only light
         // the depth has of its own.
@@ -50,7 +61,11 @@ namespace
           { 146, 52, 42 }, 0.32f,
           253, 0.59f,
           { 186, 150, 146 },
-          0.74f, 42.0f },
+          0.74f, 42.0f,
+          // The floor is open here, so this is the one depth with anything
+          // living on it in numbers.
+          { { "assets/textures/deep_worms.png", "assets/textures/deep_bones.png",
+              "assets/textures/deep_wall.png" } }, 0.38f },
 
         // And the bottom of it. Nothing here is any colour; the only thing the
         // lamp finds is bone, and the dark is tight enough to touch.
@@ -60,10 +75,18 @@ namespace
           { 94, 132, 108 }, 0.22f,
           254, 0.50f,
           { 168, 178, 168 },
-          0.66f, 44.0f },
+          0.66f, 44.0f,
+          // Mostly architecture by now, and the bones of whatever used it.
+          { { "assets/textures/deep_wall.png", "assets/textures/deep_wall.png",
+              "assets/textures/deep_bones.png" } }, 0.45f },
     };
 
     constexpr std::size_t ThemeCount = sizeof(Themes) / sizeof(Themes[0]);
+}
+
+int depthCount()
+{
+    return static_cast<int>(ThemeCount);
 }
 
 const DepthTheme& themeFor(int depth)

@@ -167,6 +167,36 @@ void Seabed::scatterProps(const Arena* arena)
             continue;
         }
 
+        // Whatever this depth has that the others do not, first: bones, pipe,
+        // block, a mat of worms. Rolled before the rock so it is a share of
+        // the whole scatter rather than of what is left over, and the share
+        // rises with depth - near the surface the floor is mostly floor, and
+        // at the bottom most of what is down there is evidence.
+        if (roll < m_theme->dressShare)
+        {
+            const char* pick = nullptr;
+            int found = 0;
+
+            for (const char* path : m_theme->dressing)
+            {
+                if (path == nullptr)
+                    continue;
+
+                // Reservoir of one: every entry gets an equal chance without
+                // the list having to be counted first.
+                ++found;
+                if (rng::range(0.0f, static_cast<float>(found)) < 1.0f)
+                    pick = path;
+            }
+
+            if (pick != nullptr)
+            {
+                addProp(m_assets->byPath(pick), position, rng::range(0.42f, 0.95f),
+                        randomTint(sf::Color(34, 40, 46), 0.22f), 0.0f);
+                continue;
+            }
+        }
+
         // Everything out here sits outside the light pool, so it is tinted
         // darker than the reef. That contrast is what makes the reef read as
         // the edge of the lit area rather than just more scenery.

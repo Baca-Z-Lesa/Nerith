@@ -68,6 +68,10 @@ $Materials = @{
     'coral_a.png' = 'plant'
     'coral_b.png' = 'plant'
     'kelp.png'    = 'plant'
+    'deep_worms.png' = 'plant'
+    'deep_bones.png' = 'shell'
+    'deep_pipes.png' = 'metal'
+    'deep_wall.png'  = 'rock'
     'nest.png'    = 'shell'
     'gear_wreck.png' = 'metal'
     'gear_hive.png'  = 'flesh'
@@ -153,6 +157,7 @@ foreach ($script in @('make_sub.ps1', 'make_hull.ps1', 'make_art.ps1',
                       'make_cargo.ps1', 'make_deep.ps1', 'make_ship.ps1',
                       'make_tails.ps1', 'make_deeper.ps1', 'make_hide.ps1',
                       'make_deck.ps1', 'make_deckprops.ps1', 'make_salvage.ps1',
+                      'make_dress.ps1',
                       'make_gear.ps1',
                       'make_reel.ps1')) {
     Write-Host "  $script"
