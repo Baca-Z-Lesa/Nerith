@@ -247,7 +247,7 @@ $suit   = C 168 146 62
 $suitLo = C 110 92 38
 $suitHi = C 214 196 104
 
-$outW = 28; $outH = 36
+$outW = 44; $outH = 56
 $res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
 $W = $outW * $SS; $H = $outH * $SS; $cy = $H / 2.0
 
@@ -346,7 +346,7 @@ Finish $bmp $g $outW $outH "deck_diver.png"
 # 12x9 gave a lead boot three marks at nineteen screen pixels. 16x12 is room
 # for a sole, a welt and a buckle, which is the difference between a foot and
 # a smudge that moves.
-$outW = 16; $outH = 12
+$outW = 26; $outH = 20
 $res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
 $W = $outW * $SS; $H = $outH * $SS
 
@@ -384,7 +384,7 @@ Finish $bmp $g $outW $outH "deck_boot.png"
 #  that immediately even when it cannot say what is wrong. This is drawn
 #  as it will be drawn - unrotated.
 # =====================================================================
-$outW = 150; $outH = 112
+$outW = 184; $outH = 138
 $res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
 $W = $outW * $SS; $H = $outH * $SS; $cy = $H / 2.0
 $rand = New-Object System.Random -ArgumentList 2281
@@ -540,7 +540,7 @@ Finish $bmp $g $outW $outH "deck_bench.png"
 #  BELL  -  the way down. It sits in the moon pool; the hole in the
 #  deck is drawn live underneath it, so this is only the bell.
 # =====================================================================
-$outW = 132; $outH = 132
+$outW = 228; $outH = 228
 $res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
 $W = $outW * $SS; $mid = $W / 2.0
 $rand = New-Object System.Random -ArgumentList 5303
@@ -751,3 +751,104 @@ for ($i = 0; $i -lt 20; $i++) {
     foreach ($ox in $xoffsets) { Disc $g $mote ($gx + $ox) $gy $rad }
 }
 Finish $bmp $g $outW $outH "deck_rail.png"
+
+# =====================================================================
+#  SUB  -  the thing the whole rig is for, up in its cradle beside the
+#  moon pool.
+#
+#  It was not on the deck at all. The player walks past a crane, a
+#  chamber, two winch reels and a decompression shack to reach a hole in
+#  the floor, and the machine every one of those exists to service was
+#  nowhere in the picture. Seen from above and slightly astern, the way
+#  everything else on this deck is: nose left, screw right, sat in a
+#  steel cradle with its hatch standing open and a gangway to it.
+# =====================================================================
+$outW = 236; $outH = 132
+$res = NewCanvas ($outW * $SS) ($outH * $SS); $bmp = $res[0]; $g = $res[1]
+$W = $outW * $SS; $H = $outH * $SS; $cy = $H / 2.0
+$rand = New-Object System.Random -ArgumentList 6421
+
+# The cradle first: two steel saddles and the frame between them, so the hull
+# is sitting IN something rather than resting on the deck.
+foreach ($sx in @(0.30, 0.64)) {
+    Panel $g ($W * $sx - 9 * $SS) ($cy - $H * 0.40) (18 * $SS) ($H * 0.80) $steelLo $steelHi $steelDk (2.0 * $SS)
+    Edge  $g $ink ($W * $sx - 9 * $SS) ($cy - $H * 0.40) (18 * $SS) ($H * 0.80) (1.4 * $SS)
+}
+Panel $g ($W * 0.26) ($cy - 5 * $SS) ($W * 0.44) (10 * $SS) $steelLo $steelHi $steelDk (1.6 * $SS)
+
+# The hull. Drawn as one closed shape rather than a stack of boxes: a
+# submarine is a pressure vessel and every line on it is a curve.
+$hull = @( (P ($W * 0.07) $cy),
+           (P ($W * 0.20) ($cy - $H * 0.26)),
+           (P ($W * 0.58) ($cy - $H * 0.30)),
+           (P ($W * 0.80) ($cy - $H * 0.20)),
+           (P ($W * 0.86) $cy),
+           (P ($W * 0.80) ($cy + $H * 0.20)),
+           (P ($W * 0.58) ($cy + $H * 0.30)),
+           (P ($W * 0.20) ($cy + $H * 0.26)) )
+Blob $g $hull $steel $ink (2.8 * $SS) 0.32
+
+# Lit along the top of the curve and dark along the bottom, which is the one
+# thing that turns an outline into a cylinder.
+Blob $g @( (P ($W * 0.14) ($cy - $H * 0.16)), (P ($W * 0.40) ($cy - $H * 0.24)),
+           (P ($W * 0.70) ($cy - $H * 0.20)), (P ($W * 0.82) ($cy - $H * 0.10)),
+           (P ($W * 0.66) ($cy - $H * 0.06)), (P ($W * 0.30) ($cy - $H * 0.08)) ) `
+      (Fade $steelTop 150) $null 0 0.4
+Blob $g @( (P ($W * 0.16) ($cy + $H * 0.14)), (P ($W * 0.44) ($cy + $H * 0.24)),
+           (P ($W * 0.72) ($cy + $H * 0.18)), (P ($W * 0.80) ($cy + $H * 0.08)),
+           (P ($W * 0.50) ($cy + $H * 0.12)) ) (Fade $ink 110) $null 0 0.4
+
+# Plate seams across it, and the rivets that hold them, so the hull has a
+# grain and a scale rather than being one smooth blob of colour.
+foreach ($t in @(0.24, 0.36, 0.48, 0.60, 0.72)) {
+    $tall = $H * (0.26 - 0.10 * [math]::Abs($t - 0.46))
+    Stroke $g $steelLo ($W * $t) ($cy - $tall) ($W * $t) ($cy + $tall) (1.8 * $SS)
+    Stroke $g (Fade $steelTop 90) ($W * $t + 1.4 * $SS) ($cy - $tall * 0.94) ($W * $t + 1.4 * $SS) ($cy + $tall * 0.94) (0.8 * $SS)
+}
+Rivets $g ($W * 0.20) ($cy - $H * 0.20) ($W * 0.78) ($cy - $H * 0.15) 16 (1.1 * $SS) $steelDk $steelTop
+
+# The conning hatch, standing open, with the lid swung back and its wheel on
+# top - the one detail that says somebody gets inside this.
+Disc $g $steelLo ($W * 0.44) $cy (17 * $SS)
+Ring $g $steelDk ($W * 0.44) $cy (17 * $SS) (2.4 * $SS)
+Disc $g (C 8 12 16) ($W * 0.44) $cy (12 * $SS)
+Ring $g (Fade $lampWarm 120) ($W * 0.44) $cy (11 * $SS) (1.4 * $SS)
+
+Blob $g @( (P ($W * 0.50) ($cy - 17 * $SS)), (P ($W * 0.60) ($cy - 20 * $SS)),
+           (P ($W * 0.62) ($cy + 2 * $SS)), (P ($W * 0.51) ($cy + 4 * $SS)) ) $steelHi $ink (2.0 * $SS) 0.2
+Ring $g $steelTop ($W * 0.565) ($cy - 8 * $SS) (6 * $SS) (1.8 * $SS)
+
+# The lamp on the nose, off, and the two ports either side of it.
+Disc $g $steelDk ($W * 0.115) $cy (9 * $SS)
+Disc $g (Fade $glass 90) ($W * 0.115) $cy (6 * $SS)
+foreach ($side in @(-1, 1)) {
+    Disc $g $steelDk ($W * 0.19) ($cy + $side * $H * 0.13) (5 * $SS)
+    Disc $g (Fade $glass 70) ($W * 0.19) ($cy + $side * $H * 0.13) (3 * $SS)
+}
+
+# Dive planes and the screw in its shroud.
+foreach ($side in @(-1, 1)) {
+    Blob $g @( (P ($W * 0.62) ($cy + $side * $H * 0.26)),
+               (P ($W * 0.74) ($cy + $side * $H * 0.46)),
+               (P ($W * 0.82) ($cy + $side * $H * 0.44)),
+               (P ($W * 0.74) ($cy + $side * $H * 0.24)) ) $steelLo $ink (2.0 * $SS) 0.2
+}
+Ring $g $steelLo ($W * 0.90) $cy (13 * $SS) (3.4 * $SS)
+foreach ($i in 0..3) {
+    $a = $i * [math]::PI / 2.0 + 0.5
+    Stroke $g $steelHi ($W * 0.90) $cy ($W * 0.90 + [math]::Cos($a) * 11 * $SS) ($cy + [math]::Sin($a) * 11 * $SS) (3.0 * $SS)
+}
+Disc $g $steelDk ($W * 0.90) $cy (3.5 * $SS)
+
+# The gangway up to the hatch, and the rust where the cradle has been wet for
+# eleven days.
+Panel $g ($W * 0.36) ($cy + $H * 0.30) ($W * 0.22) (11 * $SS) $steelHi $steelTop $steelDk (1.6 * $SS)
+foreach ($i in 0..5) {
+    Stroke $g $steelDk ($W * (0.37 + 0.036 * $i)) ($cy + $H * 0.30) ($W * (0.37 + 0.036 * $i)) ($cy + $H * 0.30 + 11 * $SS) (1.2 * $SS)
+}
+foreach ($i in 0..13) {
+    $rx = $W * (0.12 + 0.06 * $rand.NextDouble() * 12)
+    $ry = $cy + ($rand.NextDouble() - 0.5) * $H * 0.46
+    Disc $g (Fade $rust (40 + $rand.Next(0, 60))) $rx $ry ((1.0 + $rand.NextDouble() * 2.6) * $SS)
+}
+Finish $bmp $g $outW $outH "deck_sub.png"

@@ -1181,7 +1181,18 @@ namespace config
         float        solid;  // radius you cannot walk through, 0 to walk over
     };
 
-    inline constexpr std::array<DeckProp, 21> DeckProps{ {
+    inline constexpr std::array<DeckProp, 28> DeckProps{ {
+        // The sub itself, in its cradle between the crane and the moon pool.
+        // It was not on this deck at all: the player walked past a crane, a
+        // chamber, two winch reels and a decompression shack to reach a hole
+        // in the floor, and the machine every one of those exists to service
+        // was nowhere in the picture.
+        //
+        // The solid radius is well under half its length on purpose - a
+        // circle round a thing this long would wall off the middle of the
+        // deck, and walking round the ends of it is the point.
+        { "assets/textures/deck_sub.png",     { 648.0f, 224.0f },  -2.0f, 74.0f },
+
         // The goods end, round the crane.
         { "assets/textures/deck_quad.png",    { 222.0f, 188.0f },   0.0f, 40.0f },
         { "assets/textures/deck_quad.png",    { 222.0f, 272.0f },   3.0f, 40.0f },
@@ -1210,11 +1221,23 @@ namespace config
         // to leave.
         { "assets/textures/deck_raft.png",    { 516.0f, 142.0f },   0.0f, 26.0f },
         { "assets/textures/deck_raft.png",    { 764.0f, 142.0f },   0.0f, 26.0f },
-        { "assets/textures/deck_hose.png",    { 434.0f, 138.0f },   0.0f, 20.0f },
+        { "assets/textures/deck_hose.png",    { 408.0f, 138.0f },   0.0f, 20.0f },
         { "assets/textures/deck_bitts.png",   { 300.0f, 108.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 880.0f, 108.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 300.0f, 634.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 1076.0f, 634.0f },  0.0f,  0.0f },
+
+        // And the gear that was not anywhere. A working deck is not tidy: the
+        // four corners were dressed and the middle of it was bare plate, which
+        // read as a room somebody had swept rather than as somewhere a job
+        // happens. Nothing new is drawn for these - a real deck repeats the
+        // same boxes and the same drums, because that is what it is issued.
+        { "assets/textures/deck_crate.png",   { 418.0f, 300.0f },  -8.0f, 22.0f },
+        { "assets/textures/deck_crate.png",   { 456.0f, 324.0f },  14.0f, 22.0f },
+        { "assets/textures/deck_basket.png",  { 400.0f, 418.0f },  12.0f, 36.0f },
+        { "assets/textures/deck_chain.png",   { 806.0f, 318.0f }, -24.0f,  0.0f },
+        { "assets/textures/deck_drums.png",   { 838.0f, 232.0f },   6.0f, 26.0f },
+        { "assets/textures/deck_weights.png", { 884.0f, 452.0f },   9.0f,  0.0f },
     } };
 
     // --- The deck at night ---

@@ -39,13 +39,17 @@ namespace
     // How much bigger than its sprite each thing is drawn. The man is the only
     // one that matters: at his own size he is a speck on a rig, which is true
     // and useless.
-    constexpr float DiverScale = 1.55f;
-    constexpr float BellScale = 1.72f;
+    // All one. Every one of these used to be drawn bigger than its texture -
+    // the diver at 1.55, the bell at 1.72, the crane at 1.22 - so the three
+    // things a player looks at most on this screen were the three blurriest
+    // objects in the game. The art is drawn at the size it is shown at now.
+    constexpr float DiverScale = 1.0f;
+    constexpr float BellScale = 1.0f;
 
     // A crane is the biggest thing on a deck and it was reading as a box with
     // a stick, because most of its length is lattice and lattice is mostly
     // holes. Drawn a fifth over size it holds its corner.
-    constexpr float CraneScale = 1.22f;
+    constexpr float CraneScale = 1.0f;
 
     constexpr sf::Color Paint{ 176, 148, 52 };
     constexpr sf::Color Hole{ 5, 10, 14 };
