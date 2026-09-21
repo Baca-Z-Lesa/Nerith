@@ -26,9 +26,9 @@ namespace
             2, 40,
             78.0f, 240.0f,
             2.2f, 3, 26.0f,
-            { 0.55f, 1.35f, 3, 1.4f },
+            { 0.68f, 1.25f, 2, 1.3f },
             // core, emitters, lives
-             900,  3, 1,
+              320,  3, 1,
             // parts
              6,
             { {
@@ -58,9 +58,9 @@ namespace
             2, 46,
             34.0f, 0.0f,
             3.0f, 9, 360.0f,
-            { 0.60f, 1.15f, 5, 1.0f },
+            { 0.72f, 1.10f, 4, 1.0f },
             // core, emitters, lives
-             760,  6, 1,
+              610,  6, 1,
             // parts
              7,
             { {
@@ -93,9 +93,9 @@ namespace
             2, 52,
             132.0f, 0.0f,
             1.5f, 5, 54.0f,
-            { 0.58f, 1.30f, 4, 1.5f },
+            { 0.70f, 1.22f, 3, 1.4f },
             // core, emitters, lives
-             880,  4, 1,
+              580,  4, 1,
             // parts
              5,
             { {
@@ -134,9 +134,9 @@ namespace
             3, 96,
             34.0f, 330.0f,
             0.30f, 4, 90.0f,
-            { 0.70f, 1.20f, 2, 1.0f },
+            { 0.78f, 1.14f, 1, 1.0f },
             // core, emitters, lives
-             1020,  4, 1,
+             1700,  4, 1,
             // parts
              10,
             { {
@@ -184,9 +184,9 @@ namespace
             3, 58,
             30.0f, 300.0f,
             0.34f, 5, 90.0f,
-            { 0.62f, 1.10f, 3, 1.0f },
+            { 0.74f, 1.06f, 2, 1.0f },
             // core, emitters, lives
-             1100,  5, 1,
+             2600,  5, 1,
             // parts
              8,
             { {
@@ -229,9 +229,9 @@ namespace
             3, 72,
             104.0f, 330.0f,
             2.0f, 7, 200.0f,
-            { 0.55f, 1.30f, 4, 1.2f },
+            { 0.68f, 1.22f, 3, 1.2f },
             // core, emitters, lives
-             1260,  4, 2,   // the one at the bottom gets up twice
+             1920,  4, 2,   // the one at the bottom gets up twice
             // parts
              7,
             { {

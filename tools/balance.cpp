@@ -19,10 +19,12 @@
 // ===========================================================================
 #include "core/Config.h"
 #include "upgrades/UpgradeTree.h"
+#include "entities/BossDef.h"
 #include "world/LevelDef.h"
 
 #include <algorithm>
 #include <cmath>
+#include <array>
 #include <cstdio>
 
 namespace
@@ -199,6 +201,38 @@ namespace
 
         return ask;
     }
+
+    // --- how long a boss fight actually takes -----------------------------
+    //
+    // The boss table was balanced against an economy where a clean run bought
+    // the tree six times over, so by the first boss a player owned most of the
+    // weapon line. They now own about eight of the cheapest nodes, and nothing
+    // in the boss table moved - which is why the first creature in the game
+    // was a three minute fight at four hull.
+    //
+    // Every hit anywhere on a boss goes straight to one pool (Boss::tryHit),
+    // so the length of a fight is health over damage over the fraction of the
+    // time it can be hit at all.
+
+    // What the sub is putting out by the time it meets each one. Base is one
+    // damage every 0.21s, which is 4.8 a second; the rest is what the running
+    // income up to that level can buy off the weapon line at the prices in
+    // UpgradeTree. Re-derive these if either the income or priceOf moves.
+    constexpr std::array<float, 6> DamagePerSecond{ { 7.0f, 11.0f, 15.0f, 20.0f, 26.0f, 32.0f } };
+
+    // And how much of a fight the creature can be shot during. A burrower is
+    // under the floor for a good part of its own fight, and health it cannot
+    // lose is health that only shows up as length.
+    float exposureOf(BossMind mind)
+    {
+        return mind == BossMind::Burrower ? 0.55f : 1.0f;
+    }
+
+    // What each fight should take. Rising, because the first boss is teaching
+    // and the last one is the end of the game.
+    constexpr std::array<float, 6> WantedSeconds{
+        { 45.0f, 55.0f, 70.0f, 85.0f, 100.0f, 120.0f }
+    };
 }
 
 int main()
@@ -278,6 +312,36 @@ int main()
     }
 
     const float all = static_cast<float>(std::max(1, clear + kills + floorPay));
+    std::printf("\nTHE SIX\n");
+    std::printf("%-20s %5s %5s %5s %7s %8s %8s\n", "", "DEPTH", "CORE", "LIVES", "SHOWN",
+                "SECONDS", "WANTED");
+
+    for (int i = 0; i < static_cast<int>(BossId::Count); ++i)
+    {
+        const BossDef& def = bossDefFor(static_cast<BossId>(i));
+        const std::size_t depth = static_cast<std::size_t>(i);
+
+        const float shown = exposureOf(def.mind);
+        const float pool = static_cast<float>(def.coreHealth * std::max(1, def.lives));
+        const float seconds = pool / (DamagePerSecond[depth] * shown);
+
+        std::printf("%-20s %5zu %5d %5d %6.0f%% %8.0f %8.0f\n", def.name, depth + 1,
+                    def.coreHealth, def.lives, shown * 100.0f, seconds, WantedSeconds[depth]);
+    }
+
+    std::printf("\n  core health that would hit those:  ");
+    for (int i = 0; i < static_cast<int>(BossId::Count); ++i)
+    {
+        const BossDef& def = bossDefFor(static_cast<BossId>(i));
+        const std::size_t depth = static_cast<std::size_t>(i);
+
+        const float want = WantedSeconds[depth] * DamagePerSecond[depth] * exposureOf(def.mind)
+                           / static_cast<float>(std::max(1, def.lives));
+
+        std::printf("%d ", static_cast<int>(std::lround(want / 10.0f) * 10));
+    }
+    std::printf("\n");
+
     std::printf("WHERE IT COMES FROM\n");
     std::printf("  opening water  %6d  %4.0f%%\n", clear, 100.0f * clear / all);
     std::printf("  killing things %6d  %4.0f%%\n", kills, 100.0f * kills / all);

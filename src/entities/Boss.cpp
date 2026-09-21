@@ -100,7 +100,7 @@ Boss::Boss(const Assets& assets, BossId id, sf::Vector2f position, const EnemySc
     for (std::size_t i = 0; i < m_def->partCount; ++i)
     {
         const BossPartDef& def = m_def->parts[i];
-        const int health = scaled(def.health, scaling.health);
+        const int health = static_cast<int>(scaled(def.health, scaling.health) * 0.6f);
 
         Part part{ def, health, health, 0.0f, true, position, position,
                    sf::degrees(0.0f), std::nullopt };

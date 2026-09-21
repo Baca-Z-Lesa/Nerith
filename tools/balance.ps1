@@ -12,6 +12,7 @@ $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
 $sources = @("$PSScriptRoot\balance.cpp",
              "$root\src\world\LevelDef.cpp",
              "$root\src\upgrades\UpgradeTree.cpp",
+             "$root\src\entities\BossDef.cpp",
              "$root\src\upgrades\Stats.cpp") | ForEach-Object { "`"$_`"" }
 
 $compile = "cl /nologo /std:c++20 /EHsc /permissive- /O2 /MD " +
