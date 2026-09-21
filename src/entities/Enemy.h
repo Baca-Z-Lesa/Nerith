@@ -116,6 +116,17 @@ public:
     // Whether it currently knows where the sub is. Unaware, it wanders and
     // holds its fire, which is what running dark buys the player.
     void setAware(bool aware) { m_aware = aware; }
+
+    // The one creature a hunt is about. It changes nothing in here: the caller
+    // hands a fleeing creature a destination behind itself instead of the sub,
+    // and everything else - the routing, the wandering, the chill - carries on
+    // exactly as it does for the rest of the water.
+    void setQuarry(bool quarry) { m_quarry = quarry; }
+
+    // A hunt's quarry has to last long enough to be cornered rather than shot
+    // the first time it crosses the beam, so the level hands it more to lose.
+    void toughen(float factor) { m_health = std::max(1, static_cast<int>(m_health * factor)); }
+    bool isQuarry() const { return m_quarry; }
     bool isAware() const { return m_aware; }
     bool isScripted() const { return m_scripted; }
 
@@ -185,6 +196,7 @@ private:
     bool         m_inFiringRange;
     bool         m_hasEntered;       // has it crossed into the lit basin yet
     bool         m_aware;            // does it currently know where the sub is
+    bool         m_quarry = false;   // the one creature a hunt is about
     float        m_wanderAngle;      // the heading it drifts along when it does not
     bool         m_scripted;        // false once it was hatched rather than sent
 

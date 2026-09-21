@@ -111,6 +111,23 @@ void LevelManager::start(int number)
             m_objective = std::make_unique<HaulCargoObjective>(m_def.objectiveAmount);
             break;
 
+        case ObjectiveKind::Hunt:
+            m_objective = std::make_unique<HuntObjective>();
+            break;
+
+        case ObjectiveKind::Restore:
+            m_objective = std::make_unique<RestoreObjective>(m_def.objectiveAmount);
+            break;
+
+        case ObjectiveKind::Defend:
+            m_objective = std::make_unique<DefendObjective>(
+                static_cast<float>(m_def.objectiveAmount), config::WardSetback);
+            break;
+
+        case ObjectiveKind::Escape:
+            m_objective = std::make_unique<EscapeObjective>();
+            break;
+
         case ObjectiveKind::DefeatBoss:
         {
             auto boss = std::make_unique<DefeatBossObjective>();
@@ -198,6 +215,39 @@ void LevelManager::notifyRigFound()
 {
     if (m_objective)
         m_objective->onRigFound();
+}
+
+void LevelManager::notifyQuarryKilled()
+{
+    if (m_objective)
+        m_objective->onQuarryKilled();
+}
+
+void LevelManager::notifyMarkLit()
+{
+    if (m_objective)
+        m_objective->onMarkLit();
+}
+
+void LevelManager::notifyWardBitten()
+{
+    if (m_objective)
+        m_objective->onWardBitten();
+}
+
+void LevelManager::notifyReachedMouth()
+{
+    if (m_objective)
+        m_objective->onReachedMouth();
+}
+
+void LevelManager::setEscapeDistance(float fraction)
+{
+    // Only one kind of objective has anything to do with this, and it owns
+    // the cast rather than the caller: nothing outside here should have to
+    // know which class is behind the pointer.
+    if (auto* escape = dynamic_cast<EscapeObjective*>(m_objective.get()))
+        escape->setDistance(fraction);
 }
 
 int LevelManager::getCargoCount() const

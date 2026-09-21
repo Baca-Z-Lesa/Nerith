@@ -1,4 +1,4 @@
-﻿#include "core/Game.h"
+#include "core/Game.h"
 
 #include "core/Config.h"
 #include "core/Mesh.h"
@@ -1082,8 +1082,11 @@ void Game::beginLevel(int number, bool fresh)
     m_enemies.clear();
     m_mines.clear();
     m_hitRings.clear();
+    m_markedQuarry = false;
+
     placeVents();
     placeNests();
+    placeMarks();
     placeFinds();
     placeOffers();
     placeLifts();
@@ -1116,9 +1119,30 @@ void Game::beginLevel(int number, bool fresh)
     m_sonarTimer = 0.5f;
     m_sonarSweep = 0.0f;
 
-    // A dive starts in the first chamber, wherever the walk put it.
-    m_player.setPosition(m_arena.getStart());
-    m_cameraCentre = m_arena.getStart();
+    // A dive starts in the first chamber, wherever the walk put it - except an
+    // escape, which starts as far from it as the basin goes. That one change
+    // is the whole level type: nothing has to be killed and nothing has to be
+    // carried, and the only thing between the sub and the lift is the swim.
+    sf::Vector2f dropped = m_arena.getStart();
+
+    if (m_level.getDef().objective == ObjectiveKind::Escape)
+    {
+        for (const Arena::Chamber& chamber : m_arena.getChambers())
+        {
+            if ((chamber.centre - m_arena.getStart()).lengthSquared()
+                > (dropped - m_arena.getStart()).lengthSquared())
+            {
+                dropped = chamber.centre;
+            }
+        }
+
+        dropped = m_arena.clampInside(dropped, config::PlayerRadius);
+    }
+
+    m_escapeFrom = (dropped - m_arena.getStart()).length();
+
+    m_player.setPosition(dropped);
+    m_cameraCentre = dropped;
 
     m_player.onLevelStart();
 
@@ -3550,6 +3574,231 @@ void Game::drawLifts()
     m_window.draw(mesh);
 }
 
+sf::Vector2f Game::preyFor(const Enemy& enemy) const
+{
+    const sf::Vector2f me = m_player.getPosition();
+
+    // The quarry is handed a point on the far side of itself from the sub, so
+    // "swim at your prey" comes out as "run". Everything else about it is
+    // untouched: it still routes round corners rather than into them, still
+    // loses the sub in the dark, still wanders when it has.
+    if (enemy.isQuarry())
+    {
+        const sf::Vector2f away = enemy.getPosition() - me;
+
+        if (away.lengthSquared() > 1.0f)
+            return enemy.getPosition() + away.normalized() * config::QuarryFlee;
+
+        return enemy.getPosition() + sf::Vector2f{ config::QuarryFlee, 0.0f };
+    }
+
+    // On a defend, anything that is both near the winch and further from the
+    // sub than the winch is goes for the winch. Written as a comparison rather
+    // than a radius so that standing on the thing you are defending actually
+    // pulls them off it, which is the whole of how that level is played.
+    if (m_level.getDef().objective == ObjectiveKind::Defend && !m_marks.empty())
+    {
+        const sf::Vector2f ward = m_marks.front().position;
+        const float toWard = (ward - enemy.getPosition()).length();
+
+        if (toWard < config::WardPull && toWard < (me - enemy.getPosition()).length())
+            return ward;
+    }
+
+    return me;
+}
+
+void Game::updateEscape()
+{
+    if (m_level.getDef().objective != ObjectiveKind::Escape || !m_player.isAlive())
+        return;
+
+    const sf::Vector2f mouth = m_arena.getStart();
+    const float away = (m_player.getPosition() - mouth).length();
+
+    // How far there is left to go, against how far there was at the start.
+    // Kept as a fraction so the bar reads the same whatever size the basin
+    // turned out to be.
+    m_level.setEscapeDistance(m_escapeFrom > 1.0f ? away / m_escapeFrom : 0.0f);
+
+    if (away <= config::MouthReach)
+        m_level.notifyReachedMouth();
+}
+
+void Game::placeMarks()
+{
+    m_marks.clear();
+
+    const ObjectiveKind goal = m_level.getDef().objective;
+
+    if (goal == ObjectiveKind::Defend)
+    {
+        // The winch sits at the mouth, because the whole point of it is that
+        // the sub cannot take the thing it is defending with it: leaving is
+        // the one move that is off the table.
+        m_marks.push_back({ m_arena.getStart(), 0.0f, 0.0f, 0.0f, false });
+        return;
+    }
+
+    if (goal != ObjectiveKind::Restore)
+        return;
+
+    // Furthest rooms first: a job should begin by leaving rather than by
+    // turning round, and lighting all of them should be a circuit of the
+    // basin.
+    //
+    // ROOMS, not chambers. A chamber is one of the hundreds of small
+    // mouthfuls the basin is cut from, and the furthest few are all bites out
+    // of the same far wall - two beacons came out nought pixels apart, which
+    // is one beacon that lights twice.
+    std::vector<sf::Vector2f> spots;
+    for (const Arena::Room& room : m_arena.getRooms())
+        spots.push_back(room.centre);
+
+    const sf::Vector2f start = m_arena.getStart();
+    std::sort(spots.begin(), spots.end(), [start](sf::Vector2f a, sf::Vector2f b) {
+        return (a - start).lengthSquared() > (b - start).lengthSquared();
+    });
+
+    const int wanted = std::max(1, m_level.getDef().objectiveAmount);
+
+    for (int i = 0; i < wanted; ++i)
+    {
+        const sf::Vector2f room =
+            spots.empty() ? WorldCentre : spots[static_cast<std::size_t>(i) % spots.size()];
+
+
+        // Offset per beacon, so a basin with fewer chambers than the level
+        // asks for puts two near each other rather than exactly on top of
+        // each other - which would read as one beacon that lights twice.
+        const sf::Vector2f nudge(static_cast<float>(i % 2) * 70.0f,
+                                 sf::degrees(static_cast<float>(i) * 97.0f));
+
+        m_marks.push_back({ m_arena.clampInside(room + nudge, config::MarkRadius),
+                            0.0f, 0.0f, 0.0f, false });
+    }
+}
+
+void Game::updateMarks(float deltaTime)
+{
+    if (m_marks.empty() || !m_player.isAlive())
+        return;
+
+    const ObjectiveKind goal = m_level.getDef().objective;
+    const sf::Vector2f me = m_player.getPosition();
+
+    for (Mark& mark : m_marks)
+    {
+        if (mark.flash > 0.0f)
+            mark.flash = std::max(0.0f, mark.flash - deltaTime * 3.0f);
+
+        if (mark.bite > 0.0f)
+            mark.bite = std::max(0.0f, mark.bite - deltaTime);
+
+        if (goal == ObjectiveKind::Defend)
+        {
+            // Anything with its teeth in the winch, on its own clock so a
+            // crowd standing on it does not empty the lift in one frame.
+            for (const Enemy& enemy : m_enemies)
+            {
+                if (!enemy.isAlive() || mark.bite > 0.0f)
+                    continue;
+
+                if ((enemy.getPosition() - mark.position).length() > config::WardBiteRange)
+                    continue;
+
+                mark.bite = config::WardBiteInterval;
+                mark.flash = 1.0f;
+                m_level.notifyWardBitten();
+                m_audio.playAt(Sfx::HullGive, mark.position, 0.8f, occlusionAt(mark.position));
+                addHitRing(mark.position, config::MarkRadius * 2.2f, config::WardColor);
+            }
+
+            continue;
+        }
+
+        if (mark.lit)
+            continue;
+
+        // Held, not touched. Letting go loses it slowly rather than at once,
+        // so being driven off for a second is a setback and not a reset.
+        if ((me - mark.position).length() <= config::MarkReach)
+            mark.held += deltaTime;
+        else
+            mark.held = std::max(0.0f, mark.held - deltaTime * 0.6f);
+
+        if (mark.held < config::MarkHold)
+            continue;
+
+        mark.lit = true;
+        mark.flash = 1.0f;
+        m_level.notifyMarkLit();
+        m_audio.playAt(Sfx::ShaftOpen, mark.position, 1.2f, occlusionAt(mark.position));
+        addHitRing(mark.position, config::MarkRadius * 3.0f, config::MarkLitColor);
+        addFlash(config::MarkLitColor, 0.25f);
+    }
+}
+
+void Game::drawMarks()
+{
+    if (m_marks.empty())
+        return;
+
+    const bool ward = m_level.getDef().objective == ObjectiveKind::Defend;
+
+    for (const Mark& mark : m_marks)
+    {
+        const sf::Color base = ward ? config::WardColor
+                                    : (mark.lit ? config::MarkLitColor : config::MarkColdColor);
+
+        // A ring that fills as it is held, so the thing the player is standing
+        // still for is visibly going somewhere. On the winch the ring is full
+        // and the flash is what a bite looks like.
+        const float filled = ward ? 1.0f
+                                  : (mark.lit ? 1.0f : mark.held / config::MarkHold);
+
+        sf::Color rim = base;
+        rim.a = static_cast<std::uint8_t>(
+            std::clamp(0.28f + 0.5f * mark.flash, 0.0f, 1.0f) * 255.0f);
+
+        m_sonarRing.setRadius(config::MarkRadius);
+        m_sonarRing.setOrigin({ config::MarkRadius, config::MarkRadius });
+        m_sonarRing.setPosition(mark.position);
+        m_sonarRing.setOutlineThickness(3.0f);
+        m_sonarRing.setOutlineColor(rim);
+        m_window.draw(m_sonarRing);
+
+        if (filled <= 0.001f)
+            continue;
+
+        // The fill, as a fan rather than a second circle: a ring that is only
+        // part way round says how far along it is, and a brighter ring does
+        // not.
+        sf::VertexArray fan(sf::PrimitiveType::Triangles);
+        constexpr int Steps = 30;
+        const int upto = std::max(1, static_cast<int>(filled * Steps));
+
+        for (int i = 0; i < upto; ++i)
+        {
+            const sf::Angle a0 = sf::degrees(-90.0f + 360.0f * static_cast<float>(i) / Steps);
+            const sf::Angle a1 = sf::degrees(-90.0f + 360.0f * static_cast<float>(i + 1) / Steps);
+
+            const float inner = config::MarkRadius - 7.0f;
+            const float outer = config::MarkRadius;
+
+            fan.append(sf::Vertex{ mark.position + sf::Vector2f(inner, a0), base });
+            fan.append(sf::Vertex{ mark.position + sf::Vector2f(outer, a0), base });
+            fan.append(sf::Vertex{ mark.position + sf::Vector2f(outer, a1), base });
+
+            fan.append(sf::Vertex{ mark.position + sf::Vector2f(inner, a0), base });
+            fan.append(sf::Vertex{ mark.position + sf::Vector2f(outer, a1), base });
+            fan.append(sf::Vertex{ mark.position + sf::Vector2f(inner, a1), base });
+        }
+
+        m_window.draw(fan);
+    }
+}
+
 void Game::placeNests()
 {
     m_nests.clear();
@@ -3558,12 +3807,18 @@ void Game::placeNests()
     if (wanted <= 0)
         return;
 
-    // Ordered by how far each chamber is from where the dive starts, so the
+    // Ordered by how far each room is from where the dive starts, so the
     // nests go in the far rooms rather than the first one. A hunt should begin
     // by leaving, not by turning round.
+    //
+    // Rooms rather than chambers. A chamber is one of the hundreds of small
+    // mouthfuls the basin is cut from, so the furthest few are all bites out
+    // of the same far wall - which put every nest of a seven nest level within
+    // a couple of hundred pixels of the others. It was hidden by the random
+    // offset below and by nobody counting.
     std::vector<sf::Vector2f> spots;
-    for (const Arena::Chamber& chamber : m_arena.getChambers())
-        spots.push_back(chamber.centre);
+    for (const Arena::Room& room : m_arena.getRooms())
+        spots.push_back(room.centre);
 
     const sf::Vector2f start = m_arena.getStart();
     std::sort(spots.begin(), spots.end(), [start](sf::Vector2f a, sf::Vector2f b) {
@@ -4223,6 +4478,20 @@ void Game::spawnEnemy(EnemyType type)
     m_enemies.emplace_back(type, m_assets.forEnemy(type), pickSpawnPosition(),
                            m_level.getScaling());
 
+    // On a hunt the first thing the level puts in the water is the thing the
+    // level is about, and there is only ever one. Marked here rather than
+    // picked later, because "whichever one happens to be nearest" would move
+    // the quarry every time something else died.
+    if (m_level.getDef().objective == ObjectiveKind::Hunt && !m_markedQuarry)
+    {
+        m_markedQuarry = true;
+        m_enemies.back().setQuarry(true);
+
+        // It has to last long enough to be cornered rather than shot on sight.
+        m_enemies.back().toughen(config::QuarryHealth);
+        say("SOMETHING DOWN HERE IS AVOIDING YOU");
+    }
+
     // The worm tows a body, and the body is a different sprite. Handed over
     // here rather than looked up inside Enemy, so the creature never has to
     // know where the assets live.
@@ -4436,7 +4705,7 @@ void Game::updateEnemies(float deltaTime)
     {
         const bool wasAlive = enemy.isAlive();
 
-        enemy.update(deltaTime, m_player.getPosition(), m_player.getVelocity(), m_arena);
+        enemy.update(deltaTime, preyFor(enemy), m_player.getVelocity(), m_arena);
         enemy.confine(m_arena, deltaTime);
 
         // Bleeding can finish something between shots, and that still counts.
@@ -4558,6 +4827,15 @@ void Game::updateBoss(float deltaTime)
 void Game::killEnemy(Enemy& enemy)
 {
     effects::enemyDeath(m_effects, enemy.getPosition());
+
+    // The one the level was about. Loud on purpose: the whole of a hunt is
+    // waiting for this and there is nothing else in the basin that counts.
+    if (enemy.isQuarry())
+    {
+        m_level.notifyQuarryKilled();
+        bigMoment(enemy.getPosition(), config::HudSalvageColor, config::ShakeBossPart,
+                  config::SlowMotionBossAct);
+    }
 
     // The logbook. Counted here rather than in the tally, because it outlives
     // the run: it is a record of what has been met, not of what this dive did.
@@ -5669,6 +5947,21 @@ void Game::drawMinimap()
 
     if (m_boss && m_boss->isAlive())
         pip(m_boss->getPosition(), 5.0f, config::HudBossColor);
+
+    // The beacons of a restore and the winch of a defend, lit or not: both are
+    // the level itself and neither is something the player should have to
+    // stumble over twice.
+    for (const Mark& mark : m_marks)
+        pip(mark.position, 4.5f, mark.lit ? config::MarkLitColor : config::MarkColdColor);
+
+    // And the one that runs. A hunt without this is a search of a basin the
+    // size of a town for something whose whole behaviour is not being there:
+    // the mark says roughly where, and cornering it is still the work.
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (enemy.isAlive() && enemy.isQuarry())
+            pip(enemy.getPosition(), 5.0f, config::HudSalvageColor);
+    }
 
     // The sub itself always, whether the cell under it has registered yet or
     // not: a map that cannot say where you are standing is not a map.
@@ -6826,6 +7119,8 @@ void Game::step(float deltaTime)
                 updateNests(deltaTime);
                 updateCargo(deltaTime);
                 updateFinds();
+                updateMarks(deltaTime);
+                updateEscape();
                 updateOffers(deltaTime);
                 updateLifts(deltaTime);
 
@@ -6992,6 +7287,7 @@ void Game::render(float alpha)
     // Under everything alive: a vent is a hole in the floor, not an object.
     drawVents();
     drawNests();
+    drawMarks();
     drawOffers();
     drawCargo();
 

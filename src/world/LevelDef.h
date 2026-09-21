@@ -20,6 +20,16 @@ enum class ObjectiveKind
     SurviveTime, // last out a clock
     DestroyNests, // find every nest in the basin and burn it out
     HaulCargo,    // drag salvage pods back to the mouth while it hunts you
+
+    // Four that are answered by something other than fighting well, because
+    // by the twentieth level the difference between the goals had stopped
+    // being a difference: corner one creature, stand still under fire, keep
+    // them off something that cannot move, and refuse the fight entirely.
+    Hunt,    // one marked creature, and it runs
+    Restore, // hold station at each beacon until it catches
+    Defend,  // keep them off the winch while it lifts
+    Escape,  // dropped at the far end; the level is the swim back
+
     DefeatBoss,  // one encounter, nothing else spawns
 };
 
@@ -104,8 +114,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { { { EnemyType::Lurker, 6 }, { EnemyType::Warden, 2 },
           { EnemyType::Lancer, 4 }, { EnemyType::Warden, 1 } } }, false },
 
-    { "THE REEF", "WHATEVER SANK HERE, IT SANK LOADED.",
-      ObjectiveKind::LiftQuota, 7, 1.30f, 6, { 1.02f, 1.03f, 0 },
+    { "LONG DROP", "THE BELL PUT YOU DOWN A MILE OUT. SWIM BACK TO IT.",
+      ObjectiveKind::Escape, 0, 1.30f, 6, { 1.02f, 1.03f, 0 },
       { { { EnemyType::Warden, 2 }, { EnemyType::Weaver, 5 },
           { EnemyType::Lancer, 5 }, { EnemyType::Weaver, 3 } } }, false },
 
@@ -125,8 +135,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { {} }, true },
 
     // ---------------- DEPTH 3: THE TRENCH ----------------
-    { "LIGHTS OUT", "THE LAMP IS WHAT THEY FOLLOW. SO DO NOT USE IT.",
-      ObjectiveKind::RunDark, 55, 1.05f, 7, { 1.30f, 1.12f, 0 },
+    { "THE LINE LIGHTS", "THE SECOND CREW WIRED THREE LAMPS. FINISH IT.",
+      ObjectiveKind::Restore, 3, 1.05f, 7, { 1.30f, 1.12f, 0 },
       { { { EnemyType::Weaver, 5 }, { EnemyType::Lancer, 5 },
           { EnemyType::Weaver, 4 }, { EnemyType::Lurker, 6 } } }, false },
 
@@ -135,8 +145,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { { { EnemyType::Bloom, 4 }, { EnemyType::Warden, 2 },
           { EnemyType::Bloom, 3 }, { EnemyType::Weaver, 3 } } }, false },
 
-    { "GARDEN", "FIVE OF THEM. THE FLOOR IS THEIRS NOW.",
-      ObjectiveKind::DestroyNests, 5, 1.10f, 8, { 1.40f, 1.15f, 1 },
+    { "TAG", "ONE OF THEM KEEPS ITS DISTANCE. THAT IS THE ONE.",
+      ObjectiveKind::Hunt, 0, 1.10f, 8, { 1.40f, 1.15f, 1 },
       { { { EnemyType::Bloom, 4 }, { EnemyType::Weaver, 4 },
           { EnemyType::Bloom, 3 } } }, false },
 
@@ -152,13 +162,13 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
       { {} }, true },
 
     // ---------------- DEPTH 4: THE ABYSS ----------------
-    { "THE CONVOY", "THREE OF THEM WENT DOWN TOGETHER.",
-      ObjectiveKind::OpenWrecks, 3, 0.90f, 9, { 1.55f, 1.20f, 1 },
+    { "THE WINCH", "IT IS BRINGING THE THIRD SUB UP. KEEP THEM OFF IT.",
+      ObjectiveKind::Defend, 45, 0.90f, 9, { 1.55f, 1.20f, 1 },
       { { { EnemyType::Revenant, 3 }, { EnemyType::Lurker, 7 },
           { EnemyType::Warden, 3 }, { EnemyType::Lancer, 5 } } }, false },
 
-    { "PRESSURE", "THE FLOOR IS NOT THE FLOOR. HOLD OUT ANYWAY.",
-      ObjectiveKind::SurviveTime, 80, 0.80f, 9, { 1.60f, 1.22f, 1 },
+    { "THE CONVOY", "THREE OF THEM WENT DOWN TOGETHER. CUT THEM OPEN.",
+      ObjectiveKind::OpenWrecks, 3, 0.80f, 9, { 1.60f, 1.22f, 1 },
       { { { EnemyType::Revenant, 4 }, { EnemyType::Weaver, 3 },
           { EnemyType::Lurker, 6 }, { EnemyType::Warden, 2 },
           { EnemyType::Brooder, 1 } } }, false },
@@ -186,8 +196,8 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // dark costs you and the light is worth what it costs. The moth is the
     // first thing down here that is drawn to the beam, and the whole depth is
     // built on taking the lamp away from a player who has learned to need it.
-    { "THE SEAM", "THE ORE IS WARM. NOTHING AT THIS DEPTH IS WARM.",
-      ObjectiveKind::LiftQuota, 11, 0.85f, 11, { 1.85f, 1.26f, 1 },
+    { "THE SEAM", "THEY LIT THIS PLACE ONCE. THREE LAMPS ARE STILL HERE.",
+      ObjectiveKind::Restore, 3, 0.85f, 11, { 1.85f, 1.26f, 1 },
       { { { EnemyType::Moth, 3 }, { EnemyType::Lurker, 6 },
           { EnemyType::Moth, 4 }, { EnemyType::Lancer, 4 } } }, false },
 
@@ -201,14 +211,14 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // it or not, so the moths are awake until the herald is dead - which puts
     // the one thing that never attacks at the top of the target list.
     { "THE YARD", "SOMEBODY WAS STACKING THEM.",
-      ObjectiveKind::OpenWrecks, 3, 0.70f, 12, { 2.05f, 1.30f, 2 },
+      ObjectiveKind::Escape, 0, 0.70f, 12, { 2.05f, 1.30f, 2 },
       { { { EnemyType::Herald, 2 }, { EnemyType::Moth, 6 },
           { EnemyType::Warden, 2 }, { EnemyType::Herald, 2 },
           { EnemyType::Moth, 5 } } }, false },
 
     // Hauling in the dark, with the pod itself giving you away.
     { "THE LAST HAUL", "FOUR PODS. NO LIGHT. GOOD LUCK.",
-      ObjectiveKind::HaulCargo, 4, 0.70f, 12, { 2.15f, 1.32f, 2 },
+      ObjectiveKind::Defend, 60, 0.70f, 12, { 2.15f, 1.32f, 2 },
       { { { EnemyType::Moth, 5 }, { EnemyType::Revenant, 3 },
           { EnemyType::Lurker, 7 }, { EnemyType::Moth, 5 },
           { EnemyType::Weaver, 3 } } }, false },
@@ -222,15 +232,15 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
     // effigy only closes while the sub is under way, so a room of them is
     // crossed in bursts - and everything else in the water is still built to
     // punish exactly that.
-    { "THE VEIN", "IT RUNS ALL THE WAY DOWN.",
-      ObjectiveKind::LiftQuota, 13, 0.65f, 13, { 2.30f, 1.34f, 2 },
+    { "THE WATCHER", "IT HAS BEEN IN EVERY BASIN SO FAR. TODAY IT STAYS.",
+      ObjectiveKind::Hunt, 0, 0.65f, 13, { 2.30f, 1.34f, 2 },
       { { { EnemyType::Effigy, 4 }, { EnemyType::Lurker, 6 },
           { EnemyType::Effigy, 4 }, { EnemyType::Lancer, 4 } } }, false },
 
     // The drill and the contradiction in one level: the effigies want you
     // still and the weavers kill you for it.
     { "HOLD STILL", "ONE OF THEM WANTS YOU TO STOP. THE OTHERS DO NOT.",
-      ObjectiveKind::SurviveTime, 90, 0.60f, 14, { 2.45f, 1.36f, 2 },
+      ObjectiveKind::Escape, 0, 0.60f, 14, { 2.45f, 1.36f, 2 },
       { { { EnemyType::Effigy, 5 }, { EnemyType::Weaver, 5 },
           { EnemyType::Effigy, 4 }, { EnemyType::Lancer, 5 },
           { EnemyType::Bloom, 3 } } }, false },
@@ -243,7 +253,7 @@ inline constexpr std::array<LevelDef, 30> AuthoredLevels{ {
           { EnemyType::Warden, 3 } } }, false },
 
     { "NOTHING TO SEE", "THE LAMP DOES NOT HELP YOU HERE.",
-      ObjectiveKind::RunDark, 85, 0.55f, 16, { 2.75f, 1.40f, 3 },
+      ObjectiveKind::Restore, 4, 0.55f, 16, { 2.75f, 1.40f, 3 },
       { { { EnemyType::Effigy, 5 }, { EnemyType::Moth, 6 },
           { EnemyType::Revenant, 4 }, { EnemyType::Warden, 4 },
           { EnemyType::Herald, 3 }, { EnemyType::Weaver, 5 } } }, false },

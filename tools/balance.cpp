@@ -213,8 +213,11 @@ int main()
                 "LVL", "TITLE", "GOAL", "ALIVE", "BITE", "GRIND", "CLEAR", "KILLS", "FLOOR",
                 "LEVEL", "RUNNING");
 
-    const char* goalName[]{ "lift",  "dark",  "wrecks", "rig",
-                            "last",  "nests", "haul",   "boss" };
+    // Indexed by ObjectiveKind, so the order has to match it.
+    const char* goalName[]{ "lift",  "dark",    "wrecks", "rig",
+                            "last",  "nests",   "haul",
+                            "hunt",  "restore", "defend", "escape",
+                            "boss" };
 
     int running = 0;
 

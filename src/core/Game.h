@@ -142,6 +142,17 @@ private:
         bool         taken = false;
     };
 
+    // One thing standing in the water that a goal is about: a beacon waiting
+    // to be lit, or the winch that has to be kept clear. See config::MarkRadius.
+    struct Mark
+    {
+        sf::Vector2f position;
+        float        held = 0.0f;  // seconds the sub has stood beside it
+        float        flash = 0.0f;
+        float        bite = 0.0f;  // the winch: seconds until it can be bitten again
+        bool         lit = false;
+    };
+
     struct Nest
     {
         sf::Sprite   sprite;
@@ -343,6 +354,20 @@ private:
     // The hold survived: move it up the shaft and onto the deck.
     void landHold();
 
+
+    // The beacons of a restore and the winch of a defend. One set of three
+    // methods for both, because they are the same object with a different job.
+    // What a creature is swimming at. The sub, nearly always - but a hunt's
+    // quarry is given a point directly behind itself so that chasing it is
+    // running away, and anything nearer the winch than the sub is given the
+    // winch. Both are answered here rather than inside Enemy, which does not
+    // have to learn a second kind of prey to do either.
+    sf::Vector2f preyFor(const Enemy& enemy) const;
+
+    void placeMarks();
+    void updateEscape();
+    void updateMarks(float deltaTime);
+    void drawMarks();
 
     void placeNests();
     void updateNests(float deltaTime);
@@ -645,6 +670,18 @@ private:
     std::vector<Mine>       m_mines;
     std::vector<Vent>       m_vents;
     std::vector<Nest>       m_nests;
+    std::vector<Mark>       m_marks;
+
+    // Which creature the level wants dead, on a hunt. An index would go stale
+    // the moment anything else in the water died, so it is the creature's own
+    // serial number and the list is searched for it.
+    // How far the sub was dropped from the mouth, so an escape can say how
+    // much of the swim is left as a fraction rather than in pixels.
+    float                   m_escapeFrom = 1.0f;
+
+    // Whether this level has already put its quarry in the water. One hunt is
+    // one creature; without this every spawn after the first would be one too.
+    bool                    m_markedQuarry = false;
     std::vector<Cargo>      m_cargo;
     std::vector<Find>       m_finds;
     std::vector<Offer>      m_offers;

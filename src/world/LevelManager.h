@@ -41,6 +41,14 @@ public:
     void notifySalvageLifted();
     void notifyWreckOpened();
     void notifyRigFound();
+    void notifyQuarryKilled();
+    void notifyMarkLit();
+    void notifyWardBitten();
+    void notifyReachedMouth();
+
+    // Escape levels want to show how far there is left to go, and only the
+    // caller knows where the sub and the mouth are.
+    void setEscapeDistance(float fraction);
 
     // Whether the lamp is off this instant. Pushed rather than pulled: the
     // level owns no pointer to the sub and is not about to grow one.

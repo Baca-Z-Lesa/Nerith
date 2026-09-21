@@ -1412,6 +1412,45 @@ namespace config
     inline constexpr float CargoDropRange = 130.0f;  // how near the mouth counts as home
     inline constexpr sf::Color CargoMarkColor{ 255, 196, 96 };
     inline constexpr sf::Color CargoHomeColor{ 132, 240, 190 };
+    // =====================================================================
+    //  MARKS
+    //  One thing standing in the water, used by two of the goals. A beacon is
+    //  lit by holding station beside it; a winch is a thing creatures go for
+    //  when the sub is not nearer. They are one struct because they are one
+    //  shape - a position, a radius, a number filling up - and two structs
+    //  would be the same drawing code twice.
+    // =====================================================================
+    inline constexpr float MarkRadius = 40.0f;
+
+    // How near counts as standing beside it, and how long standing there
+    // takes. Six seconds is long enough that it cannot be done on the way
+    // past and short enough that it is not a chore.
+    inline constexpr float MarkHold = 6.0f;
+    inline constexpr float MarkReach = 96.0f;
+    inline constexpr sf::Color MarkColdColor{ 96, 116, 128 };
+    inline constexpr sf::Color MarkLitColor{ 128, 232, 204 };
+
+    // The winch. A creature within this much of it, and further from the sub
+    // than it is, goes for the winch instead - and every bite knocks this many
+    // seconds off the lift.
+    inline constexpr float WardPull = 620.0f;
+    inline constexpr float WardBiteRange = 62.0f;
+    inline constexpr float WardBiteInterval = 0.9f;
+    inline constexpr float WardSetback = 3.5f;
+    inline constexpr sf::Color WardColor{ 226, 182, 108 };
+
+    // How far in front of itself a fleeing creature is told to go. Far enough
+    // that the route it asks for is a room away rather than a step away, which
+    // is the difference between running and backing off.
+    inline constexpr float QuarryFlee = 900.0f;
+
+    // And how much more of it there is to get through than an ordinary one of
+    // its kind. It has to survive being seen.
+    inline constexpr float QuarryHealth = 4.0f;
+
+    // How near the mouth counts as out, on an escape.
+    inline constexpr float MouthReach = 120.0f;
+
     inline constexpr int   NestHealth = 34;
     inline constexpr float NestRadius = 44.0f;
     inline constexpr float NestHatchInterval = 4.6f;

@@ -1,6 +1,7 @@
 #include "world/Objective.h"
 
 #include <algorithm>
+#include <cmath>
 
 // --- fill the hold ------------------------------------------------------
 
@@ -254,4 +255,129 @@ std::string DefeatBossObjective::getLabel() const
 bool DefeatBossObjective::wantsSpawning() const
 {
     return false;
+}
+
+// --- corner the one that runs -------------------------------------------
+
+HuntObjective::HuntObjective()
+    : m_killed(false)
+{
+}
+
+void HuntObjective::onQuarryKilled()
+{
+    m_killed = true;
+}
+
+bool HuntObjective::isComplete() const
+{
+    return m_killed;
+}
+
+float HuntObjective::getProgress() const
+{
+    return m_killed ? 1.0f : 0.0f;
+}
+
+std::string HuntObjective::getLabel() const
+{
+    return m_killed ? "TAKEN" : "IT IS STILL MOVING";
+}
+
+// --- light what somebody else left --------------------------------------
+
+RestoreObjective::RestoreObjective(int total)
+    : m_total(std::max(1, total))
+    , m_lit(0)
+{
+}
+
+void RestoreObjective::onMarkLit()
+{
+    ++m_lit;
+}
+
+bool RestoreObjective::isComplete() const
+{
+    return m_lit >= m_total;
+}
+
+float RestoreObjective::getProgress() const
+{
+    return std::clamp(static_cast<float>(m_lit) / static_cast<float>(m_total), 0.0f, 1.0f);
+}
+
+std::string RestoreObjective::getLabel() const
+{
+    return "LIT " + std::to_string(m_lit) + "/" + std::to_string(m_total);
+}
+
+// --- keep them off it ----------------------------------------------------
+
+DefendObjective::DefendObjective(float seconds, float setback)
+    : m_target(std::max(1.0f, seconds))
+    , m_setback(std::max(0.0f, setback))
+    , m_lifted(0.0f)
+{
+}
+
+void DefendObjective::update(float deltaTime, bool)
+{
+    m_lifted = std::min(m_target, m_lifted + deltaTime);
+}
+
+void DefendObjective::onWardBitten()
+{
+    // Never below nothing: a run of bad luck early should cost the player the
+    // progress they had, not put them into debt they cannot see the bottom of.
+    m_lifted = std::max(0.0f, m_lifted - m_setback);
+}
+
+bool DefendObjective::isComplete() const
+{
+    return m_lifted >= m_target;
+}
+
+float DefendObjective::getProgress() const
+{
+    return std::clamp(m_lifted / m_target, 0.0f, 1.0f);
+}
+
+std::string DefendObjective::getLabel() const
+{
+    const int left = static_cast<int>(std::ceil(m_target - m_lifted));
+    return "LIFTING - " + std::to_string(std::max(0, left)) + "S";
+}
+
+// --- the swim back -------------------------------------------------------
+
+EscapeObjective::EscapeObjective()
+    : m_out(false)
+    , m_fraction(1.0f)
+{
+}
+
+void EscapeObjective::onReachedMouth()
+{
+    m_out = true;
+}
+
+void EscapeObjective::setDistance(float fraction)
+{
+    m_fraction = std::clamp(fraction, 0.0f, 1.0f);
+}
+
+bool EscapeObjective::isComplete() const
+{
+    return m_out;
+}
+
+float EscapeObjective::getProgress() const
+{
+    return m_out ? 1.0f : 1.0f - m_fraction;
+}
+
+std::string EscapeObjective::getLabel() const
+{
+    return m_out ? "OUT" : "GET BACK TO THE MOUTH";
 }

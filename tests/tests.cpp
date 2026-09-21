@@ -165,6 +165,37 @@ namespace
                     check(scripted > 0,
                           (where + " has something in the water to haul past").c_str());
                     break;
+                case ObjectiveKind::Hunt:
+                    check(def.objectiveAmount == 0,
+                          (where + " needs no number to name one creature").c_str());
+                    check(scripted > 0,
+                          (where + " has a creature in the script to mark").c_str());
+                    break;
+                case ObjectiveKind::Restore:
+                    check(def.objectiveAmount > 0,
+                          (where + " sets out at least one beacon").c_str());
+
+                    // One beacon per chamber, so a level asking for more than
+                    // the basin has rooms would stack two in the same place
+                    // and read as one that cannot be finished.
+                    check(def.objectiveAmount <= config::RoomCount,
+                          (where + " does not set out more beacons than there are rooms")
+                              .c_str());
+                    break;
+                case ObjectiveKind::Defend:
+                    check(def.objectiveAmount > 0, (where + " has a lift to finish").c_str());
+
+                    // Every bite costs WardSetback, so a lift shorter than one
+                    // setback could be finished before anything reached it.
+                    check(static_cast<float>(def.objectiveAmount) > config::WardSetback * 4.0f,
+                          (where + " lifts for long enough to be interrupted").c_str());
+                    check(scripted > 0,
+                          (where + " has something in the water to keep off it").c_str());
+                    break;
+                case ObjectiveKind::Escape:
+                    check(def.objectiveAmount == 0,
+                          (where + " needs no number to reach the mouth").c_str());
+                    break;
                 case ObjectiveKind::DefeatBoss:
                     check(def.isBoss, (where + " is flagged as a boss level").c_str());
                     break;

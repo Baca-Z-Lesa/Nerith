@@ -24,6 +24,15 @@ public:
     virtual void onWreckOpened() {}
     virtual void onRigFound() {}
 
+    // The marked creature is dead, a beacon has been lit, something has taken
+    // a bite out of the winch, and the sub is back at the mouth. Same rule as
+    // the three above: the world already had all of these, so they arrive as
+    // notifications rather than as something an objective reaches out for.
+    virtual void onQuarryKilled() {}
+    virtual void onMarkLit() {}
+    virtual void onWardBitten() {}
+    virtual void onReachedMouth() {}
+
     // deltaTime, and whether the lamp is off this instant. Every objective
     // that cares about the dark needs the second one and none of the others
     // are harmed by being handed it.
@@ -197,4 +206,89 @@ public:
 private:
     bool  m_defeated;
     float m_coreFraction; // 1 at full health, 0 when the core is gone
+};
+
+// Hunt one creature that does not want to be found. Everything else in the
+// basin behaves exactly as it always does; the quarry runs, routes round
+// corners to keep doing it, and is the only thing in the water that counts.
+// It is the one level type where the answer is to corner something rather
+// than to survive it, so the arena reads as a place with somewhere to hide
+// in it instead of as a room that fills up.
+class HuntObjective : public Objective
+{
+public:
+    HuntObjective();
+
+    void onQuarryKilled() override;
+    bool isComplete() const override;
+    float getProgress() const override;
+    std::string getLabel() const override;
+
+private:
+    bool m_killed;
+};
+
+// Light the beacons somebody else left behind. Each one is lit by holding
+// station next to it, which is the one thing this game never otherwise asks
+// for: every other objective is answered while moving, and standing still in
+// open water for six seconds with the water filling up behind you is a
+// different kind of nerve.
+class RestoreObjective : public Objective
+{
+public:
+    explicit RestoreObjective(int total);
+
+    void onMarkLit() override;
+    bool isComplete() const override;
+    float getProgress() const override;
+    std::string getLabel() const override;
+
+private:
+    int m_total;
+    int m_lit;
+};
+
+// Keep them off the winch while it lifts. There is no losing it - a thing the
+// player can fail without dying is a thing that wastes the last four minutes
+// of their life - so instead every bite knocks the clock back. Defend it
+// badly and the level simply goes on, which is its own punishment, and the
+// pressure comes from watching the number go the wrong way.
+class DefendObjective : public Objective
+{
+public:
+    DefendObjective(float seconds, float setback);
+
+    void update(float deltaTime, bool lampOff) override;
+    void onWardBitten() override;
+    bool isComplete() const override;
+    float getProgress() const override;
+    std::string getLabel() const override;
+
+private:
+    float m_target;
+    float m_setback;
+    float m_lifted;
+};
+
+// Get out. The sub is dropped at the far end of the basin instead of at the
+// mouth, nothing down there has to be killed and nothing has to be carried -
+// the entire level is the swim back, against water that is only getting
+// worse. It is the shortest kind of level in the game and the only one whose
+// answer is to refuse a fight.
+class EscapeObjective : public Objective
+{
+public:
+    EscapeObjective();
+
+    void onReachedMouth() override;
+    bool isComplete() const override;
+    float getProgress() const override;
+    std::string getLabel() const override;
+
+    // Nothing about escaping thins the water out.
+    void setDistance(float fraction);
+
+private:
+    bool  m_out;
+    float m_fraction; // 1 at the far end, 0 at the mouth
 };
