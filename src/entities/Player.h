@@ -88,6 +88,7 @@ public:
     // Kept here rather than in Game so that every thing that reads the speed -
     // the thruster trail, the dash, the urgency bonus - sees the same number.
     void setBurden(float factor) { m_burden = factor; }
+
     float getBurden() const { return m_burden; }
 
     int  getHealth() const { return m_health; }

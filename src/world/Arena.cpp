@@ -105,6 +105,7 @@ Arena::Arena(sf::Vector2f center, float radius)
     , m_gloom(sf::PrimitiveType::Triangles)
     , m_dark(sf::PrimitiveType::Triangles)
     , m_shadow(sf::PrimitiveType::Triangles)
+    , m_absorb(sf::PrimitiveType::Triangles)
     , m_theme(&themeFor(1))
 {
     generate(1, false);
@@ -1192,7 +1193,12 @@ float Arena::edgeRadius(const Chamber& chamber, sf::Vector2f offset) const
 
 sf::Vector2f Arena::currentAt(sf::Vector2f position) const
 {
-    sf::Vector2f drag{ 0.0f, 0.0f };
+    // The whole basin is going somewhere, before any corridor or pit says
+    // what it is doing locally. Everything that already asks this question -
+    // the sub, the creatures - is carried by it without another word, which
+    // is why it lives here rather than in a third place that has to be kept
+    // in step with the other two.
+    sf::Vector2f drag = m_drift;
 
     for (const Current& current : m_currents)
     {
@@ -2365,6 +2371,7 @@ void Arena::setLamp(float bonus, float spread, float factor)
     m_lightPool.clear();
     buildLightPool();
     buildDark();
+    buildAbsorb();
 }
 
 void Arena::applyTheme(const DepthTheme& theme)
@@ -2377,6 +2384,7 @@ void Arena::applyTheme(const DepthTheme& theme)
     m_gloom.clear();
     buildLightPool();
     buildDark();
+    buildAbsorb();
     buildGloom();
     updateCaustics();
 
@@ -2389,6 +2397,75 @@ void Arena::update(float deltaTime)
     m_time += deltaTime;
     updateCaustics();
     buildSwirl();
+}
+
+void Arena::buildAbsorb()
+{
+    // What the water takes out of the light on the way to your eye.
+    //
+    // Seawater eats red first, then green, and keeps blue longest - which is
+    // why everything down here is blue, and why a red thing at fifty metres
+    // is not a dim red thing, it is a grey one. The lamp already dims with
+    // distance; what it did not do was change COLOUR with distance, so the
+    // far end of a beam was the near end turned down, and that reads as fog
+    // rather than as depth.
+    //
+    // One ring mesh, multiplied over everything. White at the sub, so nothing
+    // near you is touched; the depth's own absorption colour at the rim, so
+    // the far end of the light has had its warm end taken out of it. No
+    // shader, one draw, and it costs nothing per sprite - which matters,
+    // because the alternative was tinting every prop and every creature by
+    // its own distance every frame.
+    m_absorb.clear();
+
+    const sf::Color near_(255, 255, 255, 255);
+
+    // Held back from black on every channel: this is water taking colour out,
+    // not a second darkness. The dark already does darkness.
+    const sf::Color far_(
+        static_cast<std::uint8_t>(255.0f * config::AbsorbRed),
+        static_cast<std::uint8_t>(255.0f * config::AbsorbGreen),
+        static_cast<std::uint8_t>(255.0f * config::AbsorbBlue), 255);
+
+    const float reach = getLampReach();
+
+    for (std::size_t i = 0; i < Segments; ++i)
+    {
+        const sf::Angle a0 = segmentAngle(i);
+        const sf::Angle a1 = segmentAngle(i + 1);
+
+        // Nothing at all inside the clear radius, so the sub and whatever is
+        // on top of it keep their own colours.
+        appendRingQuad(m_absorb,
+                       sf::Vector2f(reach * config::AbsorbClear, a0),
+                       sf::Vector2f(reach * config::AbsorbClear, a1),
+                       sf::Vector2f(reach * config::AbsorbFull, a0),
+                       sf::Vector2f(reach * config::AbsorbFull, a1),
+                       near_, far_);
+
+        // And full absorption from there to the edge of anything drawn, so a
+        // creature at the far edge of a big lamp is not suddenly warm again.
+        appendRingQuad(m_absorb,
+                       sf::Vector2f(reach * config::AbsorbFull, a0),
+                       sf::Vector2f(reach * config::AbsorbFull, a1),
+                       sf::Vector2f(config::DarkReach, a0),
+                       sf::Vector2f(config::DarkReach, a1),
+                       far_, far_);
+    }
+}
+
+void Arena::drawAbsorb(sf::RenderTarget& target, sf::Vector2f lampCentre) const
+{
+    if (m_absorb.getVertexCount() == 0)
+        return;
+
+    // Multiplied, not blended: this is light being taken away by the water it
+    // travelled through, and there is no amount of alpha that does that.
+    sf::RenderStates states;
+    states.blendMode = sf::BlendMultiply;
+    states.transform.translate(lampCentre);
+
+    target.draw(m_absorb, states);
 }
 
 void Arena::drawLight(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const

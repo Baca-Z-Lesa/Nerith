@@ -856,6 +856,45 @@ namespace config
     // instead of off the head. Roughly the widest the drawn shape gets.
     inline constexpr float BossLimbHitFactor = 1.9f;
 
+    // =====================================================================
+    //  THE CURRENT
+    //  The one thing that was missing that made this read as a black screen
+    //  with motes painted on rather than as water. Every basin has its own,
+    //  it turns slowly, and everything loose in the water goes with it: the
+    //  silt, the bubbles, the creatures and the sub.
+    //
+    //  Felt, not fought. The sub gives up about a tenth of its speed to it,
+    //  which is enough that a long crossing needs correcting and not enough
+    //  that the controls stop answering.
+    // =====================================================================
+    // Distinct from the corridor current further up, which is a local thing a
+    // passage does. This is the whole body of water moving, everywhere at
+    // once, and it is folded into Arena::currentAt so that everything which
+    // already asks which way the water is going is carried by it.
+    inline constexpr float DriftSpeed = 30.0f;    // pixels a second
+    inline constexpr float DriftTurn = 0.055f;    // radians a second
+    inline constexpr float DriftSurge = 0.30f;    // how much it breathes in strength
+    inline constexpr float DriftSurgeHz = 0.08f;
+
+    // How much brighter a mote gets for being in the beam. High enough that
+    // the shaft is visible in open water and low enough that it never washes
+    // out what the lamp is actually lighting.
+    inline constexpr float BeamMoteLift = 0.85f;
+
+    // --- what the water takes out of the light ---
+    // Seawater eats red first, then green, and keeps blue longest, which is
+    // why everything down here is blue and why a red thing far away is not a
+    // dim red thing, it is a grey one. Multiplied over the frame between the
+    // entities and the dark.
+    //
+    // Nothing inside AbsorbClear of the lamp's reach is touched, so the sub
+    // keeps its own colours; full by AbsorbFull.
+    inline constexpr float AbsorbRed = 0.62f;
+    inline constexpr float AbsorbGreen = 0.86f;
+    inline constexpr float AbsorbBlue = 1.00f;
+    inline constexpr float AbsorbClear = 0.40f;  // of the lamp's reach
+    inline constexpr float AbsorbFull = 1.25f;
+
     inline constexpr int   BossUltraFromAct = 1;
     inline constexpr float BossUltraInterval = 15.0f;
 

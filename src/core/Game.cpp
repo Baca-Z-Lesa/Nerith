@@ -1090,6 +1090,11 @@ void Game::beginLevel(int number, bool fresh)
     m_mines.clear();
     m_hitRings.clear();
     m_markedQuarry = false;
+
+    // A new basin, a new current. Seeded off the level so a floor is the
+    // same water every time it is dived, and not off the clock.
+    m_currentAngle = rng::range(0.0f, 6.283185307f);
+
     m_lostTimer = 0.0f;
     m_lastProgress = -1.0f;
 
@@ -3818,6 +3823,26 @@ void Game::takeReport()
     m_report.landed = worthOf(m_hold);
 
     m_reportTimer = config::ReportHold;
+}
+
+void Game::updateCurrent(float deltaTime)
+{
+    // The water is going somewhere. Slowly turning, and breathing in strength
+    // on a much longer clock than anything else in the game moves on, so a
+    // player never catches it changing - they only notice that the drift they
+    // corrected for a minute ago is no longer the drift they are in.
+    m_currentAngle += config::DriftTurn * deltaTime;
+
+    const float surge = 1.0f + config::DriftSurge
+                                   * std::sin(m_presentTime * config::DriftSurgeHz
+                                              * 6.283185307f);
+
+    m_current = sf::Vector2f{ std::cos(m_currentAngle), std::sin(m_currentAngle) }
+                * (config::DriftSpeed * surge);
+
+    // Handed to the basin, which is where every other thing in the game asks
+    // which way the water is going.
+    m_arena.setDrift(m_current);
 }
 
 void Game::updateEscape()
@@ -7302,8 +7327,36 @@ void Game::presentUpdate(float deltaTime)
             break;
     }
 
-    m_ambience.update(deltaTime);
-    m_effects.update(deltaTime);
+    // Which way the water is going, before anything loose in it is moved.
+    updateCurrent(deltaTime);
+
+    // Where the beam is, so the silt in it catches the light. The lamp's own
+    // numbers rather than a second set: a shaft that does not line up with
+    // the light it is made of is worse than no shaft.
+    {
+        ParticleSystem::Beam beam;
+
+        if (m_state == State::Fighting || m_state == State::LevelIntro)
+        {
+            const float reach = m_arena.getLampReach();
+            const float half = config::LampConeHalfAngle
+                               + m_playerStats.get(Stat::LampAngle, 0.0f);
+
+            beam.at = m_player.getPosition();
+            beam.aim = m_player.getAimDirection();
+            beam.reach = reach;
+            beam.cosHalf = std::cos(sf::degrees(half).asRadians());
+            beam.halo = reach * config::LampHaloFactor;
+            beam.strength = m_lampOn ? config::BeamMoteLift : config::BeamMoteLift * 0.25f;
+            beam.tint = m_arena.getLampColour();
+        }
+
+        m_ambience.setBeam(beam);
+        m_effects.setBeam(beam);
+    }
+
+    m_ambience.update(deltaTime, m_current);
+    m_effects.update(deltaTime, m_current);
 }
 
 
@@ -7703,6 +7756,11 @@ void Game::render(float alpha)
     // complement of the lamp, so a creature standing outside the beam is not
     // dimmed, it is painted out - which is the only reason running with the
     // lamp off costs anything.
+    // What the water took out of the light on the way here. Before the dark,
+    // because the dark is where the light stops and this is what happens to
+    // it while it is still arriving.
+    m_arena.drawAbsorb(m_window, m_player.getPosition());
+
     m_arena.drawDark(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
 
     // And the rock's own share of it: everything on the far side of a wall the

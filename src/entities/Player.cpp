@@ -213,6 +213,7 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
         const float rate = m_moving ? config::PlayerAccel : config::PlayerDrag;
 
         m_velocity += (wanted - m_velocity) * std::min(1.0f, rate * deltaTime);
+
         m_position += m_velocity * deltaTime;
     }
 

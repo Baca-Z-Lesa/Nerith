@@ -48,6 +48,9 @@ public:
     // is lit without reading the mesh back off the graphics card.
     float getLampReach() const;
 
+    // And what colour it is, which is the depth's rather than the lamp's.
+    sf::Color getLampColour() const { return m_theme->light; }
+
     void update(float deltaTime);
 
     // The rock, the lip along its edge and the floor inside it. Drawn under
@@ -63,6 +66,11 @@ public:
     // not reach is painted out. Drawn in the basin's own space and after
     // everything in it, because a creature standing in the black has to be
     // covered by the black rather than tinted by it.
+    // What the water takes out of the light on the way to your eye: red
+    // first, then green, blue last. Multiplied over everything, between the
+    // entities and the dark.
+    void drawAbsorb(sf::RenderTarget& target, sf::Vector2f lampCentre) const;
+
     void drawDark(sf::RenderTarget& target, sf::Vector2f lampCentre, sf::Angle aim) const;
 
     // Rock stops light. The lamp is a mesh built once around the origin, so it
@@ -181,6 +189,11 @@ public:
     // Zero everywhere except inside a pit.
     sf::Vector2f currentAt(sf::Vector2f position) const;
 
+    // Which way the open water itself is going, as opposed to what a corridor
+    // or a pit does locally. Set once a frame by whoever owns the clock.
+    void setDrift(sf::Vector2f drift) { m_drift = drift; }
+    sf::Vector2f getDrift() const { return m_drift; }
+
     // --- Getting across it ---
     // The basin is generated as a graph of rooms joined by passages, so
     // anything crossing it walks that graph rather than pushing at a wall and
@@ -289,6 +302,7 @@ private:
     void buildSwirl();
     void buildLightPool();
     void buildDark();
+    void buildAbsorb();
 
     // How far the lamp carries at this angle off the aim. One function, so the
     // light and the dark can never disagree about where the beam ends.
@@ -372,6 +386,8 @@ private:
     sf::VertexArray m_gloom;
     sf::VertexArray m_dark;
     sf::VertexArray m_shadow;
+    sf::VertexArray m_absorb;
+    sf::Vector2f    m_drift{ 0.0f, 0.0f };
     const DepthTheme* m_theme;
     float             m_lampBonus = 0.0f;
     float             m_lampFactor = 1.0f;

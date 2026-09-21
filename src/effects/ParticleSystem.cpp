@@ -48,14 +48,19 @@ void ParticleSystem::emit(const ParticleSpec& spec)
     }
 }
 
-void ParticleSystem::update(float deltaTime)
+void ParticleSystem::update(float deltaTime, sf::Vector2f drift)
 {
     for (Particle& particle : m_particles)
     {
         particle.life -= deltaTime;
         particle.velocity -= particle.velocity * particle.drag * deltaTime; // water resists
         particle.velocity.y -= particle.buoyancy * deltaTime;               // bubbles rise
-        particle.position += particle.velocity * deltaTime;
+
+        // And the current. Added to the position rather than to the velocity:
+        // a mote is not accelerated by the water, it is IN the water, and
+        // integrating it into velocity would have the drag term fight it and
+        // every fleck end up at a slightly different speed.
+        particle.position += (particle.velocity + drift) * deltaTime;
     }
 
     std::erase_if(m_particles, [](const Particle& particle) { return particle.life <= 0.0f; });
@@ -78,7 +83,56 @@ void ParticleSystem::rebuildVertices()
         const float fade = std::min(1.0f, (1.0f - remaining) * 6.0f) * remaining;
 
         sf::Color color = particle.color;
-        color.a = static_cast<std::uint8_t>(static_cast<float>(particle.color.a) * fade);
+        float alpha = static_cast<float>(particle.color.a) * fade;
+
+        // Is this mote in the light? A dot product and a length, per mote, and
+        // what it buys is the beam becoming a thing you can see rather than a
+        // hole in the dark that things are visible through.
+        if (m_beam.reach > 0.0f && m_beam.strength > 0.0f)
+        {
+            const sf::Vector2f off = particle.position - m_beam.at;
+            const float away = off.length();
+
+            if (away < m_beam.reach && away > 0.5f)
+            {
+                const float facing = off.dot(m_beam.aim) / away;
+
+                // Full inside the cone, falling off over the last of it, and a
+                // weaker share everywhere inside the halo - the same shape the
+                // lamp itself is built with, so the two agree.
+                const float inCone =
+                    std::clamp((facing - m_beam.cosHalf) / std::max(0.02f, 1.0f - m_beam.cosHalf),
+                               0.0f, 1.0f);
+
+                const float inHalo = away < m_beam.halo
+                                         ? 0.45f * (1.0f - away / std::max(1.0f, m_beam.halo))
+                                         : 0.0f;
+
+                // And dimmer the further down the shaft it is, because that is
+                // what the water is doing to the light.
+                const float carry = 1.0f - away / m_beam.reach;
+                const float lit = std::clamp(std::max(inCone * carry, inHalo), 0.0f, 1.0f)
+                                  * m_beam.strength;
+
+                if (lit > 0.001f)
+                {
+                    const auto mix = [lit](std::uint8_t from, std::uint8_t to) {
+                        return static_cast<std::uint8_t>(
+                            std::clamp(static_cast<float>(from)
+                                           + (static_cast<float>(to) - from) * lit,
+                                       0.0f, 255.0f));
+                    };
+
+                    color.r = mix(color.r, m_beam.tint.r);
+                    color.g = mix(color.g, m_beam.tint.g);
+                    color.b = mix(color.b, m_beam.tint.b);
+
+                    alpha = std::min(255.0f, alpha * (1.0f + 3.2f * lit));
+                }
+            }
+        }
+
+        color.a = static_cast<std::uint8_t>(std::clamp(alpha, 0.0f, 255.0f));
 
         const float half = particle.endSize + (particle.size - particle.endSize) * remaining;
 
@@ -299,4 +353,31 @@ void effects::ambientBubble(ParticleSystem& particles, sf::Vector2f position)
                      .buoyancy = 18.0f,
                      .color = { 130, 205, 210, 80 },
                      .count = 1 });
+}
+
+float ParticleSystem::carriedForTest() const
+{
+    float furthest = 0.0f;
+    for (const Particle& particle : m_particles)
+        furthest = std::max(furthest, particle.position.length());
+
+    return furthest;
+}
+
+int ParticleSystem::brightestForTest(bool aheadOfTheBeam) const
+{
+    // Read off the built vertices rather than off the particles, because what
+    // the question is about is the colour that actually reaches the screen.
+    int best = 0;
+
+    for (std::size_t i = 0; i < m_vertices.getVertexCount(); ++i)
+    {
+        const sf::Vertex& vertex = m_vertices[i];
+        const bool ahead = (vertex.position - m_beam.at).dot(m_beam.aim) > 0.0f;
+
+        if (ahead == aheadOfTheBeam)
+            best = std::max(best, static_cast<int>(vertex.color.a));
+    }
+
+    return best;
 }

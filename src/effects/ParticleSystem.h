@@ -37,12 +37,43 @@ public:
     explicit ParticleSystem(const sf::Texture& texture);
 
     void emit(const ParticleSpec& spec);
-    void update(float deltaTime);
+    // drift is the basin's own current, in pixels a second. Everything loose
+    // in the water is carried by it - which is the difference between water
+    // and a black background with motes painted on.
+    void update(float deltaTime, sf::Vector2f drift = { 0.0f, 0.0f });
     void draw(sf::RenderTarget& target) const;
+
+    // Where the beam is, so that silt inside it catches the light.
+    //
+    // Without this a lamp is a stencil: it reveals what is already there and
+    // the water between the sub and the rock stays empty. With it the beam is
+    // a shaft - you can see the light itself, in the dirt it is passing
+    // through - which is what a lamp underwater actually looks like and the
+    // single biggest thing separating water from a black background.
+    struct Beam
+    {
+        sf::Vector2f at{ 0.0f, 0.0f };
+        sf::Vector2f aim{ 1.0f, 0.0f };
+        float reach = 0.0f;    // zero switches the whole thing off
+        float cosHalf = 1.0f;  // cosine of the cone's half angle
+        float halo = 0.0f;     // how far the spill round the sub carries
+        float strength = 0.0f; // how much brighter a lit mote gets, 0..1
+        sf::Color tint{ 255, 255, 255 };
+    };
+
+    void setBeam(const Beam& beam) { m_beam = beam; }
 
     void clear();
 
+    // Only the water check in tools reads these. How far the one live mote
+    // has been carried from where it was emitted, and the alpha it ended up
+    // with - neither of which can be got at from a screenshot.
+    float carriedForTest() const;
+    int brightestForTest(bool aheadOfTheBeam) const;
+
 private:
+    Beam m_beam;
+
     struct Particle
     {
         sf::Vector2f position;

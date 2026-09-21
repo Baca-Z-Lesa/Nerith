@@ -134,6 +134,12 @@ public:
     // still crossing the rock to get in is left alone.
     void confine(const Arena& arena, float deltaTime);
 
+    // Carried by the basin's current like everything else loose in the water.
+    // Applied to the position, not to whatever it thinks it is doing, so a
+    // creature still swims exactly where it means to and simply arrives a
+    // little downstream of it.
+    void drift(sf::Vector2f by, float deltaTime) { m_position += by * deltaTime; }
+
     // A number that is only ever this creature's, for as long as it exists.
     // Splitshot and cluster fragments are born inside whatever was just hit,
     // so a shot needs a way to say "anything but that one" - and a pointer or

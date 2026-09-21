@@ -367,6 +367,9 @@ private:
     void placeMarks();
     void updateEscape();
 
+    // Which way the water is going this instant, and how hard.
+    void updateCurrent(float deltaTime);
+
     // What the dive just did, gathered for the deck to show.
     void takeReport();
 
@@ -687,6 +690,12 @@ private:
     // How far the sub was dropped from the mouth, so an escape can say how
     // much of the swim is left as a fraction rather than in pixels.
     float                   m_escapeFrom = 1.0f;
+
+    // The basin's own current: which way the water is going, and how far
+    // round it has turned. Set when the level is cut, and read by everything
+    // loose in the water. See config::CurrentDrift.
+    float                   m_currentAngle = 0.0f;
+    sf::Vector2f            m_current{ 0.0f, 0.0f };
 
     // Whether this level has already put its quarry in the water. One hunt is
     // one creature; without this every spawn after the first would be one too.
