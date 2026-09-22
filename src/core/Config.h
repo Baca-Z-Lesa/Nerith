@@ -970,9 +970,50 @@ namespace config
     inline constexpr float BossFleeTime = 2.4f;
     inline constexpr float BossEnrageThreshold = 0.35f;
 
-    // Degrees per second the Hollow's spiral arms sweep round. Slow enough to
-    // be read, fast enough that standing still is never the answer.
+    // Degrees per second the spiral arms sweep round. Slow enough to be read,
+    // fast enough that standing still is never the answer.
     inline constexpr float BossSpiralTurn = 62.0f;
+
+    // --- The Hollow: a closed ring with one way out of it ---
+    // It fires a complete circle of shots with a single gap, and the gap walks
+    // round. The answer is never a dodge - it is being in the one place the
+    // ring is not by the time it goes off, which is a different thing to learn
+    // from every other fight in the game. Enraged, the gap reverses and
+    // narrows, so everything learned about which way to run stops being true.
+    inline constexpr int   BossRingSpokes = 26;
+    inline constexpr float BossGapWide = 58.0f;  // degrees of opening
+    inline constexpr float BossGapDrift = 44.0f; // degrees a second it walks
+
+    // A whole ring is twenty-odd shots at once, so it fires on its own clock
+    // rather than on the creature's attack cooldown - at that cooldown it put
+    // sixty-six shots a second into the water, which is not a fight, it is a
+    // wall. This is the interval between rings, and it is long enough to read
+    // where the opening has walked to and get there.
+    inline constexpr float BossRingInterval = 2.4f;
+
+    // --- The Furnace: a gun emplacement ---
+    // It does not chase. It holds its ground and turns, and the fight is about
+    // the ground rather than about it: stay out of the arcs, punish between
+    // them, and never stand on it - anything close when it vents is thrown off.
+    inline constexpr float BossBastionHold = 0.16f;  // creep while you are near
+    inline constexpr float BossBastionRange = 1.6f;  // past this it follows
+    inline constexpr float BossVentInterval = 6.2f;
+    inline constexpr int   BossVentShots = 18;
+    inline constexpr float BossBastionSpread = 1.9f; // wider arcs than anything
+
+    // Artillery is slow. On the creature's own cooldown these arcs came out
+    // three times a second, which reads as a hose rather than as a gun being
+    // laid, and a wide arc fired that often cannot be walked out of at all.
+    inline constexpr float BossBastionCadence = 2.6f;
+
+    // --- The Mother: two lobes, leading in turn ---
+    // It never comes at you in a straight line: the approach is a weave, and
+    // the two lobes fire together with their aims toed slightly apart, so the
+    // gap between the volleys closes as it gets nearer.
+    inline constexpr float BossWeaveRate = 1.45f;   // radians a second
+    inline constexpr float BossWeaveWidth = 210.0f; // pixels either side
+    inline constexpr float BossLobeOffset = 92.0f;  // how far apart they fire
+    inline constexpr float BossLobeToe = 9.0f;      // degrees each aim is turned
 
     // The three acts of a fight. Crossing a threshold is one way, and each one
     // adds something rather than replacing what came before, so the last third

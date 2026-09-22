@@ -65,10 +65,17 @@ enum class BossSkin
 // How it thinks. One of these plus the numbers below is a whole fight.
 enum class BossMind
 {
-    Prowler,  // circles at range, winds up, then charges the player down
-    Drifter,  // creeps in and attacks on a slow rhythm
-    Burrower, // surfaces, sweeps, dives, comes back somewhere else
-    Spiral,   // keeps its distance and winds a turning spiral out of itself
+    Prowler,   // circles at range, winds up, then charges the player down
+    Drifter,   // creeps in and attacks on a slow rhythm
+    Burrower,  // surfaces, sweeps, dives, comes back somewhere else
+    Spiral,    // keeps its distance and winds a turning spiral out of itself
+    Encircler, // never circles and never backs off: comes straight on, and
+               // fires a closed ring with one drifting gap in it. You do not
+               // dodge it, you stand in the one place it is not.
+    Bastion,   // a gun emplacement. Holds its ground, turns to face you and
+               // answers with arcs; vents everything nearby if you close.
+    Weaver,    // approaches on a weave rather than a line, leading with each
+               // of its two lobes in turn and firing from both at once.
 };
 
 // What happens when a creature is hurt badly enough to change its mind. Every

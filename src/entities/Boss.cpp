@@ -1005,6 +1005,251 @@ void Boss::thinkSpiral(float deltaTime, sf::Vector2f player)
     }
 }
 
+void Boss::thinkEncircler(float deltaTime, sf::Vector2f player)
+{
+    const sf::Vector2f head = m_segments[0].position;
+    const sf::Vector2f toPlayer = player - head;
+    const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
+
+    checkRage();
+    updateActs();
+
+    if (m_act >= 1)
+    {
+        m_summonTimer -= deltaTime;
+        if (m_summonTimer <= 0.0f)
+        {
+            m_summonTimer = config::BossSummonInterval;
+            m_summons.push_back(config::BossSummonType);
+        }
+    }
+
+    if (m_act >= 2)
+    {
+        m_closeTimer -= deltaTime;
+        if (m_closeTimer <= 0.0f)
+        {
+            m_closeTimer = config::BossClosingInterval;
+            closeTheBasin(m_confineCentre);
+        }
+    }
+
+    // It never circles and it never backs off. It comes straight on, slowly,
+    // and the whole fight is about where you are standing when the ring goes.
+    steer(deltaTime, player, 0.35f + 0.5f * m_vitals.tracking);
+    advance(deltaTime, m_speed * m_vitals.mobility * rebornSpeed()
+                           * (m_enraged ? m_def->rage.speedScale : 1.0f));
+
+    // The way out walks round the ring, and reverses once it is hurt, so the
+    // answer is never where it was last time.
+    m_spiralAngle += config::BossGapDrift * deltaTime * (m_enraged ? -1.7f : 1.0f);
+
+    if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+        beginTell(std::max(0.05f, m_attackTimer), direction, false);
+
+    m_attackTimer -= deltaTime;
+    if (m_attackTimer > 0.0f)
+        return;
+
+    m_attackTimer = config::BossRingInterval * aggression();
+
+    // A closed circle of shots with one opening in it. Putting its lamps out
+    // widens the opening, which is what makes blinding it worth the trouble.
+    const int lamps = std::max(1, m_vitals.emitters > 0 ? m_vitals.emitters : lampsAlive());
+    const int spokes = std::max(6, config::BossRingSpokes
+                                       + (m_enraged ? m_def->rage.extraShots : 0)
+                                       + m_fallen * config::BossRebornShots
+                                       + m_act * config::BossActArmBonus);
+
+    const float blind = static_cast<float>(std::max(1, lamps));
+    const float gap = config::BossGapWide * (m_enraged ? 0.66f : 1.0f)
+                      * (1.0f + 1.4f / blind);
+
+    for (int i = 0; i < spokes; ++i)
+    {
+        const float spoke = 360.0f * static_cast<float>(i) / static_cast<float>(spokes);
+        const float off = sf::degrees(spoke - m_spiralAngle).wrapSigned().asDegrees();
+
+        if (std::abs(off) < gap * 0.5f)
+            continue;
+
+        const sf::Angle angle = sf::degrees(spoke + aimError());
+        m_pending.push_back({ head + unit(angle) * (m_def->headRadius * 0.55f), unit(angle) });
+    }
+}
+
+void Boss::thinkBastion(float deltaTime, sf::Vector2f player)
+{
+    const sf::Vector2f head = m_segments[0].position;
+    const sf::Vector2f toPlayer = player - head;
+    const float distance = toPlayer.length();
+    const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
+
+    checkRage();
+    updateActs();
+
+    if (m_act >= 1)
+    {
+        m_summonTimer -= deltaTime;
+        if (m_summonTimer <= 0.0f)
+        {
+            m_summonTimer = config::BossSummonInterval;
+            m_summons.push_back(config::BossSummonType);
+        }
+    }
+
+    if (m_act >= 2)
+    {
+        m_closeTimer -= deltaTime;
+        if (m_closeTimer <= 0.0f)
+        {
+            m_closeTimer = config::BossClosingInterval;
+            closeTheBasin(m_confineCentre);
+        }
+    }
+
+    // A chimney does not chase. It turns to face you and holds its ground -
+    // and only creeps after someone who has run all the way to the far wall,
+    // so the far wall is cover rather than a way of ignoring the fight.
+    steer(deltaTime, player, 0.3f + 0.5f * m_vitals.tracking);
+
+    const float creep = distance > m_def->preferredDistance * config::BossBastionRange
+                            ? 1.0f
+                            : config::BossBastionHold;
+
+    advance(deltaTime, m_speed * creep * m_vitals.mobility * rebornSpeed()
+                           * (m_enraged ? m_def->rage.speedScale : 1.0f));
+
+    // And anything standing on it when it clears its throat is thrown off.
+    // This is the only thing stopping the answer being "hug the chimney".
+    m_ventTimer -= deltaTime;
+    if (m_ventTimer <= 0.0f)
+    {
+        m_ventTimer = config::BossVentInterval * aggression();
+
+        const int shots = config::BossVentShots + (m_enraged ? m_def->rage.extraShots : 0);
+        for (int i = 0; i < shots; ++i)
+        {
+            const sf::Angle angle =
+                sf::degrees(360.0f * static_cast<float>(i) / static_cast<float>(shots));
+            m_pending.push_back({ head + unit(angle) * (m_def->headRadius * 0.6f),
+                                  unit(angle) });
+        }
+    }
+
+    if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+        beginTell(std::max(0.05f, m_attackTimer), direction, false);
+
+    m_attackTimer -= deltaTime;
+    if (m_attackTimer > 0.0f)
+        return;
+
+    m_attackTimer = m_def->attackCooldown * config::BossBastionCadence * aggression();
+
+    // Artillery: a wide arc laid across where you are, slow enough to walk out
+    // of and broad enough that walking sideways is not by itself enough.
+    const sf::Vector2f muzzle = head + m_heading * m_def->headRadius;
+    const sf::Vector2f aim = direction.rotatedBy(sf::degrees(aimError()));
+
+    const int shots = m_def->attackShots + (m_enraged ? m_def->rage.extraShots : 0)
+                      + m_fallen * config::BossRebornShots + m_act;
+    const float spread = m_def->attackSpread * config::BossBastionSpread
+                         * (m_enraged ? m_def->rage.spreadScale : 1.0f);
+
+    const sf::Angle base = aim.angle();
+    for (int i = 0; i < shots; ++i)
+    {
+        const float step = spread / static_cast<float>(std::max(1, shots - 1));
+        const sf::Angle angle =
+            base + sf::degrees(-spread / 2.0f + step * static_cast<float>(i));
+        m_pending.push_back({ muzzle, unit(angle) });
+    }
+}
+
+void Boss::thinkWeaver(float deltaTime, sf::Vector2f player)
+{
+    const sf::Vector2f head = m_segments[0].position;
+    const sf::Vector2f toPlayer = player - head;
+    const float distance = toPlayer.length();
+    const sf::Vector2f direction = safeNormal(toPlayer, m_heading);
+
+    checkRage();
+    updateActs();
+
+    if (m_act >= 1)
+    {
+        m_summonTimer -= deltaTime;
+        if (m_summonTimer <= 0.0f)
+        {
+            m_summonTimer = config::BossSummonInterval;
+            m_summons.push_back(config::BossSummonType);
+        }
+    }
+
+    if (m_act >= 2)
+    {
+        m_closeTimer -= deltaTime;
+        if (m_closeTimer <= 0.0f)
+        {
+            m_closeTimer = config::BossClosingInterval;
+            closeTheBasin(m_confineCentre);
+        }
+    }
+
+    // Two lobes, and it leads with them in turn: the approach is a weave, so
+    // it is never quite coming from where it was a moment ago and backing
+    // straight off is not the answer it is everywhere else.
+    m_weave += config::BossWeaveRate * deltaTime * (m_enraged ? 1.6f : 1.0f);
+
+    const sf::Vector2f side{ -direction.y, direction.x };
+    const float swing = std::sin(m_weave) * config::BossWeaveWidth;
+    const float pull = (distance - m_def->preferredDistance) / m_def->preferredDistance;
+
+    steer(deltaTime, head + direction * (pull * 240.0f) + side * swing,
+          0.45f + 0.55f * m_vitals.tracking);
+    advance(deltaTime, m_speed * m_vitals.mobility * rebornSpeed()
+                           * (m_enraged ? m_def->rage.speedScale : 1.0f));
+
+    if (m_attackTimer <= config::BossTellTime && m_tellTimer <= 0.0f)
+        beginTell(std::max(0.05f, m_attackTimer), direction, false);
+
+    m_attackTimer -= deltaTime;
+    if (m_attackTimer > 0.0f)
+        return;
+
+    m_attackTimer = m_def->attackCooldown * aggression();
+
+    // Both lobes fire at once, their aims toed slightly apart. Far off the two
+    // volleys arrive as two separate walls; close up they have converged into
+    // one, so the distance you choose decides which fight you are having.
+    // Each lobe fires a whole volley rather than half of one. Split in half it
+    // put less in the water than the two bosses above it, which is the wrong
+    // way round for the thing at the bottom of the campaign.
+    const int shots = std::max(1, m_def->attackShots
+                                      + (m_enraged ? m_def->rage.extraShots : 0)
+                                      + m_fallen * config::BossRebornShots);
+    const float spread = m_def->attackSpread
+                         * (m_enraged ? m_def->rage.spreadScale : 1.0f);
+
+    for (const float lobe : { -1.0f, 1.0f })
+    {
+        const sf::Vector2f muzzle = head + direction * (m_def->headRadius * 0.5f)
+                                    + side * (lobe * config::BossLobeOffset);
+
+        const sf::Vector2f aim =
+            direction.rotatedBy(sf::degrees(aimError() + lobe * config::BossLobeToe));
+
+        const sf::Angle base = aim.angle();
+        for (int i = 0; i < shots; ++i)
+        {
+            const float step = spread / static_cast<float>(std::max(1, shots - 1));
+            const sf::Angle angle =
+                base + sf::degrees(-spread / 2.0f + step * static_cast<float>(i));
+            m_pending.push_back({ muzzle, unit(angle) });
+        }
+    }
+}
+
 std::vector<BossMove> Boss::takeMoves()
 {
     std::vector<BossMove> out;
@@ -1075,7 +1320,15 @@ void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
                 m_moves.push_back({ BossSpecial::Fissure, head, toPlayer, 0.0f });
                 break;
             case BossMind::Spiral:
+            case BossMind::Encircler:
                 m_moves.push_back({ BossSpecial::Rake, head, toPlayer, 0.0f });
+                break;
+            case BossMind::Bastion:
+                // An emplacement answers being cornered by shrinking the room.
+                m_moves.push_back({ BossSpecial::Closing, player, toPlayer, 0.0f });
+                break;
+            case BossMind::Weaver:
+                m_moves.push_back({ BossSpecial::Curtain, head, toPlayer, 0.0f });
                 break;
         }
 
@@ -1154,9 +1407,28 @@ void Boss::considerSpecial(float deltaTime, sf::Vector2f player)
             break;
 
         case BossMind::Spiral:
+        case BossMind::Encircler:
             m_moves.push_back(second
                                   ? BossMove{ BossSpecial::Hurl, head, toPlayer, 0.0f }
                                   : BossMove{ BossSpecial::Well, head, toPlayer, 0.0f });
+            beginTell(config::BossTellTime, toPlayer, false);
+            break;
+
+        case BossMind::Bastion:
+            // Both of these are things a thing that cannot move does: it opens
+            // up along one line, or it drags the water in toward itself.
+            m_moves.push_back(second
+                                  ? BossMove{ BossSpecial::Sound, head, toPlayer, 0.0f }
+                                  : BossMove{ BossSpecial::Well, head, toPlayer, 0.0f });
+            beginTell(config::BossTellTime * 1.3f, toPlayer, false);
+            break;
+
+        case BossMind::Weaver:
+            // It is a mother. It puts something in the water, or it sweeps
+            // everything toward itself.
+            m_moves.push_back(second
+                                  ? BossMove{ BossSpecial::Tide, head, toPlayer, 0.0f }
+                                  : BossMove{ BossSpecial::Seed, head, toPlayer, 0.0f });
             beginTell(config::BossTellTime, toPlayer, false);
             break;
     }
@@ -1402,10 +1674,13 @@ void Boss::update(float deltaTime, sf::Vector2f playerPosition)
 
     switch (m_def->mind)
     {
-        case BossMind::Prowler:  thinkProwler(deltaTime, playerPosition); break;
-        case BossMind::Drifter:  thinkDrifter(deltaTime, playerPosition); break;
-        case BossMind::Burrower: thinkBurrower(deltaTime, playerPosition); break;
-        case BossMind::Spiral:   thinkSpiral(deltaTime, playerPosition); break;
+        case BossMind::Prowler:   thinkProwler(deltaTime, playerPosition); break;
+        case BossMind::Drifter:   thinkDrifter(deltaTime, playerPosition); break;
+        case BossMind::Burrower:  thinkBurrower(deltaTime, playerPosition); break;
+        case BossMind::Spiral:    thinkSpiral(deltaTime, playerPosition); break;
+        case BossMind::Encircler: thinkEncircler(deltaTime, playerPosition); break;
+        case BossMind::Bastion:   thinkBastion(deltaTime, playerPosition); break;
+        case BossMind::Weaver:    thinkWeaver(deltaTime, playerPosition); break;
     }
 
     // What the body is doing, as opposed to what it has decided. Run after the
@@ -1623,6 +1898,27 @@ std::string Boss::getStateLabel() const
             switch (m_act)
             {
                 case 0:  return "WINDING";
+                case 1:  return "IT IS CALLING ITS DEAD";
+                default: return "THE BASIN IS CLOSING";
+            }
+        case BossMind::Encircler:
+            switch (m_act)
+            {
+                case 0:  return m_enraged ? "THE GAP REVERSED" : "FIND THE GAP";
+                case 1:  return "IT IS CALLING ITS DEAD";
+                default: return "THE BASIN IS CLOSING";
+            }
+        case BossMind::Bastion:
+            switch (m_act)
+            {
+                case 0:  return m_enraged ? "THE STACK IS OPEN" : "IT WILL NOT MOVE";
+                case 1:  return "IT IS CALLING ITS DEAD";
+                default: return "THE BASIN IS CLOSING";
+            }
+        case BossMind::Weaver:
+            switch (m_act)
+            {
+                case 0:  return m_enraged ? "BOTH LOBES" : "IT IS WEAVING";
                 case 1:  return "IT IS CALLING ITS DEAD";
                 default: return "THE BASIN IS CLOSING";
             }

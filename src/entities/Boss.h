@@ -262,6 +262,9 @@ private:
     void thinkDrifter(float deltaTime, sf::Vector2f playerPosition);
     void thinkBurrower(float deltaTime, sf::Vector2f playerPosition);
     void thinkSpiral(float deltaTime, sf::Vector2f playerPosition);
+    void thinkEncircler(float deltaTime, sf::Vector2f playerPosition);
+    void thinkBastion(float deltaTime, sf::Vector2f playerPosition);
+    void thinkWeaver(float deltaTime, sf::Vector2f playerPosition);
 
     // How many lamps are still lit, which is how many arms the spiral has.
     int  lampsAlive() const;
@@ -317,6 +320,8 @@ private:
     int   m_act;          // 0 whole, 1 hurt, 2 cornered
     float m_summonTimer;
     float m_closeTimer;   // the last act's inward volley
+    float m_ventTimer = 0.0f; // Bastion mind: until it throws off everything near
+    float m_weave = 0.0f;     // Weaver mind: where it is in its own weave
     bool  m_rhythmOpen;   // Bell body: the nucleus is showing
     float m_rhythmTimer = 0.0f; // a bell that is not a drifter runs its own
 
@@ -348,5 +353,5 @@ private:
 
     int   m_contactDamage;
     int   m_salvage;
-    float m_speed;
+    float m_speed;
 };

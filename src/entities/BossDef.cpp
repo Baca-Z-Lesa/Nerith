@@ -127,7 +127,7 @@ namespace
             // links, because a circle needs enough of them to be a circle,
             // and a speed low enough that it drifts rather than travels: the
             // ring is not chasing anybody, it is closing.
-            BossBody::Ring, BossMind::Spiral, BossSkin::Hollow,
+            BossBody::Ring, BossMind::Encircler, BossSkin::Hollow,
             nullptr, "assets/textures/shot_hollow.png",
             nullptr, nullptr,
             1.0f, 0.86f, 1.0f, 9, 66.0f, 58.0f,
@@ -177,7 +177,7 @@ namespace
             // so the room the player has left shrinks without the creature
             // taking a step. It was a dome with tentacles, which is what the
             // creature two depths above it also was.
-            BossBody::Tower, BossMind::Spiral, BossSkin::Furnace,
+            BossBody::Tower, BossMind::Bastion, BossSkin::Furnace,
             nullptr, "assets/textures/shot_furnace.png",
             nullptr, nullptr,
             1.0f, 0.66f, 0.90f, 12, 0.0f, 92.0f,
@@ -222,7 +222,7 @@ namespace
             //
             // The segment scale is low because it is what the lobes are hit
             // at, not what they are drawn at: see Boss::segmentReach.
-            BossBody::Split, BossMind::Prowler, BossSkin::Mother,
+            BossBody::Split, BossMind::Weaver, BossSkin::Mother,
             nullptr, "assets/textures/shot_mother.png",
             nullptr, nullptr,
             1.0f, 0.62f, 1.0f, 8, 0.0f, 96.0f,
