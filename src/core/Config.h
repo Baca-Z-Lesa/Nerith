@@ -1305,7 +1305,7 @@ namespace config
         float        solid;  // radius you cannot walk through, 0 to walk over
     };
 
-    inline constexpr std::array<DeckProp, 27> DeckProps{ {
+    inline constexpr std::array<DeckProp, 19> DeckProps{ {
         // The sub itself is no longer a flat prop here. It stands in its cradle
         // between the crane and the moon pool as the real machine the player
         // pilots - hull plus every piece of hardware they have bolted on - so
@@ -1335,28 +1335,22 @@ namespace config
         { "assets/textures/deck_welder.png",  { 1052.0f, 300.0f }, -6.0f, 28.0f },
         { "assets/textures/deck_hose.png",    { 1074.0f, 380.0f },  0.0f, 20.0f },
 
-        // The safety line along the top rail, and one hose down the port
-        // walkway. A rig without a raft on it is a rig nobody expects to have
-        // to leave.
-        { "assets/textures/deck_raft.png",    { 516.0f, 142.0f },   0.0f, 26.0f },
-        { "assets/textures/deck_raft.png",    { 764.0f, 142.0f },   0.0f, 26.0f },
+        // The safety line along the port walkway, and the bitts at the corners.
+        // The two rafts that used to sit either side of the bow are gone: the
+        // gantry stands there now, and a raft lashed under a launch frame is
+        // not something anybody would leave there.
         { "assets/textures/deck_hose.png",    { 408.0f, 138.0f },   0.0f, 20.0f },
         { "assets/textures/deck_bitts.png",   { 300.0f, 108.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 880.0f, 108.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 300.0f, 634.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 1076.0f, 634.0f },  0.0f,  0.0f },
 
-        // And the gear that was not anywhere. A working deck is not tidy: the
-        // four corners were dressed and the middle of it was bare plate, which
-        // read as a room somebody had swept rather than as somewhere a job
-        // happens. Nothing new is drawn for these - a real deck repeats the
-        // same boxes and the same drums, because that is what it is issued.
-        { "assets/textures/deck_crate.png",   { 418.0f, 300.0f },  -8.0f, 22.0f },
-        { "assets/textures/deck_crate.png",   { 456.0f, 324.0f },  14.0f, 22.0f },
-        { "assets/textures/deck_basket.png",  { 400.0f, 418.0f },  12.0f, 36.0f },
-        { "assets/textures/deck_chain.png",   { 806.0f, 318.0f }, -24.0f,  0.0f },
-        { "assets/textures/deck_drums.png",   { 838.0f, 232.0f },   6.0f, 26.0f },
-        { "assets/textures/deck_weights.png", { 884.0f, 452.0f },   9.0f,  0.0f },
+        // The middle of the plate is deliberately bare. It was filled with a
+        // second helping of the same crates, baskets, chain and drums that
+        // dress the two ends, on the theory that a working deck is not tidy -
+        // but a deck with gear on every square metre is not a working deck
+        // either, it is a warehouse, and it buried the three things the player
+        // is actually here to walk between. The walk is the room now.
     } };
 
     // --- The deck at night ---
@@ -1404,24 +1398,55 @@ namespace config
         bool         failing;  // and this one drops out every few seconds
     };
 
-    inline constexpr std::array<DeckLight, 5> DeckLights{ {
+    inline constexpr std::array<DeckLight, 7> DeckLights{ {
         { { 236.0f, 148.0f }, { 352.0f, 292.0f }, { 246.0f, 176.0f }, 51.2f, 0.62f, 0.04f, false },
         { { 1052.0f, 146.0f }, { 930.0f, 280.0f }, { 238.0f, 172.0f }, 132.3f, 0.60f, 0.03f, false },
         { { 218.0f, 604.0f }, { 382.0f, 508.0f }, { 232.0f, 168.0f }, -30.3f, 0.56f, 0.11f, true },
         { { 1064.0f, 606.0f }, { 898.0f, 512.0f }, { 236.0f, 170.0f }, -150.5f, 0.58f, 0.04f, false },
         { { 640.0f, 108.0f }, { 640.0f, 232.0f }, { 250.0f, 186.0f }, 90.0f, 0.48f, 0.05f, false },
+
+        // Two work lamps on the gantry legs, thrown outboard along the frame.
+        // Nothing else on the rig reaches past the rail, so without these the
+        // largest object on the screen sits in the dark - and a pair of lamps
+        // pointed at the thing being launched is what a launch frame has.
+        { { 524.0f, 168.0f }, { 566.0f, 86.0f }, { 172.0f, 128.0f }, -63.0f, 0.50f, 0.03f, false },
+        { { 756.0f, 168.0f }, { 714.0f, 86.0f }, { 172.0f, 128.0f }, -117.0f, 0.50f, 0.03f, false },
     } };
 
-    // The sub in its cradle, under the centre floodlight (lamp 4 above throws
-    // its pool right here). Drawn as the real machine - hull plus fitted
-    // hardware - by Deck::drawSub, so it always shows the current upgrade
-    // state. Scale is over and above the sub's own gameplay scale, big enough
-    // that it reads as the hero object on the deck rather than a toy.
-    inline constexpr sf::Vector2f DeckSubAt{ 644.0f, 250.0f };
-    inline constexpr float DeckSubScale = 2.3f;   // on top of PlayerScale
-    inline constexpr float DeckSubTurn = 90.0f;   // nose toward the moon pool
-    inline constexpr float DeckSubSolid = 78.0f;  // walk round it, not through
-    inline constexpr float DeckSubBob = 2.0f;     // it rides the swell a little
+    // The sub, slung off the bow on the launch gantry - out past the rail and
+    // over open water, where a sub waiting to go down actually hangs.
+    //
+    // It used to sit in a cradle in the middle of the plate, which put the
+    // largest object on the deck directly between the crane and the bell and
+    // made the player walk round it every single time. Out here it is bigger,
+    // it is the first thing the eye lands on, and it is standing in nobody's
+    // way: there is no deck under it to walk on.
+    //
+    // Drawn as the real machine - hull plus every piece of fitted hardware -
+    // so it always shows the current upgrade state.
+    inline constexpr sf::Vector2f DeckSubAt{ 640.0f, 86.0f };
+    inline constexpr float DeckSubScale = 2.6f;  // on top of PlayerScale
+    inline constexpr float DeckSubTurn = 0.0f;   // lying along the gantry
+    inline constexpr float DeckSubBob = 3.0f;    // it rides the swell under it
+    inline constexpr float DeckSubSway = 1.7f;   // degrees, hanging on its slings
+
+    // The gantry it hangs from, seen from directly above: two rails running
+    // out over the water, a cross beam at each end, bracing between them, and
+    // the slings dropping to the hull. Legs are what you can walk into; the
+    // rest is overhead and drawn above the sub because that is where it is.
+    inline constexpr float DeckGantryLeft = 524.0f;
+    inline constexpr float DeckGantryRight = 756.0f;
+    inline constexpr float DeckGantryOut = 18.0f;   // outboard end, over the sea
+    inline constexpr float DeckGantryIn = 196.0f;   // and where it meets the plate
+    inline constexpr float DeckGantryBeam = 30.0f;  // the beam the slings hang off
+    inline constexpr float DeckGantryRail = 6.0f;   // how thick the steel is
+    inline constexpr float DeckGantryFoot = 26.0f;  // walk round the legs
+
+    // Where the bracing lives. Only the inboard run, between the sub and the
+    // plate: a lattice drawn across the middle of the frame goes straight over
+    // the hull, and the whole point of moving the sub out here was that it
+    // stops being the thing everything else is drawn on top of.
+    inline constexpr float DeckGantryBraceFrom = 144.0f;
 
     // One knob over the whole rig. The per-lamp strengths above are the shape
     // of the lighting - which lamp is the strong one, which one is failing -

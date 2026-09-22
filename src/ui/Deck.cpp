@@ -168,11 +168,15 @@ Deck::Deck(const Assets& assets)
     centre(m_boot);
     centre(m_subHull);
 
-    // The parked sub is the real hull blown up to hero size, and its shield -
-    // if fitted - reads as up, because it is not spending charges on a deck.
     m_subHull.setScale({ config::PlayerScale * config::DeckSubScale,
                          config::PlayerScale * config::DeckSubScale });
-    m_subKit.setShieldUp(true);
+
+    // Fitted but not charged. A live shield at this scale is a bright ring
+    // most of the way across the sub, and it wins every time against the hull
+    // it is supposed to be protecting - which is the wrong thing to be looking
+    // at on the one screen that exists to show what you have built. Dull, it
+    // still says the emitter is there.
+    m_subKit.setShieldUp(false);
 
     m_crane.setPosition(station(Post::Crane).at);
     m_bench.setPosition(station(Post::Bench).at);
@@ -289,11 +293,15 @@ void Deck::update(float deltaTime, sf::Vector2f drive)
     // together, so a bolted-on gun is not the one bright thing at night.
     if (m_subStats)
     {
+        // Hanging, not parked: it rides the swell under it and swings a little
+        // on its slings, on two clocks that do not share a period so the two
+        // never quite line up.
         const float bob = std::sin(m_time * 0.9f) * config::DeckSubBob;
         const sf::Vector2f at = config::DeckSubAt + sf::Vector2f{ 0.0f, bob };
-        const sf::Angle heading = sf::degrees(config::DeckSubTurn);
+        const sf::Angle heading = sf::degrees(config::DeckSubTurn
+                                              + std::sin(m_time * 0.61f) * config::DeckSubSway);
         const sf::Color tint = litTint(config::DeckNightTint,
-                                       std::max(lightAt(config::DeckSubAt), 0.22f));
+                                       std::max(lightAt(config::DeckSubAt), 0.30f));
 
         m_subKit.setTint(tint);
         m_subKit.update(at, heading, *m_subStats, deltaTime);
@@ -323,7 +331,11 @@ void Deck::keepOnDeck()
     };
 
     shove(Pool, PoolRadius + 22.0f);
-    shove(config::DeckSubAt, config::DeckSubSolid);
+
+    // The sub itself is out over the water now, so there is nothing to walk
+    // into: only the two legs the gantry stands on where it meets the plate.
+    shove({ config::DeckGantryLeft, config::DeckGantryIn }, config::DeckGantryFoot);
+    shove({ config::DeckGantryRight, config::DeckGantryIn }, config::DeckGantryFoot);
 
     for (const Station& post : m_stations)
     {
@@ -837,8 +849,13 @@ void Deck::drawShadows()
     shadowFor(station(Post::Crane).at, 112.0f, 110.0f);
     shadowFor(station(Post::Bench).at, 84.0f, 110.0f);
 
+    // Nothing for the sub: it is over open water and casts onto the sea, which
+    // drawSub handles itself. The gantry feet are on the plate though.
     if (m_subStats)
-        shadowFor(config::DeckSubAt, 96.0f, 122.0f);
+    {
+        for (const float x : { config::DeckGantryLeft, config::DeckGantryRight })
+            shadowFor({ x, config::DeckGantryIn }, 34.0f, 116.0f);
+    }
 
     shadowFor(m_diver, 44.0f, 130.0f);
 }
@@ -879,28 +896,100 @@ void Deck::drawSub(sf::RenderTarget& target)
         return;
 
     const sf::Vector2f at = config::DeckSubAt;
-    const float light = lightAt(at);
+    const float light = std::max(lightAt(at), 0.30f);
 
-    // A steel cradle under it: two beams across the hull, grounded by the
-    // contact shadow already laid down in the shadow pass. A lit top edge so
-    // they read as structure and not a dark smear.
-    const sf::Color steel = litTint(sf::Color(24, 30, 38), light * 0.7f);
-    const sf::Color edge = litTint(sf::Color(70, 84, 96), std::max(light, 0.25f));
+    // Kept dark on purpose. This is the frame the thing hangs in, not the thing
+    // - lit up like the plate it becomes a white cage with a sub somewhere
+    // behind it, which is what the first pass of this was.
+    const sf::Color steel = litTint(sf::Color(18, 24, 31), light * 0.55f);
+    const sf::Color edge = litTint(sf::Color(54, 66, 78), light * 0.8f);
+    const sf::Color cable = litTint(sf::Color(64, 76, 88), light);
 
-    for (const float dy : { -60.0f, 60.0f })
+    const float L = config::DeckGantryLeft;
+    const float R = config::DeckGantryRight;
+    const float out = config::DeckGantryOut;
+    const float in = config::DeckGantryIn;
+    const float rail = config::DeckGantryRail;
+
+    // --- what the sub is hanging over --------------------------------------
+    //
+    // There is no deck under it, so there is no contact shadow either: what is
+    // down there is the sea. A soft dark patch on the swell instead, which is
+    // the one thing that says the drop below it is real.
+    oval(at + sf::Vector2f{ 0.0f, 18.0f }, { 108.0f, 46.0f }, sf::Color(0, 0, 0, 108), 24);
+    oval(at + sf::Vector2f{ 0.0f, 26.0f }, { 144.0f, 60.0f }, sf::Color(0, 0, 0, 54), 24);
+
+    // --- the frame it hangs in ---------------------------------------------
+    //
+    // Seen from straight down, a launch gantry is two rails running out over
+    // the water with a beam at each end. It is drawn UNDER the sub: the steel
+    // is really above, but a lattice painted over the hull turns the hero
+    // object into something behind a cage, and the whole reason for moving the
+    // sub out here was to stop it being the thing everything is drawn on.
+    const auto strut = [this](sf::Vector2f a, sf::Vector2f b, float wide, sf::Color colour) {
+        smear(m_mesh, a, b, wide, wide, colour, colour);
+    };
+
+    // Bracing only on the inboard run, which is the part of the frame the sub
+    // is not hanging in.
+    for (int i = 0; i < 2; ++i)
     {
-        quad({ at.x - 66.0f, at.y + dy - 8.0f }, { 132.0f, 16.0f }, steel);
-        quad({ at.x - 66.0f, at.y + dy - 8.0f }, { 132.0f, 3.0f }, edge);
+        const float y0 = config::DeckGantryBraceFrom
+                         + (in - config::DeckGantryBraceFrom) * (static_cast<float>(i) / 2.0f);
+        const float y1 = config::DeckGantryBraceFrom
+                         + (in - config::DeckGantryBraceFrom) * (static_cast<float>(i + 1) / 2.0f);
+
+        strut({ L, y0 }, { R, y1 }, rail * 0.34f, steel);
+        strut({ R, y0 }, { L, y1 }, rail * 0.34f, steel);
     }
+
+    // The two rails, out over the water and back onto the plate, each with a
+    // lit inboard edge so they read as box section rather than as tape.
+    for (const float x : { L, R })
+    {
+        strut({ x, out }, { x, in }, rail, steel);
+        strut({ x + (x < 640.0f ? rail * 0.42f : -rail * 0.42f), out },
+              { x + (x < 640.0f ? rail * 0.42f : -rail * 0.42f), in }, rail * 0.20f, edge);
+    }
+
+    // A beam at each end, and the one in between that the slings hang off.
+    strut({ L - rail, out + 5.0f }, { R + rail, out + 5.0f }, rail * 0.85f, steel);
+    strut({ L - rail, config::DeckGantryBeam }, { R + rail, config::DeckGantryBeam },
+          rail * 1.05f, steel);
+    strut({ L - rail, in - 10.0f }, { R + rail, in - 10.0f }, rail * 0.85f, steel);
+
+    // The winch head at the inboard end, and a bolt at each foot.
+    disc({ (L + R) * 0.5f, in - 10.0f }, 12.0f, steel, 20);
+    disc({ (L + R) * 0.5f, in - 10.0f }, 6.0f, edge, 16);
+
+    for (const float x : { L, R })
+        disc({ x, in }, 8.0f, steel, 14);
 
     target.draw(m_mesh);
     m_mesh.clear();
 
-    // The machine itself, composed exactly as it is in the water: slung
-    // hardware underneath, the hull, then plating and guns over the top.
+    // --- the machine -------------------------------------------------------
+    //
+    // Composed exactly as it is in the water: slung hardware underneath, the
+    // hull, then plating and guns over the top.
     m_subKit.drawUnder(target);
     target.draw(m_subHull);
     m_subKit.drawOver(target);
+
+    // --- and the two slings holding it -------------------------------------
+    //
+    // The only part of the frame that does go over the hull, because a cable
+    // landing on it is what says the thing is hanging rather than resting.
+    for (const float dx : { -54.0f, 54.0f })
+    {
+        const sf::Vector2f hook{ at.x + dx, at.y - 6.0f };
+        strut({ at.x + dx, config::DeckGantryBeam }, hook, rail * 0.26f, cable);
+        disc(hook, 4.5f, cable, 12);
+        disc(hook, 2.0f, steel, 10);
+    }
+
+    target.draw(m_mesh);
+    m_mesh.clear();
 }
 
 void Deck::drawDiver(sf::RenderTarget& target)
