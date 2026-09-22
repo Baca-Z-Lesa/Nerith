@@ -24,10 +24,29 @@ namespace
     {
         return (static_cast<float>(config::WindowWidth) - pixelfont::measure(text, scale)) / 2.0f;
     }
+
+    sf::Color blend(sf::Color from, sf::Color to, float k)
+    {
+        const auto mix = [k](std::uint8_t a, std::uint8_t b) {
+            return static_cast<std::uint8_t>(static_cast<float>(a)
+                                             + (static_cast<float>(b) - static_cast<float>(a)) * k);
+        };
+
+        return { mix(from.r, to.r), mix(from.g, to.g), mix(from.b, to.b), mix(from.a, to.a) };
+    }
+
+    // How far a row reaches out when it comes up, and the corner marks that
+    // arrive with it. Small numbers on purpose: this is the same row it always
+    // was, paying attention.
+    constexpr float Reach = 9.0f;      // pixels it widens either side
+    constexpr float BarWide = 3.0f;    // the lit edge down its left
+    constexpr float Bracket = 11.0f;   // arm length of a corner mark
+    constexpr float EaseRate = 12.0f;  // per second, exponential
 }
 
 MainMenu::MainMenu()
     : m_selected(0)
+    , m_marks(sf::PrimitiveType::Triangles)
     , m_text(sf::PrimitiveType::Triangles)
 {
     m_veil.setSize({ static_cast<float>(config::WindowWidth),
@@ -107,11 +126,34 @@ MainMenu::Choice MainMenu::getSelected() const
     return m_selected < m_entries.size() ? m_entries[m_selected].choice : Choice::Quit;
 }
 
+void MainMenu::mark(sf::Vector2f at, sf::Vector2f size, sf::Color colour)
+{
+    const sf::Vector2f a = at;
+    const sf::Vector2f b = at + sf::Vector2f{ size.x, 0.0f };
+    const sf::Vector2f c = at + size;
+    const sf::Vector2f d = at + sf::Vector2f{ 0.0f, size.y };
+
+    m_marks.append(sf::Vertex{ a, colour });
+    m_marks.append(sf::Vertex{ b, colour });
+    m_marks.append(sf::Vertex{ c, colour });
+
+    m_marks.append(sf::Vertex{ a, colour });
+    m_marks.append(sf::Vertex{ c, colour });
+    m_marks.append(sf::Vertex{ d, colour });
+}
+
 void MainMenu::draw(sf::RenderTarget& target, float time)
 {
+    // The caller owns the clock and always has; this only needs the gap since
+    // the last frame, and clamping it means coming back from a long stall does
+    // not teleport every ease to its target.
+    const float deltaTime = std::clamp(time - m_lastTime, 0.0f, 0.1f);
+    m_lastTime = time;
+
     target.draw(m_veil);
 
     m_text.clear();
+    m_marks.clear();
 
     // The title breathes very slowly, like something a long way underwater.
     const float glow = 0.72f + 0.28f * std::sin(time * 0.9f);
@@ -128,24 +170,71 @@ void MainMenu::draw(sf::RenderTarget& target, float time)
     target.draw(m_text);
     m_text.clear();
 
+    // The one the selected row breathes on. Slower than a heartbeat, the same
+    // way the title does, so the two are obviously the same screen.
+    const float breath = 0.78f + 0.22f * std::sin(time * 2.4f);
+    const float ease = 1.0f - std::exp(-EaseRate * deltaTime);
+
     for (std::size_t i = 0; i < m_entries.size(); ++i)
     {
+        Entry& entry = m_entries[i];
         const bool picked = i == m_selected;
+
+        entry.glow += ((picked ? 1.0f : 0.0f) - entry.glow) * ease;
+
+        const float lit = entry.glow;
         const sf::FloatRect bounds = boundsOf(i);
 
-        m_box.setPosition(bounds.position);
-        m_box.setFillColor(picked ? config::NodeUnlockedFill : config::NodeLockedFill);
-        m_box.setOutlineColor(picked ? sf::Color::White : config::NodeLockedEdge);
+        // It reaches out as it comes up rather than jumping to a new colour.
+        const float grown = Reach * lit;
+        const sf::Vector2f at{ bounds.position.x - grown, bounds.position.y };
+        const sf::Vector2f size{ bounds.size.x + grown * 2.0f, bounds.size.y };
+
+        m_box.setSize(size);
+        m_box.setPosition(at);
+        m_box.setFillColor(blend(config::NodeLockedFill, config::NodeUnlockedFill, lit));
+        m_box.setOutlineThickness(2.0f + lit);
+        m_box.setOutlineColor(blend(config::NodeLockedEdge, sf::Color::White, lit * breath));
         target.draw(m_box);
 
-        const Entry& entry = m_entries[i];
+        if (lit > 0.01f)
+        {
+            // A lit edge down its left, grown from the middle out, and a
+            // bracket at each corner. Together they are what says "this one"
+            // without the row having to become a different shape.
+            const sf::Color accent = blend(sf::Color(255, 255, 255, 0), config::HudBossColor,
+                                           lit * breath);
+
+            const float tall = size.y * lit;
+            mark({ at.x - BarWide - 3.0f, at.y + (size.y - tall) * 0.5f }, { BarWide, tall },
+                 accent);
+
+            const float arm = Bracket * lit;
+            for (const float sx : { 0.0f, 1.0f })
+            {
+                for (const float sy : { 0.0f, 1.0f })
+                {
+                    const float cx = at.x + size.x * sx;
+                    const float cy = at.y + size.y * sy;
+                    const float dx = sx > 0.5f ? -arm : 0.0f;
+                    const float dy = sy > 0.5f ? -2.0f : 0.0f;
+
+                    mark({ cx + dx, cy + dy }, { arm, 2.0f }, accent);
+                    mark({ cx + (sx > 0.5f ? -2.0f : 0.0f), cy + (sy > 0.5f ? -arm : 0.0f) },
+                         { 2.0f, arm }, accent);
+                }
+            }
+        }
+
         pixelfont::append(m_text, entry.label,
                           { centredX(entry.label, 2.1f), bounds.position.y + 7.0f }, 2.1f,
-                          picked ? config::HudTextColor : config::HudDimTextColor);
+                          blend(config::HudDimTextColor, config::HudTextColor, lit));
         pixelfont::append(m_text, entry.note,
                           { centredX(entry.note, 1.2f), bounds.position.y + 28.0f }, 1.2f,
                           config::HudDimTextColor);
     }
+
+    target.draw(m_marks);
 
     pixelfont::append(m_text, "ARROWS OR MOUSE   -   ENTER TO DIVE",
                       { centredX("ARROWS OR MOUSE   -   ENTER TO DIVE", 1.6f), 660.0f }, 1.6f,
