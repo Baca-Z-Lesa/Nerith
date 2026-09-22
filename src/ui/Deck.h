@@ -3,6 +3,7 @@
 #include "entities/ShipVisuals.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/Graphics/RenderTexture.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/System/Angle.hpp>
@@ -111,6 +112,13 @@ private:
     // the other four put together.
     float lampNow(std::size_t index) const;
 
+    // The deck itself, as a shaped sheet of plating rather than a rectangular
+    // sprite, and everything welded to it that never moves: the bulwark round
+    // the edge with its freeing ports, the butt seams between plates, the
+    // lashing points and the hazard border. Both are built once.
+    void buildHull();
+    void buildFixed();
+
     void drawSea();
     void drawPlate(sf::RenderTarget& target);
     void drawWet();
@@ -133,6 +141,11 @@ private:
     void ring(sf::VertexArray& into, sf::Vector2f at, float inner, float outer,
               sf::Color colour, int steps = 30);
     void quad(sf::Vector2f at, sf::Vector2f size, sf::Color colour);
+
+    // Any four-cornered patch, in order, into any mesh. The hull is built out
+    // of hundreds of these and none of them are axis aligned.
+    void slab(sf::VertexArray& into, sf::Vector2f a, sf::Vector2f b, sf::Vector2f c,
+              sf::Vector2f d, sf::Color colour);
 
     // Light on a wet plate: an ellipse turned to face away from its own mast,
     // bright in the middle and with no rim to notice. Ring quads rather than a
@@ -168,8 +181,11 @@ private:
     sf::VertexArray m_glow;  // everything that adds
     sf::VertexArray m_text;
 
-    sf::Sprite m_plate;
-    sf::Sprite m_rail;
+    // The hull plating, textured and cut to the outline, and everything welded
+    // to it. Neither ever changes, so both are built once and only drawn.
+    sf::VertexArray    m_hull;
+    sf::VertexArray    m_fixed;
+    const sf::Texture* m_plateTexture;
     sf::Sprite m_crane;
     sf::Sprite m_bench;
     sf::Sprite m_bell;
@@ -177,12 +193,19 @@ private:
     sf::Sprite m_body;
     sf::Sprite m_boot;
 
-    // The player's own sub, parked in its cradle: the hull plus every piece of
-    // hardware the tree has bolted on. The stats it reads are borrowed, never
-    // owned, so a null pointer just means "not told yet" and it is not drawn.
-    sf::Sprite    m_subHull;
-    ShipVisuals   m_subKit;
-    const Stats*  m_subStats = nullptr;
+    // The player's own sub: the hull plus every piece of hardware the tree has
+    // bolted on. The stats it reads are borrowed, never owned, so a null
+    // pointer just means "not told yet" and it is not drawn.
+    //
+    // It is composed into its own canvas at the hull's native resolution and
+    // then drawn from that, smoothed, so that making it big is an enlargement
+    // rather than a ragged pixel double. m_subCanvas must outlive m_subImage,
+    // which borrows its texture - hence the order.
+    sf::Sprite      m_subHull;
+    ShipVisuals     m_subKit;
+    sf::RenderTexture m_subCanvas;
+    sf::Sprite      m_subImage;
+    const Stats*    m_subStats = nullptr;
 
     // Everything lying about that is not a station. One sprite per placement
     // rather than per texture, because two of them are put down twice and a

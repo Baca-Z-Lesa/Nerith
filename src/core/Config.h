@@ -1313,7 +1313,7 @@ namespace config
         // a generic one. Deck::drawSub owns it; see config::DeckSub* below.
 
         // The goods end, round the crane.
-        { "assets/textures/deck_quad.png",    { 222.0f, 188.0f },   0.0f, 40.0f },
+        { "assets/textures/deck_quad.png",    { 200.0f, 336.0f },   0.0f, 40.0f },
         { "assets/textures/deck_quad.png",    { 222.0f, 272.0f },   3.0f, 40.0f },
         { "assets/textures/deck_basket.png",  { 243.0f, 352.0f },  -7.0f, 36.0f },
         { "assets/textures/deck_chain.png",   { 330.0f, 352.0f },  18.0f,  0.0f },
@@ -1331,7 +1331,7 @@ namespace config
         { "assets/textures/deck_weights.png", { 620.0f, 620.0f },  -5.0f,  0.0f },
 
         // The work end, round the bench.
-        { "assets/textures/deck_chest.png",   { 1058.0f, 214.0f },  4.0f, 24.0f },
+        { "assets/textures/deck_chest.png",   { 1070.0f, 336.0f },  4.0f, 24.0f },
         { "assets/textures/deck_welder.png",  { 1052.0f, 300.0f }, -6.0f, 28.0f },
         { "assets/textures/deck_hose.png",    { 1074.0f, 380.0f },  0.0f, 20.0f },
 
@@ -1339,9 +1339,9 @@ namespace config
         // The two rafts that used to sit either side of the bow are gone: the
         // gantry stands there now, and a raft lashed under a launch frame is
         // not something anybody would leave there.
-        { "assets/textures/deck_hose.png",    { 408.0f, 138.0f },   0.0f, 20.0f },
-        { "assets/textures/deck_bitts.png",   { 300.0f, 108.0f },   0.0f,  0.0f },
-        { "assets/textures/deck_bitts.png",   { 880.0f, 108.0f },   0.0f,  0.0f },
+        { "assets/textures/deck_hose.png",    { 470.0f, 252.0f },   0.0f, 20.0f },
+        { "assets/textures/deck_bitts.png",   { 470.0f, 172.0f },   0.0f,  0.0f },
+        { "assets/textures/deck_bitts.png",   { 810.0f, 172.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 300.0f, 634.0f },   0.0f,  0.0f },
         { "assets/textures/deck_bitts.png",   { 1076.0f, 634.0f },  0.0f,  0.0f },
 
@@ -1399,8 +1399,8 @@ namespace config
     };
 
     inline constexpr std::array<DeckLight, 7> DeckLights{ {
-        { { 236.0f, 148.0f }, { 352.0f, 292.0f }, { 246.0f, 176.0f }, 51.2f, 0.62f, 0.04f, false },
-        { { 1052.0f, 146.0f }, { 930.0f, 280.0f }, { 238.0f, 172.0f }, 132.3f, 0.60f, 0.03f, false },
+        { { 300.0f, 236.0f }, { 352.0f, 292.0f }, { 246.0f, 176.0f }, 51.2f, 0.62f, 0.04f, false },
+        { { 980.0f, 236.0f }, { 930.0f, 280.0f }, { 238.0f, 172.0f }, 132.3f, 0.60f, 0.03f, false },
         { { 218.0f, 604.0f }, { 382.0f, 508.0f }, { 232.0f, 168.0f }, -30.3f, 0.56f, 0.11f, true },
         { { 1064.0f, 606.0f }, { 898.0f, 512.0f }, { 236.0f, 170.0f }, -150.5f, 0.58f, 0.04f, false },
         { { 640.0f, 108.0f }, { 640.0f, 232.0f }, { 250.0f, 186.0f }, 90.0f, 0.48f, 0.05f, false },
@@ -1425,8 +1425,19 @@ namespace config
     // Drawn as the real machine - hull plus every piece of fitted hardware -
     // so it always shows the current upgrade state.
     inline constexpr sf::Vector2f DeckSubAt{ 640.0f, 86.0f };
-    inline constexpr float DeckSubScale = 2.6f;  // on top of PlayerScale
     inline constexpr float DeckSubTurn = 0.0f;   // lying along the gantry
+
+    // The sub is composed into its own canvas first and then drawn from it.
+    //
+    // Drawn straight onto the deck it came out notched: the hull art is 128px
+    // and it was being blown up by 1.3, so some source pixels landed on one
+    // screen pixel and some on two, and every edge on the machine turned into
+    // a staircase. Composed at Compose - which puts the hull at exactly its own
+    // resolution - and then scaled with the canvas smoothed, the enlargement is
+    // an interpolation rather than a ragged pixel double.
+    inline constexpr float DeckSubCompose = 2.0f;  // hull at 1:1 in the canvas
+    inline constexpr float DeckSubScale = 1.55f;   // and how big the canvas reads
+    inline constexpr unsigned int DeckSubCanvas = 256;
     inline constexpr float DeckSubBob = 3.0f;    // it rides the swell under it
     inline constexpr float DeckSubSway = 1.7f;   // degrees, hanging on its slings
 

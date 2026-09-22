@@ -32,6 +32,45 @@ namespace
     // strides across, which reads as a warehouse rather than a rig.
     constexpr float PlateScale = 0.5f;
 
+    // The hull in plan.
+    //
+    // The deck was a rectangle, which is the one shape a ship is not. It is a
+    // vessel now: a fine entry forward, a long parallel midbody where all the
+    // work happens, and a transom cut straight across the back. Everything
+    // else on this screen - where the rail runs, where the sea breaks, how far
+    // out a man can walk - is read off this one function, so the shape cannot
+    // drift out of step with itself.
+    constexpr float DeckMid = (PlateLeft + PlateRight) * 0.5f;
+    constexpr float BowFrom = 286.0f;   // where the sides stop being parallel
+    constexpr float BowStem = 58.0f;    // and the half beam left at the stem
+    constexpr float SternFrom = 596.0f;
+    constexpr float SternHalf = 432.0f; // the transom is narrower than the beam
+
+    float halfWidthAt(float y)
+    {
+        constexpr float full = (PlateRight - PlateLeft) * 0.5f;
+
+        if (y < BowFrom)
+        {
+            const float t = std::clamp((BowFrom - y) / (BowFrom - PlateTop), 0.0f, 1.0f);
+
+            // A quarter ellipse, not a taper. A power curve came out as two
+            // straight diagonals and a flat top - a chamfered hexagon rather
+            // than a bow - because it gives up beam steadily the whole way.
+            // This holds almost the full beam well forward and then sweeps in
+            // hard at the stem, which is the shape a hull actually has.
+            return BowStem + (full - BowStem) * std::sqrt(std::max(0.0f, 1.0f - t * t));
+        }
+
+        if (y > SternFrom)
+        {
+            const float t = std::clamp((y - SternFrom) / (PlateBottom - SternFrom), 0.0f, 1.0f);
+            return full - (full - SternHalf) * t;
+        }
+
+        return full;
+    }
+
     // The hole in the middle of it. The bell hangs in this, which is why it is
     // the one part of the deck that is not deck.
     constexpr sf::Vector2f Pool{ 640.0f, 470.0f };
@@ -144,8 +183,9 @@ Deck::Deck(const Assets& assets)
     , m_mesh(sf::PrimitiveType::Triangles)
     , m_glow(sf::PrimitiveType::Triangles)
     , m_text(sf::PrimitiveType::Triangles)
-    , m_plate(assets.byPath(config::DeckPlatePath))
-    , m_rail(assets.byPath(config::DeckRailPath))
+    , m_hull(sf::PrimitiveType::Triangles)
+    , m_fixed(sf::PrimitiveType::Triangles)
+    , m_plateTexture(&assets.byPath(config::DeckPlatePath))
     , m_crane(assets.byPath(config::DeckCranePath))
     , m_bench(assets.byPath(config::DeckBenchPath))
     , m_bell(assets.byPath(config::DeckBellPath))
@@ -154,6 +194,7 @@ Deck::Deck(const Assets& assets)
     , m_boot(assets.byPath(config::DeckBootPath))
     , m_subHull(assets.player)
     , m_subKit(assets)
+    , m_subImage(m_subCanvas.getTexture())
 {
     const auto centre = [](sf::Sprite& sprite) {
         const sf::Vector2f size(sprite.getTexture().getSize());
@@ -168,8 +209,17 @@ Deck::Deck(const Assets& assets)
     centre(m_boot);
     centre(m_subHull);
 
-    m_subHull.setScale({ config::PlayerScale * config::DeckSubScale,
-                         config::PlayerScale * config::DeckSubScale });
+    // Composed at the hull's own resolution, so nothing is resampled until the
+    // finished canvas is enlarged - once, smoothly.
+    m_subHull.setScale({ config::PlayerScale * config::DeckSubCompose,
+                         config::PlayerScale * config::DeckSubCompose });
+
+    if (m_subCanvas.resize({ config::DeckSubCanvas, config::DeckSubCanvas }))
+        m_subCanvas.setSmooth(true);
+
+    m_subImage.setTexture(m_subCanvas.getTexture(), true);
+    m_subImage.setOrigin({ config::DeckSubCanvas * 0.5f, config::DeckSubCanvas * 0.5f });
+    m_subImage.setScale({ config::DeckSubScale, config::DeckSubScale });
 
     // Fitted but not charged. A live shield at this scale is a bright ring
     // most of the way across the sub, and it wins every time against the hull
@@ -182,12 +232,8 @@ Deck::Deck(const Assets& assets)
     m_bench.setPosition(station(Post::Bench).at);
     m_bell.setPosition(Pool);
 
-    // One sprite for the whole floor, and one for a whole run of rail.
-    m_plate.setTextureRect(sf::IntRect(
-        { 0, 0 }, { static_cast<int>((PlateRight - PlateLeft) / PlateScale),
-                    static_cast<int>((PlateBottom - PlateTop) / PlateScale) }));
-    m_plate.setScale({ PlateScale, PlateScale });
-    m_plate.setPosition({ PlateLeft, PlateTop });
+    buildHull();
+    buildFixed();
 
     m_body.setScale({ DiverScale, DiverScale });
     m_boot.setScale({ DiverScale, DiverScale });
@@ -303,20 +349,40 @@ void Deck::update(float deltaTime, sf::Vector2f drive)
         const sf::Color tint = litTint(config::DeckNightTint,
                                        std::max(lightAt(config::DeckSubAt), 0.30f));
 
-        m_subKit.setTint(tint);
-        m_subKit.update(at, heading, *m_subStats, deltaTime);
-        m_subKit.present(at, heading, config::DeckSubScale);
+        // Composed square and upright into its own canvas at native size. The
+        // tint and the heading are applied to the finished image instead, so
+        // the canvas holds one clean copy of the machine and nothing inside it
+        // is ever resampled twice.
+        const sf::Vector2f mid{ config::DeckSubCanvas * 0.5f, config::DeckSubCanvas * 0.5f };
 
-        m_subHull.setPosition(at);
-        m_subHull.setRotation(heading);
-        m_subHull.setColor(tint);
+        m_subKit.setTint(sf::Color::White);
+        m_subKit.update(mid, sf::degrees(0.0f), *m_subStats, deltaTime);
+        m_subKit.present(mid, sf::degrees(0.0f), config::DeckSubCompose);
+
+        m_subHull.setPosition(mid);
+        m_subHull.setRotation(sf::degrees(0.0f));
+        m_subHull.setColor(sf::Color::White);
+
+        m_subCanvas.clear(sf::Color::Transparent);
+        m_subKit.drawUnder(m_subCanvas);
+        m_subCanvas.draw(m_subHull);
+        m_subKit.drawOver(m_subCanvas);
+        m_subCanvas.display();
+
+        m_subImage.setPosition(at);
+        m_subImage.setRotation(heading);
+        m_subImage.setColor(tint);
     }
 }
 
 void Deck::keepOnDeck()
 {
-    m_diver.x = std::clamp(m_diver.x, PlateLeft + Kerb, PlateRight - Kerb);
+    // Held inside the hull rather than inside a rectangle, so walking forward
+    // narrows the deck under you the way the bow does.
     m_diver.y = std::clamp(m_diver.y, PlateTop + Kerb, PlateBottom - Kerb);
+
+    const float room = std::max(10.0f, halfWidthAt(m_diver.y) - Kerb);
+    m_diver.x = std::clamp(m_diver.x, DeckMid - room, DeckMid + room);
 
     // Out of the hole, out of the shack, and out of anything bolted down.
     const auto shove = [this](sf::Vector2f from, float radius) {
@@ -467,6 +533,167 @@ void Deck::ring(sf::VertexArray& into, sf::Vector2f at, float inner, float outer
         into.append(sf::Vertex{ at + d0 * inner, colour });
         into.append(sf::Vertex{ at + d1 * outer, colour });
         into.append(sf::Vertex{ at + d1 * inner, colour });
+    }
+}
+
+void Deck::slab(sf::VertexArray& into, sf::Vector2f a, sf::Vector2f b, sf::Vector2f c,
+                sf::Vector2f d, sf::Color colour)
+{
+    into.append(sf::Vertex{ a, colour });
+    into.append(sf::Vertex{ b, colour });
+    into.append(sf::Vertex{ c, colour });
+
+    into.append(sf::Vertex{ a, colour });
+    into.append(sf::Vertex{ c, colour });
+    into.append(sf::Vertex{ d, colour });
+}
+
+void Deck::buildHull()
+{
+    // The plating, cut to the outline. One textured mesh instead of one
+    // rectangular sprite: the tile is set to repeat, so the texture coordinate
+    // is simply where the point is on the ship, and the sheet can be any shape
+    // at all for the same cost.
+    m_hull.clear();
+
+    constexpr float Step = 5.0f;
+
+    const auto at = [](float x, float y) {
+        return sf::Vertex{ { x, y },
+                           config::DeckNightTint,
+                           { (x - PlateLeft) / PlateScale, (y - PlateTop) / PlateScale } };
+    };
+
+    for (float y = PlateTop; y < PlateBottom; y += Step)
+    {
+        const float y0 = y;
+        const float y1 = std::min(y + Step, PlateBottom);
+        const float h0 = halfWidthAt(y0);
+        const float h1 = halfWidthAt(y1);
+
+        m_hull.append(at(DeckMid - h0, y0));
+        m_hull.append(at(DeckMid + h0, y0));
+        m_hull.append(at(DeckMid + h1, y1));
+
+        m_hull.append(at(DeckMid - h0, y0));
+        m_hull.append(at(DeckMid + h1, y1));
+        m_hull.append(at(DeckMid - h1, y1));
+    }
+}
+
+void Deck::buildFixed()
+{
+    m_fixed.clear();
+
+    constexpr float Step = 5.0f;
+    constexpr float Bulwark = 13.0f; // how far in the wall stands
+    constexpr float Stripe = 7.0f;   // the painted line just inside it
+
+    const sf::Color wall{ 16, 22, 29 };
+    const sf::Color cap{ 62, 76, 88 };
+    const sf::Color hazard{ 92, 78, 30 };
+    const sf::Color seam{ 8, 12, 17 };
+
+    // --- the bulwark, all the way round -----------------------------------
+    for (float y = PlateTop; y < PlateBottom; y += Step)
+    {
+        const float y0 = y;
+        const float y1 = std::min(y + Step, PlateBottom);
+        const float h0 = halfWidthAt(y0);
+        const float h1 = halfWidthAt(y1);
+
+        // Freeing ports: a gap in the wall every few metres so the water that
+        // comes aboard has somewhere to go. It is one of the few details that
+        // says bulwark rather than border, and it only makes sense along the
+        // working length, not round the stem.
+        const bool port = y > 330.0f && y < 580.0f && std::fmod(y - 330.0f, 84.0f) < 24.0f;
+
+        for (const float side : { -1.0f, 1.0f })
+        {
+            const sf::Vector2f o0{ DeckMid + side * h0, y0 };
+            const sf::Vector2f o1{ DeckMid + side * h1, y1 };
+
+            if (!port)
+            {
+                slab(m_fixed, o0, o1,
+                     { DeckMid + side * (h1 - Bulwark), y1 },
+                     { DeckMid + side * (h0 - Bulwark), y0 }, wall);
+
+                // The lit top of the wall, which is what gives it a thickness.
+                slab(m_fixed, o0, o1,
+                     { DeckMid + side * (h1 - 3.0f), y1 },
+                     { DeckMid + side * (h0 - 3.0f), y0 }, cap);
+            }
+
+            // The painted line stays unbroken through the ports, because paint
+            // is on the deck and the gap is in the wall.
+            slab(m_fixed,
+                 { DeckMid + side * (h0 - Bulwark), y0 },
+                 { DeckMid + side * (h1 - Bulwark), y1 },
+                 { DeckMid + side * (h1 - Bulwark - Stripe), y1 },
+                 { DeckMid + side * (h0 - Bulwark - Stripe), y0 },
+                 std::fmod(y, 52.0f) < 26.0f ? hazard : wall);
+        }
+    }
+
+    // The transom, straight across the back.
+    {
+        const float h = halfWidthAt(PlateBottom);
+        slab(m_fixed, { DeckMid - h, PlateBottom }, { DeckMid + h, PlateBottom },
+             { DeckMid + h, PlateBottom - Bulwark }, { DeckMid - h, PlateBottom - Bulwark },
+             wall);
+        slab(m_fixed, { DeckMid - h, PlateBottom }, { DeckMid + h, PlateBottom },
+             { DeckMid + h, PlateBottom - 3.0f }, { DeckMid - h, PlateBottom - 3.0f }, cap);
+    }
+
+    // --- what is welded to the sheet ---------------------------------------
+    //
+    // Butt seams. A deck this size is not one plate: it is strakes, and the
+    // joins between them are the cheapest thing that stops a repeating tile
+    // reading as wallpaper.
+    for (float y = PlateTop + 74.0f; y < PlateBottom - 20.0f; y += 96.0f)
+    {
+        const float h = halfWidthAt(y) - 16.0f;
+        slab(m_fixed, { DeckMid - h, y }, { DeckMid + h, y }, { DeckMid + h, y + 2.0f },
+             { DeckMid - h, y + 2.0f }, seam);
+    }
+
+    for (const float x : { DeckMid - 244.0f, DeckMid, DeckMid + 244.0f })
+    {
+        for (float y = PlateTop; y < PlateBottom; y += Step)
+        {
+            const float y0 = y;
+            const float y1 = std::min(y + Step, PlateBottom);
+
+            if (std::abs(x - DeckMid) > halfWidthAt(y1) - 18.0f)
+                continue;
+
+            slab(m_fixed, { x, y0 }, { x + 2.0f, y0 }, { x + 2.0f, y1 }, { x, y1 }, seam);
+        }
+    }
+
+    // Lashing points. A working deck is covered in them, and they are what the
+    // gear that is not there at the moment would be tied down to - so they say
+    // the bare middle is bare because nothing is stowed there today, rather
+    // than because nobody drew anything.
+    for (float y = PlateTop + 130.0f; y < PlateBottom - 60.0f; y += 62.0f)
+    {
+        const float h = halfWidthAt(y) - 46.0f;
+
+        for (float x = DeckMid - 300.0f; x <= DeckMid + 300.0f; x += 100.0f)
+        {
+            if (std::abs(x - DeckMid) > h)
+                continue;
+
+            // Skip the hole in the middle of the ship.
+            if ((sf::Vector2f{ x, y } - Pool).length() < PoolRadius + 40.0f)
+                continue;
+
+            slab(m_fixed, { x - 5.0f, y - 5.0f }, { x + 5.0f, y - 5.0f },
+                 { x + 5.0f, y + 5.0f }, { x - 5.0f, y + 5.0f }, sf::Color(26, 33, 41));
+            slab(m_fixed, { x - 2.0f, y - 3.0f }, { x + 2.0f, y - 3.0f },
+                 { x + 2.0f, y + 3.0f }, { x - 2.0f, y + 3.0f }, sf::Color(6, 9, 13));
+        }
     }
 }
 
@@ -626,20 +853,34 @@ void Deck::drawSea()
              fade(config::DeckNightFoam, strength * 0.22f));
     }
 
-    // Where the sea breaks against the rig. Only a thin light edge, but
-    // without it the plate looks laid on top of the water rather than in it.
+    // Where the sea breaks against the hull. It follows the outline now, so
+    // the water parts at the stem and runs down both sides the way it would
+    // against a ship rather than washing round a box.
     const float surge = 3.0f + 2.0f * std::sin(m_time * 1.7f);
 
-    quad({ PlateLeft - surge - 5.0f, PlateTop - surge - 5.0f },
-         { PlateRight - PlateLeft + (surge + 5.0f) * 2.0f, surge + 5.0f },
+    for (float y = PlateTop; y < PlateBottom; y += 6.0f)
+    {
+        const float y0 = y;
+        const float y1 = std::min(y + 6.0f, PlateBottom);
+        const float h0 = halfWidthAt(y0);
+        const float h1 = halfWidthAt(y1);
+
+        // Brightest where the hull is pushing the water aside hardest, which
+        // is the fine part of the bow.
+        const float bite = 0.34f + 0.42f * std::clamp((488.0f - h0) / 300.0f, 0.0f, 1.0f);
+        const float wash = surge + 5.0f;
+
+        for (const float side : { -1.0f, 1.0f })
+        {
+            slab(m_mesh, { DeckMid + side * h0, y0 }, { DeckMid + side * h1, y1 },
+                 { DeckMid + side * (h1 + wash), y1 }, { DeckMid + side * (h0 + wash), y0 },
+                 fade(config::DeckNightFoam, bite));
+        }
+    }
+
+    const float stern = halfWidthAt(PlateBottom);
+    quad({ DeckMid - stern, PlateBottom }, { stern * 2.0f, surge + 5.0f },
          fade(config::DeckNightFoam, 0.5f));
-    quad({ PlateLeft - surge - 5.0f, PlateBottom },
-         { PlateRight - PlateLeft + (surge + 5.0f) * 2.0f, surge + 5.0f },
-         fade(config::DeckNightFoam, 0.5f));
-    quad({ PlateLeft - surge - 5.0f, PlateTop }, { surge + 5.0f, PlateBottom - PlateTop },
-         fade(config::DeckNightFoam, 0.4f));
-    quad({ PlateRight, PlateTop }, { surge + 5.0f, PlateBottom - PlateTop },
-         fade(config::DeckNightFoam, 0.4f));
 }
 
 void Deck::drawPlate(sf::RenderTarget& target)
@@ -647,13 +888,18 @@ void Deck::drawPlate(sf::RenderTarget& target)
     target.draw(m_mesh);
     m_mesh.clear();
 
-    // The floor takes the flat night tint and no light at all. It is one
-    // sprite covering the whole deck, so any light folded into its colour
-    // lifts every corner of it equally - which is a uniformly grey floor, the
-    // exact thing the night was supposed to get rid of. All of its brightness
-    // comes from the additive pass, where it belongs.
-    m_plate.setColor(config::DeckNightTint);
-    target.draw(m_plate);
+    // The floor takes the flat night tint and no light at all. It covers the
+    // whole deck, so any light folded into its colour lifts every corner of it
+    // equally - which is a uniformly grey floor, the exact thing the night was
+    // supposed to get rid of. All of its brightness comes from the additive
+    // pass, where it belongs.
+    sf::RenderStates plating;
+    plating.texture = m_plateTexture;
+    target.draw(m_hull, plating);
+
+    // And everything welded to it: the bulwark and its freeing ports, the butt
+    // seams between the strakes, the lashing points, the painted border.
+    target.draw(m_fixed);
 
     // A painted lane from the bell to each station, because the first thing a
     // player does up here is ask where they are supposed to go. Dimmer than it
@@ -970,11 +1216,9 @@ void Deck::drawSub(sf::RenderTarget& target)
 
     // --- the machine -------------------------------------------------------
     //
-    // Composed exactly as it is in the water: slung hardware underneath, the
-    // hull, then plating and guns over the top.
-    m_subKit.drawUnder(target);
-    target.draw(m_subHull);
-    m_subKit.drawOver(target);
+    // One finished image, composed in update out of exactly what is in the
+    // water: slung hardware underneath, the hull, then plating and guns over.
+    target.draw(m_subImage);
 
     // --- and the two slings holding it -------------------------------------
     //
@@ -1247,25 +1491,8 @@ void Deck::draw(sf::RenderTarget& target)
     target.draw(m_mesh);
     m_mesh.clear();
 
-    // The rails, each run lit by whatever is standing over its middle.
-    const auto run = [this, &target](sf::Vector2f from, float length, float degrees,
-                                     sf::Vector2f middle) {
-        m_rail.setOrigin({ 0.0f, 0.0f });
-        m_rail.setTextureRect(sf::IntRect({ 0, 0 }, { static_cast<int>(length), 20 }));
-        m_rail.setPosition(from);
-        m_rail.setRotation(sf::degrees(degrees));
-        m_rail.setColor(litTint(config::DeckNightTint, lightAt(middle)));
-        target.draw(m_rail);
-    };
-
-    const float across = PlateRight - PlateLeft;
-    const float down = PlateBottom - PlateTop;
-
-    run({ PlateLeft, PlateTop }, across, 0.0f, { 640.0f, PlateTop });
-    run({ PlateRight, PlateBottom }, across, 180.0f, { 640.0f, PlateBottom });
-    run({ PlateLeft, PlateBottom }, down, -90.0f, { PlateLeft, 370.0f });
-    run({ PlateRight, PlateTop }, down, 90.0f, { PlateRight, 370.0f });
-
+    // The four straight rail runs are gone: the edge of the ship is a curve
+    // now, and it is drawn as part of the bulwark that follows it.
     drawLightPass();
     target.draw(m_glow, add);
     m_glow.clear();
