@@ -3,6 +3,7 @@
 #include "ui/UpgradeIcons.h"
 #include "upgrades/Stats.h"
 
+#include <SFML/Graphics/Color.hpp>
 #include <SFML/System/Vector2.hpp>
 
 #include <cstddef>
@@ -48,6 +49,10 @@ public:
 
     const std::vector<UpgradeNode>& getNodes() const { return m_nodes; }
     static const char* getBranchName(int column);
+
+    // What colour that branch is. The hue says which part of the sub a node
+    // belongs to; the screen dims it to say what state it is in.
+    static sf::Color getBranchColour(int column);
 
     // The closest any two nodes come to each other. The screen draws discs of a
     // fixed radius, so this is what proves they cannot overlap; the test suite

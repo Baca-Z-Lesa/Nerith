@@ -358,7 +358,19 @@ void UpgradeScreen::drawLinks(sf::RenderTarget& target, const UpgradeTree& tree)
                 // whole story about why a node is or is not reachable. Links
                 // that cross columns are the deliberate synergies.
                 const bool open = tree.isUnlocked(j);
-                const sf::Color color = open ? config::LinkOpenColor : config::LinkShutColor;
+
+                // The wire carries the branch's colour too, so an unlocked run
+                // reads as a lit circuit through one system rather than as a
+                // row of discs that happen to be joined. Links that cross
+                // columns take the colour of where they arrive, which is what
+                // makes a deliberate synergy visible as one.
+                const sf::Color branch = UpgradeTree::getBranchColour(nodes[i].column);
+                const float amount = open ? 0.90f : 0.26f;
+
+                const sf::Color color(static_cast<std::uint8_t>(branch.r * amount),
+                                      static_cast<std::uint8_t>(branch.g * amount),
+                                      static_cast<std::uint8_t>(branch.b * amount),
+                                      open ? 230 : 130);
 
                 appendLine(m_lines, centreOf(nodes[j]), centreOf(nodes[i]),
                            (open ? 3.0f : 2.0f) * m_zoom, color);
@@ -386,22 +398,37 @@ void UpgradeScreen::drawNodes(sf::RenderTarget& target, const UpgradeTree& tree,
         const bool ready = tree.arePrerequisitesMet(i);
         const bool affordable = tree.canAfford(i, salvage);
 
-        sf::Color fill = config::NodeLockedFill;
-        sf::Color edge = config::NodeLockedEdge;
+        // The branch decides the hue and the state decides how much of it there
+        // is. Ninety-nine discs in one colour meant the only way to find out
+        // which part of the sub a node belonged to was to put the cursor on it.
+        const sf::Color branch = UpgradeTree::getBranchColour(node.column);
+
+        const auto lit = [](sf::Color colour, float amount, std::uint8_t alpha = 255) {
+            return sf::Color(static_cast<std::uint8_t>(colour.r * amount),
+                             static_cast<std::uint8_t>(colour.g * amount),
+                             static_cast<std::uint8_t>(colour.b * amount), alpha);
+        };
+
+        sf::Color fill = lit(branch, 0.10f);
+        sf::Color edge = lit(branch, 0.34f);
         sf::Color label = config::HudDimTextColor;
 
         if (unlocked)
         {
-            fill = config::NodeUnlockedFill;
-            edge = config::NodeUnlockedEdge;
+            // Bought: the branch at full strength, and the one state that is
+            // meant to be visible from the other side of the screen.
+            fill = lit(branch, 0.42f);
+            edge = lit(branch, 1.0f);
             label = config::HudTextColor;
         }
         else if (ready)
         {
-            fill = config::NodeReadyFill;
-            // Prerequisites met but too expensive gets its own colour, so the
-            // reason a node is out of reach is never ambiguous.
-            edge = affordable ? config::NodeReadyEdge : config::NodePricyEdge;
+            fill = lit(branch, 0.18f);
+
+            // Prerequisites met but too expensive keeps the branch and loses
+            // the light, so the reason a node is out of reach is never
+            // ambiguous and never stops telling you what it is.
+            edge = affordable ? lit(branch, 0.82f) : lit(branch, 0.46f);
             label = affordable ? config::HudTextColor : config::HudDimTextColor;
         }
 
@@ -623,8 +650,10 @@ void UpgradeScreen::drawBranchLabels(sf::RenderTarget& target, const UpgradeTree
         m_box.setFillColor(config::ScreenBackdrop);
         target.draw(m_box);
 
+        // In its own branch's colour, so the name and the run of discs it names
+        // are obviously the same thing.
         pixelfont::append(m_text, name, { label.x - width / 2.0f, label.y }, 1.4f,
-                          config::HudDimTextColor);
+                          UpgradeTree::getBranchColour(node.column));
     }
 
     target.draw(m_text);

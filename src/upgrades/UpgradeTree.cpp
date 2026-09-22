@@ -98,6 +98,31 @@ namespace
         "WEAPONS", "TORPEDOES", "HULL", "ENGINE", "SONAR",
         "DEFENSE", "MUTATION", "SALVAGE", "CURRENT"
     };
+
+    // A colour each. Ninety-nine discs in one teal was a wall you had to read
+    // node by node to navigate: the only way to find out which part of the sub
+    // a disc belonged to was to put the cursor on it. Now the branch is the
+    // hue and the state is the brightness, so where you have spent is a thing
+    // you see from across the screen before reading a single word.
+    const sf::Color BranchColours[UpgradeBranchCount] = {
+        { 202,  90,  64 },  // WEAPONS   - hot
+        { 216, 142,  56 },  // TORPEDOES - warm
+        {  92, 130, 176 },  // HULL      - steel
+        {  64, 180, 164 },  // ENGINE    - teal
+        { 104, 198, 118 },  // SONAR     - green
+        { 164, 180, 208 },  // DEFENSE   - pale plate
+        { 178,  94, 194 },  // MUTATION  - wrong
+        { 214, 188,  84 },  // SALVAGE   - gold
+        {  82, 108, 216 },  // CURRENT   - deep
+    };
+}
+
+sf::Color UpgradeTree::getBranchColour(int column)
+{
+    if (column < 0 || column >= UpgradeBranchCount)
+        return { 150, 170, 180 };
+
+    return BranchColours[column];
 }
 
 const char* UpgradeTree::getBranchName(int column)
