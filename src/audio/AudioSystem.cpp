@@ -31,6 +31,7 @@ namespace
             case Sfx::BossDeath:  return "assets/audio/boss_death.wav";
             case Sfx::Charge:     return "assets/audio/charge.wav";
             case Sfx::Siren:      return "assets/audio/siren.wav";
+            case Sfx::HullGroan:  return "assets/audio/hull_groan.wav";
             case Sfx::DieSoft:    return "assets/audio/die_soft.wav";
             case Sfx::DieShell:   return "assets/audio/die_shell.wav";
             case Sfx::DieBladder: return "assets/audio/die_bladder.wav";
@@ -89,6 +90,7 @@ namespace
             case Sfx::BossDeath:  return config::VolumeBossDeath;
             case Sfx::Charge:     return config::VolumeCharge;
             case Sfx::Siren:      return config::VolumeSiren;
+            case Sfx::HullGroan:  return config::VolumeHullGroan;
             case Sfx::DieSoft:
             case Sfx::DieShell:
             case Sfx::DieBladder:
@@ -329,7 +331,8 @@ std::size_t AudioSystem::takeVoice()
     return index;
 }
 
-void AudioSystem::speak(Sfx sound, float volume, float cutoff, const sf::Vector2f* at)
+void AudioSystem::speak(Sfx sound, float volume, float cutoff, const sf::Vector2f* at,
+                        float pitch)
 {
     if (m_muted || m_voices.empty())
         return;
@@ -344,6 +347,10 @@ void AudioSystem::speak(Sfx sound, float volume, float cutoff, const sf::Vector2
 
     voice.setBuffer(m_buffers[static_cast<std::size_t>(sound)]);
     voice.setVolume(volume);
+
+    // Pooled, so pitch leaks between sounds the same way position would if it
+    // were not written every time. One is as recorded.
+    voice.setPitch(pitch);
 
     // Both paths set it. A pooled voice remembers whatever the last sound
     // through it was, so leaving either one out leaks position between sounds
@@ -364,9 +371,9 @@ void AudioSystem::speak(Sfx sound, float volume, float cutoff, const sf::Vector2
     voice.play();
 }
 
-void AudioSystem::play(Sfx sound, float volumeScale)
+void AudioSystem::play(Sfx sound, float volumeScale, float pitch)
 {
-    speak(sound, volumeFor(sound) * volumeScale * m_sfxScale, 0.0f, nullptr);
+    speak(sound, volumeFor(sound) * volumeScale * m_sfxScale, 0.0f, nullptr, pitch);
 }
 
 void AudioSystem::playAt(Sfx sound, sf::Vector2f at, float volumeScale, float occlusion)

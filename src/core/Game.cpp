@@ -292,10 +292,19 @@ void Game::aimCamera(float alpha)
     if (m_shake > 0.05f)
         centre += sf::Vector2f{ rng::range(-m_shake, m_shake), rng::range(-m_shake, m_shake) };
 
+    // The hull groan draws the frame in a hair and lets it back out, on a
+    // raised sine so it swells with the sound rather than snapping.
+    float pinch = 0.0f;
+    if (m_groanPinch > 0.0f)
+    {
+        const float u = 1.0f - m_groanPinch / config::GroanPinchTime;
+        pinch = std::sin(u * 3.14159265f) * config::GroanPinch;
+    }
+
     m_camera.setCenter(centre);
     m_camera.setSize(sf::Vector2f{ static_cast<float>(config::WindowWidth),
                                    static_cast<float>(config::WindowHeight) }
-                     * m_cameraZoom);
+                     * m_cameraZoom * (1.0f - pinch));
 }
 
 void Game::addShake(float strength)
@@ -944,6 +953,39 @@ void Game::updateFeel(float deltaTime)
     {
         m_sirenTimer = 0.0f;
     }
+
+    // The hull working against the pressure. Not damage - the sub is fine - it
+    // is the deep leaning on it, so the groans come closer together and drop in
+    // pitch the further down you are, and the frame draws in a hair on each.
+    const bool underway = m_state == State::Fighting && !m_paused;
+
+    if (underway)
+    {
+        m_hullGroan -= deltaTime;
+        if (m_hullGroan <= 0.0f)
+        {
+            const float deep = std::clamp(
+                (static_cast<float>(m_level.getDepth()) - 1.0f)
+                    / std::max(1.0f, static_cast<float>(depthCount() - 1)),
+                0.0f, 1.0f);
+
+            const float base = config::GroanIntervalShallow
+                               + (config::GroanIntervalDeep - config::GroanIntervalShallow) * deep;
+            m_hullGroan = base * rng::range(0.75f, 1.3f);
+
+            const float pitch = config::GroanPitchShallow
+                                + (config::GroanPitchDeep - config::GroanPitchShallow) * deep;
+            m_audio.play(Sfx::HullGroan, 0.8f + 0.3f * deep, pitch);
+
+            m_groanPinch = config::GroanPinchTime;
+        }
+    }
+    else
+    {
+        m_hullGroan = 0.0f;
+    }
+
+    m_groanPinch = std::max(0.0f, m_groanPinch - deltaTime);
 
     // The score follows the fight rather than the level. The pulse comes up
     // when something is actually hunting you and drops when it is not, so a

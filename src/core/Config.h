@@ -1741,6 +1741,7 @@ namespace config
     inline constexpr float VolumeBossDeath = 100.0f;
     inline constexpr float VolumeCharge = 34.0f;
     inline constexpr float VolumeSiren = 44.0f;
+    inline constexpr float VolumeHullGroan = 46.0f;
 
     // Music. Three loops over the same root, faded independently.
     inline constexpr const char* MusicBedPath = "assets/audio/music_bed.wav";
@@ -1899,6 +1900,18 @@ namespace config
     inline constexpr float FlashFade = 2.8f;
     inline constexpr float BigMomentRing = 420.0f;
     inline constexpr float SirenInterval = 1.6f;
+
+    // The hull working against the pressure, on a loop through a whole dive. It
+    // is not damage - the sub is fine - it is the deep leaning on it, so it
+    // comes closer together and drops in pitch the further down you are, and
+    // the frame draws in a hair on each groan. The pull is tiny on purpose: a
+    // felt thing, not an effect.
+    inline constexpr float GroanIntervalShallow = 15.0f; // seconds between, up top
+    inline constexpr float GroanIntervalDeep = 5.5f;     // and at the bottom
+    inline constexpr float GroanPitchShallow = 1.0f;     // as recorded
+    inline constexpr float GroanPitchDeep = 0.6f;        // lower, heavier
+    inline constexpr float GroanPinch = 0.028f;          // fraction the view draws in
+    inline constexpr float GroanPinchTime = 0.9f;        // how long the draw-in lasts
 
     inline constexpr float HurtFlashFade = 2.6f;
     inline constexpr sf::Color HurtFlashColor{ 168, 26, 34 };

@@ -818,6 +818,8 @@ private:
     int       m_blocks;      // hits that did not land, for the summary
     int       m_carrying;    // which pod is under tow, or -1
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
+    float     m_hullGroan = 0.0f;  // seconds until the hull next groans
+    float     m_groanPinch = 0.0f; // seconds of draw-in left after a groan
 
     int   m_optionRow;    // which line of the options screen is selected
     int   m_optionScroll = 0;

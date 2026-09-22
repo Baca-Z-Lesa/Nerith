@@ -27,6 +27,7 @@ enum class Sfx
     BossDeath,
     Charge,
     Siren,         // the hull alarm, when there is almost none of it left
+    HullGroan,     // the hull working under the pressure, deeper the further down
 
     // A basin full of different animals used to sound like one animal being
     // killed over and over. One voice per kind of body instead: what it is
@@ -86,8 +87,10 @@ public:
     AudioSystem(); // throws if a sound file is missing
 
     // The sub own noises: no position, so they sit in the middle of the head
-    // wherever the sub happens to be.
-    void play(Sfx sound, float volumeScale = 1.0f);
+    // wherever the sub happens to be. Pitch is a playback-rate multiplier: one
+    // is as recorded, and below one drops it - which is how the hull groan gets
+    // deeper the further down the sub is.
+    void play(Sfx sound, float volumeScale = 1.0f, float pitch = 1.0f);
 
     // Everything that happens somewhere. `occlusion` is how much rock is in
     // the way, 0 to 1: it takes the volume down and, more importantly, takes
@@ -193,7 +196,8 @@ private:
 
     // The one place a voice is actually started. Everything else works out
     // what to hand it.
-    void speak(Sfx sound, float volume, float cutoff, const sf::Vector2f* at);
+    void speak(Sfx sound, float volume, float cutoff, const sf::Vector2f* at,
+               float pitch = 1.0f);
 
     std::vector<Echo> m_echoes;
     float             m_openness = 0.0f;

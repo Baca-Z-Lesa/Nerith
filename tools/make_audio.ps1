@@ -699,6 +699,42 @@ public static class Synth
         Edges(b, 0.01f);
         return b;
     }
+
+    // The hull working under the pressure. A low creak that wanders in pitch,
+    // gritty metal noise through a low pass, and a slow tremor that gates the
+    // whole thing so it groans in waves rather than droning. Played back
+    // pitched down as the water gets deeper, which is why the fundamental sits
+    // high enough here to have somewhere to go.
+    public static float[] HullGroan()
+    {
+        float len = 1.8f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        float[] grit = new float[n];
+        for (int i = 0; i < n; i++) grit[i] = Noise();
+        LowPass(grit, 300f);
+
+        double phase = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            double hz = 60.0 + 11.0 * Math.Sin(2 * Math.PI * 0.85 * t + 0.4)
+                             + 4.0 * Math.Sin(2 * Math.PI * 2.6 * t);
+            phase += 2 * Math.PI * hz / Rate;
+
+            float body = (float)Math.Sin(phase)
+                         + 0.5f * (float)Math.Sin(phase * 2.0)
+                         + 0.26f * (float)Math.Sin(phase * 3.0);
+
+            float tremor = 0.58f + 0.42f * (float)Math.Sin(2 * Math.PI * 1.7 * t + 1.1);
+            float env = Math.Min(1f, t / 0.22f) * Decay(t, len, 1.5f);
+
+            b[i] = (body * 0.5f + grit[i] * 0.5f) * tremor * env * 0.5f;
+        }
+        Edges(b, 0.02f);
+        return b;
+    }
 }
 "@
 
@@ -736,7 +772,8 @@ $jobs = @(
     @("music_bed.wav",       [Synth]::MusicBed(16.0)),
     @("music_pulse.wav",     [Synth]::MusicPulse(16.0)),
     @("music_dread.wav",     [Synth]::MusicDread(16.0)),
-    @("music_stalk.wav",     [Synth]::MusicStalk(16.0))
+    @("music_stalk.wav",     [Synth]::MusicStalk(16.0)),
+    @("hull_groan.wav",      [Synth]::HullGroan())
 )
 
 foreach ($job in $jobs) {
