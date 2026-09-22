@@ -1193,12 +1193,10 @@ float Arena::edgeRadius(const Chamber& chamber, sf::Vector2f offset) const
 
 sf::Vector2f Arena::currentAt(sf::Vector2f position) const
 {
-    // The whole basin is going somewhere, before any corridor or pit says
-    // what it is doing locally. Everything that already asks this question -
-    // the sub, the creatures - is carried by it without another word, which
-    // is why it lives here rather than in a third place that has to be kept
-    // in step with the other two.
-    sf::Vector2f drag = m_drift;
+    // Zero in the open water: the only thing that moves anything is a pit or
+    // a corridor, a local thing you can swim clear of. The basin as a whole
+    // holds still.
+    sf::Vector2f drag{ 0.0f, 0.0f };
 
     for (const Current& current : m_currents)
     {

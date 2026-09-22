@@ -142,6 +142,10 @@ Game::Game()
     applySettings();
     m_player.reset();
 
+    // The parked sub reads its hardware straight off the player's stat block.
+    // The block is rebuilt in place, never replaced, so one handover holds.
+    m_deck.setSub(m_playerStats);
+
     if (m_save.fullscreen)
         toggleFullscreen();
 
@@ -1090,10 +1094,6 @@ void Game::beginLevel(int number, bool fresh)
     m_mines.clear();
     m_hitRings.clear();
     m_markedQuarry = false;
-
-    // A new basin, a new current. Seeded off the level so a floor is the
-    // same water every time it is dived, and not off the clock.
-    m_currentAngle = rng::range(0.0f, 6.283185307f);
 
     m_lostTimer = 0.0f;
     m_lastProgress = -1.0f;
@@ -3823,26 +3823,6 @@ void Game::takeReport()
     m_report.landed = worthOf(m_hold);
 
     m_reportTimer = config::ReportHold;
-}
-
-void Game::updateCurrent(float deltaTime)
-{
-    // The water is going somewhere. Slowly turning, and breathing in strength
-    // on a much longer clock than anything else in the game moves on, so a
-    // player never catches it changing - they only notice that the drift they
-    // corrected for a minute ago is no longer the drift they are in.
-    m_currentAngle += config::DriftTurn * deltaTime;
-
-    const float surge = 1.0f + config::DriftSurge
-                                   * std::sin(m_presentTime * config::DriftSurgeHz
-                                              * 6.283185307f);
-
-    m_current = sf::Vector2f{ std::cos(m_currentAngle), std::sin(m_currentAngle) }
-                * (config::DriftSpeed * surge);
-
-    // Handed to the basin, which is where every other thing in the game asks
-    // which way the water is going.
-    m_arena.setDrift(m_current);
 }
 
 void Game::updateEscape()
@@ -7327,9 +7307,6 @@ void Game::presentUpdate(float deltaTime)
             break;
     }
 
-    // Which way the water is going, before anything loose in it is moved.
-    updateCurrent(deltaTime);
-
     // Where the beam is, so the silt in it catches the light. The lamp's own
     // numbers rather than a second set: a shaft that does not line up with
     // the light it is made of is worse than no shaft.
@@ -7355,8 +7332,8 @@ void Game::presentUpdate(float deltaTime)
         m_effects.setBeam(beam);
     }
 
-    m_ambience.update(deltaTime, m_current);
-    m_effects.update(deltaTime, m_current);
+    m_ambience.update(deltaTime);
+    m_effects.update(deltaTime);
 }
 
 

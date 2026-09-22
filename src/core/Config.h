@@ -856,26 +856,6 @@ namespace config
     // instead of off the head. Roughly the widest the drawn shape gets.
     inline constexpr float BossLimbHitFactor = 1.9f;
 
-    // =====================================================================
-    //  THE CURRENT
-    //  The one thing that was missing that made this read as a black screen
-    //  with motes painted on rather than as water. Every basin has its own,
-    //  it turns slowly, and everything loose in the water goes with it: the
-    //  silt, the bubbles, the creatures and the sub.
-    //
-    //  Felt, not fought. The sub gives up about a tenth of its speed to it,
-    //  which is enough that a long crossing needs correcting and not enough
-    //  that the controls stop answering.
-    // =====================================================================
-    // Distinct from the corridor current further up, which is a local thing a
-    // passage does. This is the whole body of water moving, everywhere at
-    // once, and it is folded into Arena::currentAt so that everything which
-    // already asks which way the water is going is carried by it.
-    inline constexpr float DriftSpeed = 30.0f;    // pixels a second
-    inline constexpr float DriftTurn = 0.055f;    // radians a second
-    inline constexpr float DriftSurge = 0.30f;    // how much it breathes in strength
-    inline constexpr float DriftSurgeHz = 0.08f;
-
     // How much brighter a mote gets for being in the beam. High enough that
     // the shaft is visible in open water and low enough that it never washes
     // out what the lamp is actually lighting.
@@ -1267,17 +1247,12 @@ namespace config
         float        solid;  // radius you cannot walk through, 0 to walk over
     };
 
-    inline constexpr std::array<DeckProp, 28> DeckProps{ {
-        // The sub itself, in its cradle between the crane and the moon pool.
-        // It was not on this deck at all: the player walked past a crane, a
-        // chamber, two winch reels and a decompression shack to reach a hole
-        // in the floor, and the machine every one of those exists to service
-        // was nowhere in the picture.
-        //
-        // The solid radius is well under half its length on purpose - a
-        // circle round a thing this long would wall off the middle of the
-        // deck, and walking round the ends of it is the point.
-        { "assets/textures/deck_sub.png",     { 648.0f, 224.0f },  -2.0f, 74.0f },
+    inline constexpr std::array<DeckProp, 27> DeckProps{ {
+        // The sub itself is no longer a flat prop here. It stands in its cradle
+        // between the crane and the moon pool as the real machine the player
+        // pilots - hull plus every piece of hardware they have bolted on - so
+        // the deck shows the current state of the sub rather than a picture of
+        // a generic one. Deck::drawSub owns it; see config::DeckSub* below.
 
         // The goods end, round the crane.
         { "assets/textures/deck_quad.png",    { 222.0f, 188.0f },   0.0f, 40.0f },
@@ -1378,6 +1353,17 @@ namespace config
         { { 1064.0f, 606.0f }, { 898.0f, 512.0f }, { 236.0f, 170.0f }, -150.5f, 0.58f, 0.04f, false },
         { { 640.0f, 108.0f }, { 640.0f, 232.0f }, { 250.0f, 186.0f }, 90.0f, 0.48f, 0.05f, false },
     } };
+
+    // The sub in its cradle, under the centre floodlight (lamp 4 above throws
+    // its pool right here). Drawn as the real machine - hull plus fitted
+    // hardware - by Deck::drawSub, so it always shows the current upgrade
+    // state. Scale is over and above the sub's own gameplay scale, big enough
+    // that it reads as the hero object on the deck rather than a toy.
+    inline constexpr sf::Vector2f DeckSubAt{ 644.0f, 250.0f };
+    inline constexpr float DeckSubScale = 2.3f;   // on top of PlayerScale
+    inline constexpr float DeckSubTurn = 90.0f;   // nose toward the moon pool
+    inline constexpr float DeckSubSolid = 78.0f;  // walk round it, not through
+    inline constexpr float DeckSubBob = 2.0f;     // it rides the swell a little
 
     // One knob over the whole rig. The per-lamp strengths above are the shape
     // of the lighting - which lamp is the strong one, which one is failing -

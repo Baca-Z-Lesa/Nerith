@@ -189,11 +189,6 @@ public:
     // Zero everywhere except inside a pit.
     sf::Vector2f currentAt(sf::Vector2f position) const;
 
-    // Which way the open water itself is going, as opposed to what a corridor
-    // or a pit does locally. Set once a frame by whoever owns the clock.
-    void setDrift(sf::Vector2f drift) { m_drift = drift; }
-    sf::Vector2f getDrift() const { return m_drift; }
-
     // --- Getting across it ---
     // The basin is generated as a graph of rooms joined by passages, so
     // anything crossing it walks that graph rather than pushing at a wall and
@@ -387,7 +382,6 @@ private:
     sf::VertexArray m_dark;
     sf::VertexArray m_shadow;
     sf::VertexArray m_absorb;
-    sf::Vector2f    m_drift{ 0.0f, 0.0f };
     const DepthTheme* m_theme;
     float             m_lampBonus = 0.0f;
     float             m_lampFactor = 1.0f;

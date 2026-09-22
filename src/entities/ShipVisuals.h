@@ -3,6 +3,7 @@
 #include "upgrades/Stats.h"
 
 #include <SFML/Graphics/CircleShape.hpp>
+#include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/System/Angle.hpp>
@@ -24,8 +25,10 @@ public:
 
     // Re-places the hardware for drawing, without advancing anything. The sub
     // is drawn between two simulation steps, and its guns have to be in the
-    // same place as its hull.
-    void present(sf::Vector2f position, sf::Angle heading);
+    // same place as its hull. The scale is over and above the fitting scale, so
+    // the deck can show the same sub blown up to hero size without a second set
+    // of offsets.
+    void present(sf::Vector2f position, sf::Angle heading, float scale = 1.0f);
 
     // Split so the hull can be drawn between them: slung hardware underneath,
     // plating and guns on top.
@@ -33,6 +36,11 @@ public:
     void drawOver(sf::RenderTarget& target) const;
 
     void setShieldUp(bool up) { m_shieldUp = up; }
+
+    // A tint laid over every fitted part, so the hardware sinks into the night
+    // deck the same way the hull does. White (the default) leaves the parts as
+    // they are, which is what the arena wants.
+    void setTint(sf::Color tint) { m_tint = tint; }
 
 private:
     struct Mount
@@ -48,4 +56,5 @@ private:
     sf::CircleShape    m_shield;
     bool               m_shieldUp;
     float              m_time;
+    sf::Color          m_tint{ sf::Color::White };
 };

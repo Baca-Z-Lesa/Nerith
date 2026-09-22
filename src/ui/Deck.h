@@ -1,5 +1,7 @@
 #pragma once
 
+#include "entities/ShipVisuals.h"
+
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
@@ -12,6 +14,7 @@
 #include <vector>
 
 struct Assets;
+class Stats;
 
 // The surface. Everything between two dives happens up here, and it is a place
 // rather than a menu: a rig deck in a black sea at night, in the rain, with a
@@ -71,6 +74,12 @@ public:
     // one - but it is drawn dead and the prompt does not appear.
     void setOpen(Post which, bool open);
 
+    // The sub parked on the deck is the player's own: it grows the same
+    // hardware their stat block has fitted. Handed in rather than owned, so the
+    // deck still knows nothing about the tree - it only draws what it is given.
+    // Call whenever the fitting could have changed (surfacing, buying).
+    void setSub(const Stats& stats);
+
 private:
     struct Station
     {
@@ -108,6 +117,7 @@ private:
     void drawLightPass();
     void drawShadows();
     void drawStations(sf::RenderTarget& target);
+    void drawSub(sf::RenderTarget& target);
     void drawDiver(sf::RenderTarget& target);
     void drawWeather();
     void drawVignette();
@@ -166,6 +176,13 @@ private:
     sf::Sprite m_crate;
     sf::Sprite m_body;
     sf::Sprite m_boot;
+
+    // The player's own sub, parked in its cradle: the hull plus every piece of
+    // hardware the tree has bolted on. The stats it reads are borrowed, never
+    // owned, so a null pointer just means "not told yet" and it is not drawn.
+    sf::Sprite    m_subHull;
+    ShipVisuals   m_subKit;
+    const Stats*  m_subStats = nullptr;
 
     // Everything lying about that is not a station. One sprite per placement
     // rather than per texture, because two of them are put down twice and a

@@ -3,6 +3,7 @@
 #include "core/Assets.h"
 #include "core/Config.h"
 #include "ui/PixelFont.h"
+#include "upgrades/Stats.h"
 
 #include <SFML/Graphics/BlendMode.hpp>
 #include <SFML/Graphics/PrimitiveType.hpp>
@@ -151,6 +152,8 @@ Deck::Deck(const Assets& assets)
     , m_crate(assets.byPath(config::DeckCratePath))
     , m_body(assets.byPath(config::DeckDiverPath))
     , m_boot(assets.byPath(config::DeckBootPath))
+    , m_subHull(assets.player)
+    , m_subKit(assets)
 {
     const auto centre = [](sf::Sprite& sprite) {
         const sf::Vector2f size(sprite.getTexture().getSize());
@@ -163,6 +166,13 @@ Deck::Deck(const Assets& assets)
     centre(m_crate);
     centre(m_body);
     centre(m_boot);
+    centre(m_subHull);
+
+    // The parked sub is the real hull blown up to hero size, and its shield -
+    // if fitted - reads as up, because it is not spending charges on a deck.
+    m_subHull.setScale({ config::PlayerScale * config::DeckSubScale,
+                         config::PlayerScale * config::DeckSubScale });
+    m_subKit.setShieldUp(true);
 
     m_crane.setPosition(station(Post::Crane).at);
     m_bench.setPosition(station(Post::Bench).at);
@@ -213,6 +223,11 @@ void Deck::setOpen(Post which, bool open)
 {
     if (which != Post::Count)
         station(which).open = open;
+}
+
+void Deck::setSub(const Stats& stats)
+{
+    m_subStats = &stats;
 }
 
 void Deck::update(float deltaTime, sf::Vector2f drive)
@@ -268,6 +283,26 @@ void Deck::update(float deltaTime, sf::Vector2f drive)
             m_at = static_cast<Post>(i);
         }
     }
+
+    // Park the sub. It rides the swell a little, the same as the bell, and it
+    // is lit and tinted like everything else on the plate - hull and hardware
+    // together, so a bolted-on gun is not the one bright thing at night.
+    if (m_subStats)
+    {
+        const float bob = std::sin(m_time * 0.9f) * config::DeckSubBob;
+        const sf::Vector2f at = config::DeckSubAt + sf::Vector2f{ 0.0f, bob };
+        const sf::Angle heading = sf::degrees(config::DeckSubTurn);
+        const sf::Color tint = litTint(config::DeckNightTint,
+                                       std::max(lightAt(config::DeckSubAt), 0.22f));
+
+        m_subKit.setTint(tint);
+        m_subKit.update(at, heading, *m_subStats, deltaTime);
+        m_subKit.present(at, heading, config::DeckSubScale);
+
+        m_subHull.setPosition(at);
+        m_subHull.setRotation(heading);
+        m_subHull.setColor(tint);
+    }
 }
 
 void Deck::keepOnDeck()
@@ -288,6 +323,7 @@ void Deck::keepOnDeck()
     };
 
     shove(Pool, PoolRadius + 22.0f);
+    shove(config::DeckSubAt, config::DeckSubSolid);
 
     for (const Station& post : m_stations)
     {
@@ -800,6 +836,10 @@ void Deck::drawShadows()
 
     shadowFor(station(Post::Crane).at, 112.0f, 110.0f);
     shadowFor(station(Post::Bench).at, 84.0f, 110.0f);
+
+    if (m_subStats)
+        shadowFor(config::DeckSubAt, 96.0f, 122.0f);
+
     shadowFor(m_diver, 44.0f, 130.0f);
 }
 
@@ -831,6 +871,36 @@ void Deck::drawStations(sf::RenderTarget& target)
     m_bell.setPosition(Pool + sf::Vector2f{ 0.0f, std::sin(m_time * 0.9f) * 3.0f });
     m_bell.setColor(litTint(config::DeckNightBell, lightAt(Pool)));
     target.draw(m_bell);
+}
+
+void Deck::drawSub(sf::RenderTarget& target)
+{
+    if (!m_subStats)
+        return;
+
+    const sf::Vector2f at = config::DeckSubAt;
+    const float light = lightAt(at);
+
+    // A steel cradle under it: two beams across the hull, grounded by the
+    // contact shadow already laid down in the shadow pass. A lit top edge so
+    // they read as structure and not a dark smear.
+    const sf::Color steel = litTint(sf::Color(24, 30, 38), light * 0.7f);
+    const sf::Color edge = litTint(sf::Color(70, 84, 96), std::max(light, 0.25f));
+
+    for (const float dy : { -60.0f, 60.0f })
+    {
+        quad({ at.x - 66.0f, at.y + dy - 8.0f }, { 132.0f, 16.0f }, steel);
+        quad({ at.x - 66.0f, at.y + dy - 8.0f }, { 132.0f, 3.0f }, edge);
+    }
+
+    target.draw(m_mesh);
+    m_mesh.clear();
+
+    // The machine itself, composed exactly as it is in the water: slung
+    // hardware underneath, the hull, then plating and guns over the top.
+    m_subKit.drawUnder(target);
+    target.draw(m_subHull);
+    m_subKit.drawOver(target);
 }
 
 void Deck::drawDiver(sf::RenderTarget& target)
@@ -1113,6 +1183,7 @@ void Deck::draw(sf::RenderTarget& target)
 
     drawShadows();
     drawStations(target);
+    drawSub(target);
     drawDiver(target);
 
     drawWeather();
