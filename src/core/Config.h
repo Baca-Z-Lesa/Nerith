@@ -1823,6 +1823,12 @@ namespace config
 
     inline constexpr const char* DeckTrackPath = "assets/audio/ambient_deck.wav";
     inline constexpr const char* MusicReelPath = "assets/audio/music_reel.wav";
+    inline constexpr const char* MusicSurfacePath = "assets/audio/music_surface.wav";
+
+    // How much of the depth's pitch drop the score takes. The drone takes all
+    // of it; the music takes a share, so the deeper water is heavier and
+    // slower without the whole score sliding audibly out of tune.
+    inline constexpr float MusicDepthPitch = 0.45f;
 
     // How long the two ambiences take to trade places. Long enough that
     // surfacing is a transition rather than a cut, short enough that the deck

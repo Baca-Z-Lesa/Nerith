@@ -1037,6 +1037,21 @@ void Game::updateFeel(float deltaTime)
         m_audio.setLayer(AudioSystem::Layer::Stalk, fighting ? stalked : 0.0f);
         m_audio.setLayer(AudioSystem::Layer::Dread,
                          (fighting && m_boss && m_boss->isAlive()) ? 1.0f : 0.0f);
+
+        // Where the player is standing decides which of the two scores is
+        // under them. Above the water there is an actual tune; under it there
+        // is the bed and whatever the fight adds to it. They crossfade rather
+        // than cut, so going down takes the music off you over a second or
+        // two instead of switching it off at a door.
+        const bool aboveWater = m_state == State::Deck || m_state == State::Menu
+                                || m_state == State::Upgrading
+                                || m_state == State::Bestiary
+                                || m_state == State::Options
+                                || m_state == State::Controls
+                                || m_state == State::Credits;
+
+        m_audio.setLayer(AudioSystem::Layer::Surface, aboveWater ? 1.0f : 0.0f);
+        m_audio.setLayer(AudioSystem::Layer::Bed, aboveWater ? 0.0f : 1.0f);
     }
 
     // Where the ear is, and how much room there is around it. Both are asked

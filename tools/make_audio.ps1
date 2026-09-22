@@ -736,6 +736,72 @@ public static class Synth
         return b;
     }
 
+    // The surface. The one piece in the game that is actually a piece of
+    // music rather than a drone with things happening over it: four chords
+    // around a minor key, a bass note under each, and a plucked line on top.
+    //
+    // It belongs to the deck and the menu and nowhere else. Down in the water
+    // a tune would be company, and the whole game is built on there not being
+    // any - so this exists precisely so that going under can take it away.
+    public static float[] MusicSurface(float seconds)
+    {
+        int n = Count(seconds);
+        float[] b = new float[n];
+
+        // i - VI - III - VII in A minor, an octave up from the drone's root so
+        // it sits above the water rather than under it.
+        double[] chordRoot = { Root * 4, Root * 3.2, Root * 4.8, Root * 3.6 };
+
+        // The line. Scale degrees over the loop, -1 for a rest: sparse, because
+        // a busy melody on a screen people stand still on wears out in minutes.
+        double[] scale = { 1.0, 1.2, 1.5, 1.8, 2.0, 2.4, 3.0 };
+        int[] tune = { 4, -1, 2, 3, -1, 4, 5, -1, 3, 2, -1, 1, 2, -1, 4, -1 };
+
+        float bar = seconds / 4.0f;          // four chords over the loop
+        float step = seconds / tune.Length;  // and sixteen slots for the line
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+
+            int chord = (int)(t / bar) % 4;
+            float intoBar = t - chord * bar;
+            double root = chordRoot[chord];
+
+            // The chord itself: root, fifth, octave, breathing in across the
+            // bar so each one arrives rather than simply being on.
+            float swell = 0.35f + 0.65f * (float)Math.Sin(Math.PI * intoBar / bar);
+            float pad = (float)(Math.Sin(2 * Math.PI * root * t) * 0.40
+                              + Math.Sin(2 * Math.PI * root * 1.5 * t) * 0.24
+                              + Math.Sin(2 * Math.PI * root * 2.0 * t) * 0.12) * swell;
+
+            // A bass note an octave and a half under it, plucked at the bar.
+            float bassEnv = Decay(intoBar, bar, 1.4f);
+            float bass = (float)Math.Sin(2 * Math.PI * (root * 0.25) * t) * bassEnv;
+
+            // And the line over the top.
+            int slot = (int)(t / step) % tune.Length;
+            float lead = 0f;
+
+            if (tune[slot] >= 0)
+            {
+                float intoNote = t - slot * step;
+                double hz = root * scale[tune[slot]];
+
+                // Plucked: immediate, then gone well before the next slot, so
+                // the tune has air in it.
+                float env = Math.Min(1f, intoNote / 0.012f) * Decay(intoNote, step * 0.9f, 2.6f);
+                lead = ((float)Math.Sin(2 * Math.PI * hz * intoNote)
+                        + 0.28f * (float)Math.Sin(2 * Math.PI * hz * 2.0 * intoNote)) * env;
+            }
+
+            b[i] = (pad * 0.34f + bass * 0.30f + lead * 0.26f) * 0.5f;
+        }
+
+        Loop(b, seconds);
+        return b;
+    }
+
     // --- the four objectives, each with its own voice -------------------
     //
     // These used to borrow: lighting a beacon played the sound of a shaft
@@ -919,7 +985,11 @@ $jobs = @(
     @("mark_lit.wav",        [Synth]::MarkLit()),
     @("ward_bitten.wav",     [Synth]::WardBitten()),
     @("quarry_down.wav",     [Synth]::QuarryDown()),
-    @("mouth_near.wav",      [Synth]::MouthNear())
+    @("mouth_near.wav",      [Synth]::MouthNear()),
+
+    # The surface: the one actual tune in the game, so that going under can
+    # take it away.
+    @("music_surface.wav",   [Synth]::MusicSurface(16.0))
 )
 
 foreach ($job in $jobs) {

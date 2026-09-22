@@ -123,7 +123,11 @@ public:
     // two up and down as the fight gets worse. Nothing here is a tune - a
     // melody would wear out inside one level - so it can sit under a fight for
     // as long as the fight lasts.
-    enum class Layer { Bed, Pulse, Dread, Stalk, Reel, Count };
+    // Surface is the odd one: an actual tune, and the only one of these that
+    // belongs above the water. Down in the dark a melody would be company, and
+    // the game is built on there not being any - so it exists mainly so that
+    // going under can take it away.
+    enum class Layer { Bed, Pulse, Dread, Stalk, Reel, Surface, Count };
 
     // Where the listener is standing, which decides which of the two loops is
     // under everything. They crossfade rather than cut, because surfacing is

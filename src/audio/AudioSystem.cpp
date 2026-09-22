@@ -236,7 +236,8 @@ AudioSystem::AudioSystem()
                                                  config::MusicPulsePath,
                                                  config::MusicDreadPath,
                                                  config::MusicStalkPath,
-                                                 config::MusicReelPath };
+                                                 config::MusicReelPath,
+                                                 config::MusicSurfacePath };
 
     for (std::size_t i = 0; i < LayerCount; ++i)
     {
@@ -500,5 +501,19 @@ void AudioSystem::setDepth(float pitch, float volume)
     {
         m_ambients[abyss]->setPitch(pitch);
         m_ambients[abyss]->setVolume(volume * m_musicScale * m_ambienceLevel[abyss]);
+    }
+
+    // And the score leans with it. A share of the drop rather than all of it,
+    // so the deep is heavier and slower without the whole thing sliding
+    // audibly out of tune - and the surface tune is left alone, because a rig
+    // deck does not get lower in pitch because the water under it got deeper.
+    const float lean = 1.0f + (pitch - 1.0f) * config::MusicDepthPitch;
+
+    for (std::size_t i = 0; i < LayerCount; ++i)
+    {
+        if (i == static_cast<std::size_t>(Layer::Surface) || !m_music[i])
+            continue;
+
+        m_music[i]->setPitch(lean);
     }
 }
