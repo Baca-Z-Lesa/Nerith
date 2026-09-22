@@ -14,6 +14,7 @@
 #include "ui/MainMenu.h"
 #include "ui/Cinematic.h"
 #include "ui/Deck.h"
+#include "ui/GlassCracks.h"
 #include "ui/UpgradeScreen.h"
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
@@ -664,6 +665,7 @@ private:
     Cinematic     m_film;
     UpgradeScreen m_upgradeScreen;
     Deck          m_deck;
+    GlassCracks   m_cracks; // the viewport glass, one star per bite
 
     std::vector<Projectile> m_playerShots;
     std::vector<Projectile> m_torpedoes;

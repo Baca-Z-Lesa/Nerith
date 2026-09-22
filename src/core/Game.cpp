@@ -1119,6 +1119,12 @@ void Game::beginLevel(int number, bool fresh)
     m_shake = 0.0f;
     m_hitStop = 0.0f;
     m_hurtFlash = 0.0f;
+    m_hullGroan = 0.0f;
+    m_groanPinch = 0.0f;
+
+    // A fresh sub goes down with clean glass. Whatever the last dive cracked
+    // is somebody else's problem now.
+    m_cracks.clear();
 
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced. The two
@@ -5302,6 +5308,13 @@ void Game::hurtPlayer(int amount)
     addShake(config::ShakePlayerHurt);
     addHitStop(config::HitStopPlayerHurt);
 
+    // Another star in the glass. It stays for the rest of the dive, so the pane
+    // fills up as the sub takes its beating. Capped so a long fight does not
+    // white the screen out with fractures.
+    if (m_cracks.count() < config::GlassCrackMax)
+        m_cracks.add({ rng::range(220.0f, config::WindowWidth - 220.0f),
+                       rng::range(150.0f, config::WindowHeight - 170.0f) });
+
     // Dead Man: being bitten empties the tubes in every direction at once.
     // Queued rather than pushed, because this can fire while the shot lists
     // are being walked.
@@ -7822,6 +7835,11 @@ void Game::render(float alpha)
         m_window.draw(m_deathOverlay);
         m_deathOverlay.setFillColor(config::DeathOverlayColor);
     }
+
+    // The cracked glass sits on the whole picture, over the washes and under
+    // the HUD, for as long as a dive lasts.
+    if (m_state == State::Fighting || m_state == State::LevelIntro)
+        m_cracks.draw(m_window);
 
     if (m_state == State::Fighting && !upgradesVisible() && !m_paused)
     {

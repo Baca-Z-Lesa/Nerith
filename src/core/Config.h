@@ -1913,6 +1913,10 @@ namespace config
     inline constexpr float GroanPinch = 0.028f;          // fraction the view draws in
     inline constexpr float GroanPinchTime = 0.9f;        // how long the draw-in lasts
 
+    // The viewport glass cracks as the sub takes hits, and the pane fills over
+    // a dive. Capped so a long fight does not white the screen out.
+    inline constexpr int GlassCrackMax = 14;
+
     inline constexpr float HurtFlashFade = 2.6f;
     inline constexpr sf::Color HurtFlashColor{ 168, 26, 34 };
     inline constexpr sf::Color PauseVeil{ 2, 7, 12, 208 };
