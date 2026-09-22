@@ -96,7 +96,8 @@ public:
     // the way, 0 to 1: it takes the volume down and, more importantly, takes
     // the top off - a hit around a corner should sound like it is around a
     // corner rather than like a quieter hit.
-    void playAt(Sfx sound, sf::Vector2f at, float volumeScale = 1.0f, float occlusion = 0.0f);
+    void playAt(Sfx sound, sf::Vector2f at, float volumeScale = 1.0f, float occlusion = 0.0f,
+                float pitch = 1.0f);
 
     // Where the listener is. Called once a frame; the world plane is mapped
     // flat in front of the listener, because mapping it edge-on leaves the

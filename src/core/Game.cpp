@@ -1126,6 +1126,11 @@ void Game::beginLevel(int number, bool fresh)
     // is somebody else's problem now.
     m_cracks.clear();
 
+    // Nothing out there yet, and the first pass is a good while off: arriving
+    // in a basin to an immediate call would read as a scripted greeting.
+    m_giantHold = 0.0f;
+    m_giantNext = rng::range(config::GiantIntervalMin, config::GiantIntervalMax);
+
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced. The two
     // that dress the basin were applied further up, before it was dressed.
@@ -4695,6 +4700,49 @@ void Game::callFromTheDark(float deltaTime)
                  0.7f + 0.1f * static_cast<float>(m_level.getDepth()));
 }
 
+void Game::updateGiant(float deltaTime)
+{
+    if (m_state != State::Fighting || m_paused)
+        return;
+
+    // Only once the water is deep enough for there to be anything that big in
+    // it. The shallows are somebody else's job.
+    if (m_level.getDepth() < config::GiantFromDepth)
+        return;
+
+    // A live contact keeps crossing, then it is gone. It is never chased, never
+    // hit and never arrives - it is not an entity, it is a bearing.
+    if (m_giantHold > 0.0f)
+    {
+        m_giantHold -= deltaTime;
+        m_giantAt += m_giantGo * deltaTime;
+        return;
+    }
+
+    m_giantNext -= deltaTime;
+    if (m_giantNext > 0.0f)
+        return;
+
+    m_giantNext = rng::range(config::GiantIntervalMin, config::GiantIntervalMax);
+    m_giantHold = config::GiantHold;
+
+    // Out past anything the lamp will ever light, on a heading that takes it
+    // across rather than at you.
+    const float bearing = rng::range(0.0f, 6.2831853f);
+    const float away = m_arena.getLampReach() * rng::range(config::GiantNear, config::GiantFar);
+
+    m_giantAt = m_player.getPosition()
+                + sf::Vector2f{ std::cos(bearing), std::sin(bearing) } * away;
+
+    const float across = bearing + 1.5707963f;
+    m_giantGo = sf::Vector2f{ std::cos(across), std::sin(across) } * config::GiantDrift;
+
+    // Heard, never seen: muffled by the water between you, and pitched down
+    // past anything that lives at this depth.
+    m_audio.playAt(Sfx::CreatureCallB, m_giantAt, config::GiantVolume, config::GiantMuffle,
+                   config::GiantPitch);
+}
+
 void Game::spawnAmbience(float deltaTime)
 {
     m_snowTimer -= deltaTime;
@@ -7476,6 +7524,7 @@ void Game::step(float deltaTime)
                 updateVolleys(deltaTime);
                 updateHarpoon(deltaTime);
                 updateSonar(deltaTime);
+                updateGiant(deltaTime);
 
                 // The map fills in behind the sub as it goes. A broken hull
                 // does not stop you seeing where you are - it stops the
@@ -7780,6 +7829,24 @@ void Game::render(float alpha)
             m_sonarRing.setOrigin({ mark, mark });
             m_sonarRing.setPosition(nest.position);
             m_sonarRing.setOutlineColor(found);
+            m_window.draw(m_sonarRing);
+        }
+
+        // And whatever that is, out past the light. It reads back as something
+        // the size of a room and it is not on any list the game keeps - no
+        // name, no bar, no marker once the sweep has passed. Only a good sonar
+        // ever finds it, which is most of what makes buying one feel like
+        // learning something.
+        if (m_giantHold > 0.0f
+            && (m_giantAt - m_player.getPosition()).length() <= range)
+        {
+            sf::Color huge = config::GiantPingColor;
+            huge.a = fade;
+
+            m_sonarRing.setRadius(config::GiantMark);
+            m_sonarRing.setOrigin({ config::GiantMark, config::GiantMark });
+            m_sonarRing.setPosition(m_giantAt);
+            m_sonarRing.setOutlineColor(huge);
             m_window.draw(m_sonarRing);
         }
     }

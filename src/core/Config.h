@@ -1917,6 +1917,26 @@ namespace config
     // a dive. Capped so a long fight does not white the screen out.
     inline constexpr int GlassCrackMax = 14;
 
+    // Something enormous, a long way out, that has nothing to do with you. It
+    // is never drawn and it never arrives: it is heard, and a good enough sonar
+    // gets a return off it. What is down there is the thing waiting at the
+    // bottom of the campaign, moving about its own business while you work.
+    //
+    // Placed past the lamp's own reach so there is never a contact sitting in
+    // water the player can plainly see is empty.
+    inline constexpr int   GiantFromDepth = 3;
+    inline constexpr float GiantIntervalMin = 55.0f;
+    inline constexpr float GiantIntervalMax = 130.0f;
+    inline constexpr float GiantHold = 7.0f;     // how long the contact stays live
+    inline constexpr float GiantNear = 1.3f;     // multiples of the lamp's reach
+    inline constexpr float GiantFar = 2.0f;
+    inline constexpr float GiantDrift = 55.0f;   // pixels a second, crossing
+    inline constexpr float GiantPitch = 0.45f;   // far below anything in the basin
+    inline constexpr float GiantVolume = 1.2f;
+    inline constexpr float GiantMuffle = 0.55f;  // a lot of water in the way
+    inline constexpr float GiantMark = 170.0f;   // how big it reads back
+    inline constexpr sf::Color GiantPingColor{ 176, 146, 232 };
+
     inline constexpr float HurtFlashFade = 2.6f;
     inline constexpr sf::Color HurtFlashColor{ 168, 26, 34 };
     inline constexpr sf::Color PauseVeil{ 2, 7, 12, 208 };

@@ -405,6 +405,10 @@ private:
     void toggleLamp();
     float noticeRange() const;
     void updateSonar(float deltaTime);
+
+    // Something enormous crossing a long way out. Heard, and read back by a
+    // good enough sonar; never drawn and never reachable.
+    void updateGiant(float deltaTime);
     void updateEnemies(float deltaTime);
     void updateBoss(float deltaTime);
     void spawnAmbience(float deltaTime);
@@ -822,6 +826,13 @@ private:
     float     m_sirenTimer;  // the hull alarm, once there is almost none left
     float     m_hullGroan = 0.0f;  // seconds until the hull next groans
     float     m_groanPinch = 0.0f; // seconds of draw-in left after a groan
+
+    // The thing out in the dark: when it next passes, how long this pass has
+    // left, where it is and which way it is going.
+    float        m_giantNext = 0.0f;
+    float        m_giantHold = 0.0f;
+    sf::Vector2f m_giantAt{ 0.0f, 0.0f };
+    sf::Vector2f m_giantGo{ 0.0f, 0.0f };
 
     int   m_optionRow;    // which line of the options screen is selected
     int   m_optionScroll = 0;

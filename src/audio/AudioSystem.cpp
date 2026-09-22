@@ -376,7 +376,8 @@ void AudioSystem::play(Sfx sound, float volumeScale, float pitch)
     speak(sound, volumeFor(sound) * volumeScale * m_sfxScale, 0.0f, nullptr, pitch);
 }
 
-void AudioSystem::playAt(Sfx sound, sf::Vector2f at, float volumeScale, float occlusion)
+void AudioSystem::playAt(Sfx sound, sf::Vector2f at, float volumeScale, float occlusion,
+                         float pitch)
 {
     const float blocked = std::clamp(occlusion, 0.0f, 1.0f);
 
@@ -389,7 +390,7 @@ void AudioSystem::playAt(Sfx sound, sf::Vector2f at, float volumeScale, float oc
 
     const float volume = volumeFor(sound) * volumeScale * m_sfxScale * muffle;
 
-    speak(sound, volume, cutoff, &at);
+    speak(sound, volume, cutoff, &at, pitch);
 
     // And whatever the room hands back. Queued rather than played, because the
     // whole point of an echo is that it is late.
