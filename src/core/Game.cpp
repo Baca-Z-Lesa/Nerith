@@ -2,6 +2,7 @@
 
 #include "core/Config.h"
 #include "core/Mesh.h"
+#include "entities/BossArt.h"
 #include "core/Random.h"
 #include "ui/PixelFont.h"
 #include "world/Bestiary.h"
@@ -1364,7 +1365,8 @@ void Game::onLevelComplete()
     if (m_justBeatCampaign)
     {
         for (const Enemy& enemy : m_enemies)
-            effects::enemyDeath(m_effects, enemy.getPosition());
+            effects::enemyDeath(m_effects, enemy.getPosition(),
+                                creatureart::coatOf(enemy.getType()), enemy.getRadius());
 
         m_enemies.clear();
         m_enemyShots.clear();
@@ -5218,7 +5220,8 @@ void Game::updateBoss(float deltaTime)
 
 void Game::killEnemy(Enemy& enemy)
 {
-    effects::enemyDeath(m_effects, enemy.getPosition());
+    effects::enemyDeath(m_effects, enemy.getPosition(),
+                                creatureart::coatOf(enemy.getType()), enemy.getRadius());
 
     // The one the level was about. Loud on purpose: the whole of a hunt is
     // waiting for this and there is nothing else in the basin that counts.
@@ -5284,7 +5287,8 @@ void Game::killEnemy(Enemy& enemy)
 
         areaDamage(enemy.getPosition(), config::CorpseBloomRadius, bloom);
         addHitRing(enemy.getPosition(), config::CorpseBloomRadius, config::HudSalvageColor);
-        effects::enemyDeath(m_effects, enemy.getPosition());
+        effects::enemyDeath(m_effects, enemy.getPosition(),
+                                creatureart::coatOf(enemy.getType()), enemy.getRadius());
     }
 
     // Parasite: the sub feeds on what it kills.
@@ -7218,19 +7222,23 @@ void Game::drawBestiary()
     const bestiary::Entry& entry = bestiary::Entries[row];
     const auto type = static_cast<EnemyType>(row);
 
-    // Scaled to fill the plate rather than drawn at the size it fights at: the
-    // whole point of the book is that it is the one place these hold still.
-    sf::Sprite portrait(m_assets.forEnemy(type));
-    const sf::Vector2f size(portrait.getTexture().getSize());
-    portrait.setOrigin(size / 2.0f);
+    // The same animal the water holds, drawn the same way, blown up so the
+    // anatomy can actually be read. It used to be the old sprite, which meant
+    // the book showed a creature nobody would meet down there any more.
+    //
+    // Held in one pose and breathing slowly: the whole point of the book is
+    // that it is the one place these stand still long enough to be looked at.
+    // The portrait sits over the text rather than beside it, because the
+    // longest line in the book is fifty-eight characters.
+    creatureart::Pose portrait;
+    portrait.at = { 810.0f, 250.0f };
+    portrait.angle = sf::degrees(-24.0f);
+    portrait.size = std::min(96.0f, config::enemyStats(type).radius * 3.4f);
+    portrait.beat = std::sin(m_menuTime * 1.4f);
+    portrait.breath = 0.5f + 0.5f * std::sin(m_menuTime * 0.8f);
+    portrait.jaw = 0.42f + 0.22f * std::sin(m_menuTime * 0.9f);
 
-    // The portrait sits over the text rather than beside it: the longest line
-    // in the book is fifty-eight characters, and beside a portrait there is
-    // nowhere near enough room for that without shrinking it to nothing.
-    const float fit = std::min(340.0f / std::max(1.0f, size.x), 190.0f / std::max(1.0f, size.y));
-    portrait.setScale({ fit, fit });
-    portrait.setPosition({ 810.0f, 255.0f });
-    m_window.draw(portrait);
+    creatureart::draw(m_window, type, portrait, m_assets.boss(config::BossHidePath));
 
     const float textX = 440.0f;
 
@@ -7789,7 +7797,7 @@ void Game::render(float alpha)
     }
 
     for (const Enemy& enemy : m_enemies)
-        enemy.draw(m_window);
+        enemy.draw(m_window, m_assets.boss(config::BossHidePath));
 
     for (const Projectile& shot : m_enemyShots)
         shot.draw(m_window);

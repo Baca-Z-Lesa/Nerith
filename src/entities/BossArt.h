@@ -1,6 +1,7 @@
 #pragma once
 
 #include "entities/BossDef.h"
+#include "entities/EnemyType.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Texture.hpp>
@@ -72,4 +73,54 @@ namespace bossart
     // the relief pass.
     void draw(sf::RenderTarget& target, BossSkin skin, const Body& body,
               const sf::Texture& hide);
+}
+
+// The same bargain, for the small ones.
+//
+// Everything that is not a boss was a picture: one sprite per kind, turned to
+// face where it was going. Twelve pictures of twelve things, and because they
+// were drawn as whatever shape read clearly at twenty pixels, what came out was
+// a set of blobs with eyes on. Nothing in the water had a front and a back for
+// any reason, nothing had a mouth where a mouth goes, and the only way to tell
+// two of them apart was the colour.
+//
+// They are built out of shapes now, off the same vocabulary the bosses use. Not
+// portraits of real species - at this size a species is unreadable - but honest
+// animal anatomy: a body with a head end and a tail end, fins where fins take
+// hold, gills behind the head, jaws that open, symmetry that means something.
+// A creature that has those reads as alive from a single frame, and one that
+// has none of them cannot, however carefully it is shaded.
+namespace creatureart
+{
+    // Everything the drawing is allowed to know. Enemy hands over a pose and
+    // this draws it, the same split that keeps the fight out of the bosses'
+    // drawing and the drawing out of the fight.
+    struct Pose
+    {
+        sf::Vector2f at{};
+        sf::Angle    angle{};        // which way it is pointing
+        float        size = 16.0f;   // its own radius, in pixels
+        float        beat = 0.0f;    // -1..1, where the fins are in their stroke
+        float        breath = 0.0f;  // 0..1, the gills working
+        float        jaw = 0.0f;     // 0..1, shut to wide
+        float        flinch = 0.0f;  // 0..1, it has just been hit
+        float        tell = 0.0f;    // 0..1, how far through a wind-up
+        sf::Color    tint{ 255, 255, 255, 255 };
+
+        // What the creature's own swimming motion is doing to its proportions
+        // this instant: squeezing along itself and swelling across, which is
+        // how a thing that swims by pushing water actually moves.
+        float        along = 1.0f;
+        float        across = 1.0f;
+
+        // Creatures that tow a body rather than having one. Null for the rest.
+        const std::vector<sf::Vector2f>* spine = nullptr;
+    };
+
+    void draw(sf::RenderTarget& target, EnemyType type, const Pose& pose,
+              const sf::Texture& hide);
+
+    // What the creature is made of, for whoever has to throw pieces of it
+    // about. Kept here because this is the only place that decides it.
+    sf::Color coatOf(EnemyType type);
 }

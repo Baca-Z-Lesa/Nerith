@@ -1832,6 +1832,758 @@ namespace
     }
 }
 
+// ----------------------------------------------------------------------
+//  The small ones
+//
+//  Same vocabulary, a twentieth of the size. What changes at twenty pixels
+//  is that detail stops paying: what reads is the outline, where the widest
+//  point is, and whether the thing has a front. So each of these is a handful
+//  of shapes chosen to give it an unmistakable silhouette and honest anatomy -
+//  a head end, a tail end, fins where fins take hold, gills behind the head -
+//  and almost nothing else.
+// ----------------------------------------------------------------------
+namespace
+{
+    // The creature's own frame. Everything below is written as "so far forward,
+    // so far out to the side", which is the only way anatomy stays anatomy when
+    // the animal turns round.
+    struct Frame
+    {
+        sf::Vector2f at;
+        sf::Vector2f fwd{ 1.0f, 0.0f };
+        sf::Vector2f side{ 0.0f, 1.0f };
+        float        along = 1.0f;
+        float        across = 1.0f;
+
+        sf::Vector2f p(float x, float y) const
+        {
+            return at + fwd * (x * along) + side * (y * across);
+        }
+    };
+
+    sf::Color wash(sf::Color base, sf::Color tint)
+    {
+        const auto mix = [](std::uint8_t a, std::uint8_t b) {
+            return static_cast<std::uint8_t>(static_cast<int>(a) * static_cast<int>(b) / 255);
+        };
+
+        return sf::Color(mix(base.r, tint.r), mix(base.g, tint.g), mix(base.b, tint.b),
+                         mix(base.a, tint.a));
+    }
+
+    // A body sampled along its own length rather than listed corner by corner.
+    // Hand-written outlines came out as six-sided facets - a creature made of
+    // flats reads as a gem, not an animal - and every one of these is convex,
+    // so the fan in shape() still holds.
+    //
+    // fullAt is where along the length it is widest: forward of a half for
+    // anything that swims nose first, which is almost everything.
+    void spindle(sf::VertexArray& into, const Frame& F, float nose, float tail, float wide,
+                 float fullAt, sf::Color colour, const Skin& skin, int steps = 13)
+    {
+        std::vector<sf::Vector2f> pts;
+        pts.reserve(static_cast<std::size_t>(steps) * 2 + 2);
+
+        const auto halfAt = [&](float t) {
+            const float u = (t < fullAt) ? t / std::max(0.01f, fullAt)
+                                         : (1.0f - t) / std::max(0.01f, 1.0f - fullAt);
+            return wide * std::sqrt(std::clamp(u, 0.0f, 1.0f));
+        };
+
+        for (int i = 0; i <= steps; ++i)
+        {
+            const float t = static_cast<float>(i) / static_cast<float>(steps);
+            pts.push_back(F.p(nose + (tail - nose) * t, -halfAt(t)));
+        }
+
+        for (int i = steps; i >= 0; --i)
+        {
+            const float t = static_cast<float>(i) / static_cast<float>(steps);
+            pts.push_back(F.p(nose + (tail - nose) * t, halfAt(t)));
+        }
+
+        shape(into, pts, colour, skin);
+    }
+
+    // The same idea for anything built round rather than along: a smooth
+    // ellipse in the creature's own frame.
+    void round(sf::VertexArray& into, const Frame& F, float cx, float ax, float by,
+               sf::Color colour, const Skin& skin, int steps = 20)
+    {
+        std::vector<sf::Vector2f> pts;
+        pts.reserve(static_cast<std::size_t>(steps));
+
+        for (int i = 0; i < steps; ++i)
+        {
+            const float a = 6.2831853f * static_cast<float>(i) / static_cast<float>(steps);
+            pts.push_back(F.p(cx + ax * std::cos(a), by * std::sin(a)));
+        }
+
+        shape(into, pts, colour, skin);
+    }
+
+    // An eye that is a socket with something in it rather than a dot, because a
+    // dot on a blob is exactly what all of these used to be.
+    void look(sf::VertexArray& into, sf::Vector2f at, float radius, sf::Color iris,
+              const Skin& skin)
+    {
+        disc(into, at, radius, sf::Color(8, 10, 14, iris.a), skin, 10);
+        disc(into, at, radius * 0.55f, iris, skin, 8);
+    }
+
+    // Gill slits: three short strokes behind the head, angled back. The single
+    // cheapest mark that says "this end is the front".
+    void gills(sf::VertexArray& into, const Frame& F, float x, float y, float length,
+               sf::Color colour, const Skin& skin)
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            const float step = x - static_cast<float>(i) * length * 0.55f;
+
+            for (const float s : { -1.0f, 1.0f })
+            {
+                sweep(into, F.p(step, s * y), F.p(step - length * 0.6f, s * (y * 0.72f)),
+                      length * 0.22f, length * 0.16f, colour, skin);
+            }
+        }
+    }
+
+    // A paired fin, one each side, beating on the creature's own clock.
+    void pairedFin(sf::VertexArray& into, const Frame& F, float x, float y, float reach,
+                   float sweepBack, float beat, sf::Color root, sf::Color tip, const Skin& skin)
+    {
+        for (const float s : { -1.0f, 1.0f })
+        {
+            const float lift = 1.0f + 0.30f * beat * s;
+
+            ribbon(into, F.p(x, s * y),
+                   (F.fwd * -sweepBack + F.side * (s * reach)).angle(),
+                   reach * lift, reach * 0.34f, reach * 0.10f, s * 7.0f, 3, root, tip, skin);
+        }
+    }
+
+    // The tail. Two lobes off a wrist, which is what makes it a tail rather
+    // than a spike.
+    void fluke(sf::VertexArray& into, const Frame& F, float x, float span, float reach,
+               float beat, sf::Color root, sf::Color tip, const Skin& skin)
+    {
+        const sf::Vector2f wrist = F.p(x, beat * span * 0.35f);
+
+        for (const float s : { -1.0f, 1.0f })
+        {
+            sweep(into, wrist, wrist + (F.fwd * -reach + F.side * (s * span)),
+                  span * 0.34f, span * 0.14f, blend(root, tip, 0.5f), skin);
+        }
+
+        sweep(into, F.p(x + reach * 0.5f, 0.0f), wrist, span * 0.42f, span * 0.24f, root, skin);
+    }
+
+    // ---- 1. Lurker ---------------------------------------------------
+    // The yardstick, so it is the plainest honest fish in the game: a deep
+    // body at its widest just behind the head, a real jaw, gills, pectorals
+    // and a forked tail. Everything else is a departure from this.
+    void drawLurker(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                    const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float gape = pose.jaw * R * 0.34f;
+
+        fluke(into, F, -R * 0.72f, R * 0.46f, R * 0.52f, pose.beat, fin, fade(fin, 0.4f), skin);
+        pairedFin(into, F, R * 0.10f, R * 0.44f, R * 0.52f, 0.5f, pose.beat, fin,
+                  fade(fin, 0.35f), skin);
+
+        // The body. Widest a third back, tapering to a wrist, which is the
+        // profile of most things that swim.
+        spindle(into, F, R * 1.05f, -R * 0.88f, R * 0.62f, 0.34f, hide, skin);
+
+        // A pale underside. Every animal in open water has one.
+        shape(into,
+              { F.p(R * 0.92f, 0.0f), F.p(R * 0.30f, R * 0.30f), F.p(-R * 0.50f, R * 0.22f),
+                F.p(-R * 0.70f, 0.0f) },
+              belly, skin);
+
+        // The lower jaw drops away from the head rather than the whole face
+        // opening, so a shut mouth is still a mouth.
+        shape(into,
+              { F.p(R * 1.05f, 0.0f), F.p(R * 0.50f, R * 0.34f + gape),
+                F.p(R * 0.86f, R * 0.10f + gape) },
+              belly, skin);
+
+        gills(into, F, R * 0.44f, R * 0.46f, R * 0.26f, fade(sf::Color(10, 14, 18), 200), skin);
+        look(into, F.p(R * 0.66f, -R * 0.24f), R * 0.15f, sf::Color(226, 206, 140), skin);
+    }
+
+    // ---- 2. Lancer ---------------------------------------------------
+    // Built for one straight line and nothing else: a long rigid body, a
+    // rostrum out front, fins swept hard back like a thing that cannot turn.
+    void drawLancer(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                    const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+
+        fluke(into, F, -R * 0.90f, R * 0.40f, R * 0.46f, pose.beat, fin, fade(fin, 0.35f), skin);
+
+        // Swept back hard. On this one the fins say "committed" before it moves.
+        pairedFin(into, F, -R * 0.10f, R * 0.30f, R * 0.46f, 1.5f, pose.beat * 0.4f, fin,
+                  fade(fin, 0.3f), skin);
+
+        spindle(into, F, R * 0.92f, -R * 1.00f, R * 0.34f, 0.30f, hide, skin);
+
+        // The rostrum, and a dorsal ridge down the spine.
+        sweep(into, F.p(R * 0.92f, 0.0f), F.p(R * 1.85f, 0.0f), R * 0.16f, R * 0.03f, hide, skin);
+        sweep(into, F.p(R * 0.40f, 0.0f), F.p(-R * 0.45f, 0.0f), R * 0.10f, R * 0.05f,
+              fade(fin, 170), skin);
+
+        shape(into,
+              { F.p(R * 0.80f, 0.0f), F.p(R * 0.20f, R * 0.20f), F.p(-R * 0.55f, R * 0.12f) },
+              belly, skin);
+
+        look(into, F.p(R * 0.62f, -R * 0.16f), R * 0.13f, sf::Color(238, 160, 96), skin);
+    }
+
+    // ---- 3. Weaver ---------------------------------------------------
+    // It never closes and it never stops turning, so it is all wing: a broad
+    // flat disc that undulates at the edges, with a whip behind it.
+    void drawWeaver(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                    const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float flap = pose.beat * R * 0.22f;
+
+        // The whip, trailing and stiff at the root.
+        ribbon(into, F.p(-R * 0.70f, 0.0f), (-F.fwd).angle(), R * 1.5f, R * 0.12f, R * 0.02f,
+               pose.beat * 5.0f, 4, fin, fade(fin, 0.0f), skin);
+
+        // The wings: one smooth disc, wider across than it is long, with the
+        // trailing edge lifting and falling. Listed corner by corner this came
+        // out as a facet - a ray is all curve, and there is nothing else to it.
+        {
+            std::vector<sf::Vector2f> wing;
+            wing.reserve(24);
+
+            for (int i = 0; i < 24; ++i)
+            {
+                const float a = 6.2831853f * static_cast<float>(i) / 24.0f;
+                const float c = std::cos(a);
+                const float s = std::sin(a);
+
+                // Blunt in front, drawn out behind, and the tips ride the beat.
+                const float x = R * (c > 0.0f ? 0.80f * c : 0.66f * c);
+                const float y = R * 1.18f * s;
+
+                wing.push_back(F.p(x, y + flap * s * s * ((s > 0.0f) ? -1.0f : 1.0f)));
+            }
+
+            shape(into, wing, hide, skin);
+        }
+
+        // The pale disc of the underside, seen through it when it banks.
+        round(into, F, -R * 0.05f, R * 0.44f, R * 0.52f, belly, skin, 16);
+
+        for (const float s : { -1.0f, 1.0f })
+            look(into, F.p(R * 0.48f, s * R * 0.20f), R * 0.12f, sf::Color(196, 214, 226), skin);
+    }
+
+    // ---- 4. Bloom ----------------------------------------------------
+    // The one radial animal in the water: a bell that pumps, a fringe of short
+    // tentacles all the way round it, and four long oral arms under it. It has
+    // no front, which is exactly why it does not chase.
+    void drawBloom(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                   const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float pump = 1.0f + pose.beat * 0.16f;
+
+        // The long arms first, so the bell sits over their roots.
+        for (int i = 0; i < 4; ++i)
+        {
+            const sf::Angle a = sf::degrees(45.0f + 90.0f * static_cast<float>(i));
+            ribbon(into, F.at + sf::Vector2f(R * 0.30f, a), a, R * 1.25f, R * 0.13f, R * 0.02f,
+                   6.0f * pose.beat, 4, fin, fade(fin, 0.0f), skin);
+        }
+
+        // The fringe: many short tentacles round the rim. A bell without one
+        // is a dome, and a dome is not an animal.
+        for (int i = 0; i < 16; ++i)
+        {
+            const sf::Angle a = sf::degrees(360.0f * static_cast<float>(i) / 16.0f);
+            const float len = R * (0.34f + 0.16f * std::sin(static_cast<float>(i) * 2.1f));
+
+            ribbon(into, F.at + sf::Vector2f(R * 0.80f * pump, a), a, len, R * 0.05f, R * 0.01f,
+                   0.0f, 2, belly, fade(belly, 0.0f), skin);
+        }
+
+        disc(into, F.at, R * 0.82f * pump, hide, skin, 22);
+        disc(into, F.at, R * 0.52f * pump, belly, skin, 18);
+
+        // The gut, which is the only part of a jelly that is not water.
+        disc(into, F.at, R * 0.22f * pump, wash(fin, sf::Color(255, 255, 255, 220)), skin, 12);
+    }
+
+    // ---- 5. Spawnling ------------------------------------------------
+    // A larva: nearly all head, a yolk sac it has not finished, and a tail it
+    // has not learned to use. It is the smallest thing down there and it has
+    // to read at nine pixels, so it is three shapes.
+    void drawSpawnling(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                       const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+
+        ribbon(into, F.p(-R * 0.30f, 0.0f), (-F.fwd).angle(), R * 1.30f, R * 0.22f, R * 0.02f,
+               pose.beat * 16.0f, 3, fin, fade(fin, 0.0f), skin);
+
+        disc(into, F.p(R * 0.18f, 0.0f), R * 0.70f, hide, skin, 12);
+        disc(into, F.p(-R * 0.02f, R * 0.22f), R * 0.34f, belly, skin, 10); // the yolk
+        look(into, F.p(R * 0.48f, -R * 0.18f), R * 0.24f, sf::Color(242, 236, 214), skin);
+    }
+
+    // ---- 6. Brooder --------------------------------------------------
+    // A body that is mostly brood pouch. The eggs are visible through it and
+    // they are the thing you are meant to want to shoot, which is the whole
+    // argument for killing the source rather than the swarm.
+    void drawBrooder(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                     const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float swell = 1.0f + pose.beat * 0.07f;
+
+        // Stubby limbs underneath, holding it off the floor.
+        for (int i = 0; i < 6; ++i)
+        {
+            const float s = (i % 2 == 0) ? -1.0f : 1.0f;
+            const float x = R * (0.42f - 0.34f * static_cast<float>(i / 2));
+
+            ribbon(into, F.p(x, s * R * 0.52f),
+                   (F.side * s - F.fwd * 0.25f).angle(), R * 0.46f, R * 0.11f, R * 0.04f,
+                   -s * 18.0f, 3, fin, fade(fin, 0.5f), skin);
+        }
+
+        // The sac, deepest at the back where the brood is carried.
+        shape(into,
+              { F.p(R * 0.86f, 0.0f), F.p(R * 0.50f, -R * 0.44f), F.p(-R * 0.26f, -R * 0.78f),
+                F.p(-R * 0.90f, -R * 0.40f), F.p(-R * 0.96f, 0.0f),
+                F.p(-R * 0.90f, R * 0.40f), F.p(-R * 0.26f, R * 0.78f),
+                F.p(R * 0.50f, R * 0.44f) },
+              hide, skin);
+
+        // What is inside it.
+        for (int i = 0; i < 5; ++i)
+        {
+            const float x = -R * (0.14f + 0.16f * static_cast<float>(i % 3));
+            const float y = R * (0.30f - 0.30f * static_cast<float>(i % 2)) * ((i < 3) ? -1.0f : 1.0f);
+
+            disc(into, F.p(x, y), R * 0.15f * swell, belly, skin, 9);
+        }
+
+        gills(into, F, R * 0.50f, R * 0.40f, R * 0.20f, fade(sf::Color(12, 10, 8), 190), skin);
+        look(into, F.p(R * 0.70f, -R * 0.18f), R * 0.12f, sf::Color(226, 172, 96), skin);
+    }
+
+    // ---- 7. Warden ---------------------------------------------------
+    // Armour that only faces one way: a carapace over the front half with a
+    // hard rim, a soft segmented abdomen behind it, and legs that only show
+    // from the side it cannot defend.
+    void drawWarden(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                    const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+
+        // A tail spine, straight back. Short: at the length it first had, it
+        // read as a lance on the wrong end of the animal.
+        sweep(into, F.p(-R * 0.76f, 0.0f), F.p(-R * 1.22f, 0.0f), R * 0.09f, R * 0.02f, fin, skin);
+
+        // Legs, and only behind the shield - that is the whole creature: the
+        // side it cannot cover is the side that has anything on it. Angled
+        // back, because forward-raked they read as tusks on the wrong end.
+        for (int i = 0; i < 4; ++i)
+        {
+            const float s = (i % 2 == 0) ? -1.0f : 1.0f;
+            const float x = -R * (0.34f + 0.30f * static_cast<float>(i / 2));
+
+            ribbon(into, F.p(x, s * R * 0.34f), (F.side * s - F.fwd * 0.9f).angle(), R * 0.40f,
+                   R * 0.07f, R * 0.03f, -s * 14.0f, 2, fin, fade(fin, 0.4f), skin);
+        }
+
+        // The soft half.
+        spindle(into, F, R * 0.16f, -R * 0.86f, R * 0.52f, 0.18f, belly, skin, 9);
+
+        // Segment joints, on the abdomen itself and no wider than it is - laid
+        // across the whole creature they came out as two bars over the shield.
+        for (int i = 0; i < 2; ++i)
+        {
+            const float x = -R * (0.42f + 0.20f * static_cast<float>(i));
+            const float w = R * (0.40f - 0.10f * static_cast<float>(i));
+
+            sweep(into, F.p(x, -w), F.p(x, w), R * 0.025f, R * 0.025f,
+                  fade(sf::Color(10, 12, 14), 150), skin);
+        }
+
+        // And the shield: a broad curved carapace, blunt across the front,
+        // because that is the face it wants you to meet. Curved rather than
+        // cut from corners - the first version was a hexagon with spikes.
+        {
+            std::vector<sf::Vector2f> plate;
+            plate.reserve(20);
+
+            for (int i = 0; i < 20; ++i)
+            {
+                const float a = 6.2831853f * static_cast<float>(i) / 20.0f;
+                const float c = std::cos(a);
+
+                // Full and round forward, cut off square at the back where the
+                // abdomen comes out from under it.
+                plate.push_back(F.p(R * (0.36f + 0.66f * c), R * 0.88f * std::sin(a)
+                                                                 * (c < -0.4f ? 0.74f : 1.0f)));
+            }
+
+            shape(into, plate, hide, skin);
+        }
+
+        // A raised rim round the front of it, which is what makes plate read as
+        // plate. Followed round the curve rather than laid across it as two
+        // bars, which is what made it look like a lance before.
+        for (int i = -5; i < 5; ++i)
+        {
+            const float a0 = 6.2831853f * (static_cast<float>(i) / 20.0f);
+            const float a1 = 6.2831853f * (static_cast<float>(i + 1) / 20.0f);
+
+            sweep(into, F.p(R * (0.36f + 0.66f * std::cos(a0)), R * 0.88f * std::sin(a0)),
+                  F.p(R * (0.36f + 0.66f * std::cos(a1)), R * 0.88f * std::sin(a1)),
+                  R * 0.06f, R * 0.06f, fade(fin, 200), skin);
+        }
+
+        for (const float s : { -1.0f, 1.0f })
+            look(into, F.p(R * 0.72f, s * R * 0.26f), R * 0.11f, sf::Color(212, 120, 74), skin);
+    }
+
+    // ---- 8. Revenant -------------------------------------------------
+    // Built to be under the silt: flattened to nothing, both eyes moved onto
+    // the top of the head, and a mouth that opens upward at whatever swims
+    // over it.
+    void drawRevenant(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                      const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float gape = pose.jaw * R * 0.40f;
+
+        // A fin that runs the whole way round, the way a flatfish has.
+        for (const float s : { -1.0f, 1.0f })
+        {
+            ribbon(into, F.p(R * 0.60f, s * R * 0.42f),
+                   (F.side * s - F.fwd * 0.2f).angle(), R * 0.30f, R * 0.30f, R * 0.06f,
+                   -s * 26.0f, 5, fade(fin, 170), fade(fin, 60), skin);
+        }
+
+        fluke(into, F, -R * 0.84f, R * 0.34f, R * 0.40f, pose.beat, fin, fade(fin, 0.3f), skin);
+
+        spindle(into, F, R * 0.94f, -R * 0.90f, R * 0.68f, 0.42f, hide, skin, 13);
+
+        // The mouth, across the front and opening wide.
+        shape(into,
+              { F.p(R * 0.94f, -R * 0.20f), F.p(R * 0.94f, R * 0.20f),
+                F.p(R * 0.52f + gape, R * 0.34f), F.p(R * 0.52f + gape, -R * 0.34f) },
+              sf::Color(14, 8, 10, hide.a), skin);
+
+        // Both eyes on top and close together, which is the mark of something
+        // that lies buried and looks up.
+        for (const float s : { -1.0f, 1.0f })
+            look(into, F.p(R * 0.20f, s * R * 0.20f), R * 0.15f, sf::Color(236, 226, 176), skin);
+    }
+
+    // ---- 9. Herald ---------------------------------------------------
+    // Not one animal but a chain of them: a float at the front and a string of
+    // repeated units behind it, every one lit. It never attacks because it does
+    // not have anything to attack with.
+    void drawHerald(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                    const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+
+        // The trailing filaments.
+        for (int i = 0; i < 3; ++i)
+        {
+            const float s = static_cast<float>(i - 1);
+            ribbon(into, F.p(-R * 1.10f, s * R * 0.16f), (-F.fwd).angle(), R * 1.4f, R * 0.05f,
+                   R * 0.01f, pose.beat * 8.0f * s, 4, fin, fade(fin, 0.0f), skin);
+        }
+
+        // The colony: six bodies down one stem, each smaller than the last.
+        for (int i = 0; i < 6; ++i)
+        {
+            const float t = static_cast<float>(i) / 5.0f;
+            const float x = R * (0.52f - 1.55f * t);
+            const float r = R * (0.40f - 0.20f * t);
+            const float wag = std::sin(pose.beat * 3.14159f + static_cast<float>(i)) * R * 0.10f;
+
+            disc(into, F.p(x, wag), r, blend(hide, belly, t), skin, 10);
+            disc(into, F.p(x, wag), r * 0.42f, fade(belly, 210), skin, 8);
+        }
+
+        // The float, which is the only part with any structure to it.
+        disc(into, F.p(R * 0.86f, 0.0f), R * 0.52f, hide, skin, 14);
+        disc(into, F.p(R * 0.92f, 0.0f), R * 0.26f, fade(belly, 230), skin, 10);
+    }
+
+    // ---- 10. Moth ----------------------------------------------------
+    // Blind, so it has no eyes at all - it has antennae instead, and they are
+    // the biggest thing on it. Broad soft wings, no hard edge anywhere.
+    void drawMoth(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                  const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float beatUp = 1.0f + pose.beat * 0.45f;
+
+        // Wings: two each side, the rear pair smaller, both beating. Sampled as
+        // curves off a hinge - as four-cornered slabs they read as a windmill,
+        // and the one thing a wing has that a slab has not is a round leading
+        // edge running back to a point.
+        const auto wing = [&](float hingeX, float hingeY, float spanIn, float spanOut,
+                              float lead, float trail, float s, sf::Color colour) {
+            std::vector<sf::Vector2f> pts;
+            pts.reserve(11);
+
+            for (int i = 0; i <= 10; ++i)
+            {
+                const float t = static_cast<float>(i) / 10.0f;
+                const float a = t * 3.14159265f;
+
+                // Out along the span, and forward-then-back across it.
+                const float out = spanIn + (spanOut - spanIn) * std::sin(a * 0.5f);
+                const float fore = lead * std::sin(a) - trail * t;
+
+                pts.push_back(F.p(hingeX + fore, s * out * beatUp));
+            }
+
+            pts.push_back(F.p(hingeX - trail * 0.2f, s * hingeY));
+            shape(into, pts, colour, skin);
+        };
+
+        for (const float s : { -1.0f, 1.0f })
+        {
+            wing(R * 0.24f, R * 0.20f, R * 0.24f, R * 1.22f, R * 0.46f, R * 0.70f, s,
+                 fade(fin, 190));
+            wing(-R * 0.44f, R * 0.20f, R * 0.20f, R * 0.82f, R * 0.22f, R * 0.44f, s,
+                 fade(fin, 150));
+        }
+
+        // The body, furred and blunt.
+        spindle(into, F, R * 0.78f, -R * 0.92f, R * 0.28f, 0.34f, hide, skin, 9);
+
+        // And what it has instead of eyes. Feathered, and it leads with them.
+        for (const float s : { -1.0f, 1.0f })
+        {
+            const sf::Angle dir = (F.fwd + F.side * (s * 0.78f)).angle();
+            ribbon(into, F.p(R * 0.70f, s * R * 0.12f), dir, R * 0.95f, R * 0.09f, R * 0.02f,
+                   s * 9.0f, 4, belly, fade(belly, 0.0f), skin);
+
+            for (int i = 1; i < 4; ++i)
+            {
+                const float t = static_cast<float>(i) / 4.0f;
+                const sf::Vector2f root = F.p(R * (0.70f + 0.62f * t), s * R * (0.12f + 0.52f * t));
+                sweep(into, root, root + (F.fwd * 0.2f + F.side * s) * (R * 0.22f), R * 0.03f,
+                      R * 0.01f, fade(belly, 150), skin);
+            }
+        }
+    }
+
+    // ---- 11. Effigy --------------------------------------------------
+    // Something that survives by not moving. Arms drawn in tight against a
+    // mantle, everything tucked, a posture with no motion in it at all - and
+    // that stillness is the tell, because everything else down there is busy.
+    void drawEffigy(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                    const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+
+        // Eight arms, held folded rather than streaming.
+        for (int i = 0; i < 8; ++i)
+        {
+            const float t = static_cast<float>(i) / 8.0f;
+            const sf::Angle a = sf::degrees(-62.0f + 124.0f * t);
+            const float curl = (i % 2 == 0) ? 22.0f : -18.0f;
+
+            ribbon(into, F.p(R * 0.50f, 0.0f), (F.fwd.rotatedBy(a)).angle(), R * 0.92f,
+                   R * 0.12f, R * 0.03f, curl, 4, hide, blend(hide, fin, 0.7f), skin);
+        }
+
+        // The mantle: a plain sac, broadest at the shoulders and drawn to a
+        // point at the back.
+        spindle(into, F, R * 0.66f, -R * 1.16f, R * 0.60f, 0.22f, hide, skin, 11);
+
+        // Mottling, which is the one thing a creature that hides has to have.
+        for (int i = 0; i < 5; ++i)
+        {
+            const float x = R * (0.34f - 0.30f * static_cast<float>(i));
+            const float y = R * ((i % 2 == 0) ? 0.24f : -0.26f);
+            disc(into, F.p(x, y), R * 0.17f, fade(belly, 120), skin, 8);
+        }
+
+        for (const float s : { -1.0f, 1.0f })
+            look(into, F.p(R * 0.46f, s * R * 0.34f), R * 0.14f, sf::Color(196, 196, 170), skin);
+    }
+
+    // ---- 12. Stalker -------------------------------------------------
+    // The head is small and the body is the weapon, so the body is what is
+    // drawn: a ribbon that runs the whole length with a fin down all of it.
+    // Its spine comes from the fight, because the fight is what makes it move.
+    void drawStalker(sf::VertexArray& into, const Frame& F, const creatureart::Pose& pose,
+                     const Skin& skin, sf::Color hide, sf::Color belly, sf::Color fin)
+    {
+        const float R = pose.size;
+        const float gape = pose.jaw * R * 0.30f;
+
+        // The head only. The rest of it is drawn by Enemy off its own spine,
+        // because the spine is where the animal actually is.
+        shape(into,
+              { F.p(R * 1.10f, 0.0f), F.p(R * 0.56f, -R * 0.40f), F.p(-R * 0.34f, -R * 0.46f),
+                F.p(-R * 0.62f, 0.0f), F.p(-R * 0.34f, R * 0.46f), F.p(R * 0.56f, R * 0.40f) },
+              hide, skin);
+
+        // A jaw that hinges well back, because it holds on.
+        shape(into,
+              { F.p(R * 1.10f, 0.0f), F.p(-R * 0.20f, R * 0.44f + gape),
+                F.p(R * 0.54f, R * 0.18f + gape) },
+              belly, skin);
+
+        sweep(into, F.p(R * 0.30f, 0.0f), F.p(-R * 0.60f, 0.0f), R * 0.16f, R * 0.08f,
+              fade(fin, 190), skin);
+
+        look(into, F.p(R * 0.64f, -R * 0.20f), R * 0.14f, sf::Color(246, 96, 84), skin);
+    }
+
+    // Three colours per creature: the hide, whatever is pale underneath, and
+    // whatever the soft parts are. Everything is multiplied by the tint the
+    // fight hands over, so a hit flash and a chill still work without any of
+    // the shapes above knowing they exist.
+    struct Palette { sf::Color hide, belly, fin; };
+
+    constexpr std::array<Palette, EnemyTypeCount> Coats{ {
+        { { 74, 92, 104 },   { 168, 182, 188 }, { 96, 122, 136 } },  // Lurker
+        { { 186, 178, 150 }, { 236, 232, 214 }, { 150, 138, 112 } }, // Lancer
+        { { 92, 74, 104 },   { 176, 160, 186 }, { 128, 104, 148 } }, // Weaver
+        { { 158, 70, 122 },  { 232, 168, 206 }, { 196, 104, 164 } }, // Bloom
+        { { 178, 186, 170 }, { 232, 236, 214 }, { 140, 150, 140 } }, // Spawnling
+        { { 138, 112, 58 },  { 216, 190, 108 }, { 106, 86, 46 } },   // Brooder
+        { { 62, 70, 78 },    { 148, 138, 120 }, { 168, 176, 182 } }, // Warden
+        { { 96, 96, 86 },    { 156, 156, 142 }, { 120, 120, 108 } }, // Revenant
+        { { 64, 128, 138 },  { 168, 244, 238 }, { 96, 188, 196 } },  // Herald
+        { { 148, 140, 128 }, { 214, 206, 186 }, { 178, 170, 156 } }, // Moth
+        { { 104, 104, 96 },  { 62, 60, 54 },    { 142, 142, 128 } }, // Effigy
+        { { 58, 62, 74 },    { 154, 96, 92 },   { 96, 104, 122 } },  // Stalker
+    } };
+}
+
+namespace creatureart
+{
+    sf::Color coatOf(EnemyType type)
+    {
+        const std::size_t i = static_cast<std::size_t>(type);
+        return i < Coats.size() ? Coats[i].hide : sf::Color(150, 160, 170);
+    }
+
+    void draw(sf::RenderTarget& target, EnemyType type, const Pose& pose, const sf::Texture& hide)
+    {
+        if (pose.size <= 0.5f || pose.tint.a == 0)
+            return;
+
+        const float tile = static_cast<float>(hide.getSize().x);
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+
+        Frame F;
+        F.fwd = unit(pose.angle);
+        F.side = across(F.fwd);
+        F.along = pose.along;
+        F.across = pose.across;
+
+        // A hit rocks it back along its own length, the same as it does on the
+        // big ones. It is the difference between a shot landing and a shot
+        // being subtracted from a number.
+        F.at = pose.at - F.fwd * (pose.flinch * pose.size * 0.34f);
+
+        Skin skin;
+        skin.origin = F.at;
+        skin.along = F.fwd;
+        skin.tile = tile;
+
+        const Palette& coat = Coats[static_cast<std::size_t>(type)];
+
+        const sf::Color hideC = wash(coat.hide, pose.tint);
+        const sf::Color bellyC = wash(coat.belly, pose.tint);
+        const sf::Color finC = wash(coat.fin, pose.tint);
+
+        // The ones that tow a body rather than having one. It is drawn first
+        // and from the tail forward, so each section overlaps the one behind
+        // it and the animal is a body instead of a row of beads.
+        if (pose.spine != nullptr && pose.spine->size() >= 2)
+        {
+            const std::vector<sf::Vector2f>& bone = *pose.spine;
+            const float steps = static_cast<float>(bone.size() - 1);
+
+            for (std::size_t i = bone.size() - 1; i-- > 0;)
+            {
+                const float t0 = static_cast<float>(i) / steps;
+                const float t1 = static_cast<float>(i + 1) / steps;
+
+                // Thickest a little behind the head and tapering to nothing,
+                // which is the profile of everything that swims by wave.
+                const auto girth = [&](float t) {
+                    return pose.size * (0.92f - 0.80f * t * t) * (0.55f + 0.45f * (1.0f - t));
+                };
+
+                const sf::Vector2f a = bone[i];
+                const sf::Vector2f b = bone[i + 1];
+                const sf::Vector2f run = b - a;
+
+                if (run.lengthSquared() < 0.0001f)
+                    continue;
+
+                const sf::Vector2f n = across(run.normalized());
+                const float g0 = girth(t0);
+                const float g1 = girth(t1);
+
+                Skin along = skin;
+                along.along = run.normalized();
+                along.origin = a;
+
+                quad(skinned, a - n * g0, b - n * g1, b + n * g1, a + n * g0,
+                     blend(hideC, fade(hideC, 0.85f), t0), along);
+
+                // The fin that runs the whole length, which is the thing that
+                // makes a ribbon read as an animal and not as a rope.
+                quad(skinned, a - n * (g0 * 1.55f), b - n * (g1 * 1.55f), b - n * g1, a - n * g0,
+                     blend(fade(finC, 150), fade(finC, 0), t0), along);
+                quad(skinned, a + n * g0, b + n * g1, b + n * (g1 * 1.55f), a + n * (g0 * 1.55f),
+                     blend(fade(finC, 150), fade(finC, 0), t0), along);
+            }
+        }
+
+        switch (type)
+        {
+            case EnemyType::Lurker:    drawLurker(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Lancer:    drawLancer(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Weaver:    drawWeaver(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Bloom:     drawBloom(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Spawnling: drawSpawnling(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Brooder:   drawBrooder(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Warden:    drawWarden(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Revenant:  drawRevenant(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Herald:    drawHerald(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Moth:      drawMoth(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Effigy:    drawEffigy(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Stalker:   drawStalker(skinned, F, pose, skin, hideC, bellyC, finC); break;
+            case EnemyType::Count:     break;
+        }
+
+        if (skinned.getVertexCount() == 0)
+            return;
+
+        sf::RenderStates states;
+        states.texture = &hide;
+        target.draw(skinned, states);
+    }
+}
+
 namespace bossart
 {
     void draw(sf::RenderTarget& target, BossSkin skin, const Body& body, const sf::Texture& hide)

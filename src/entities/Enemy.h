@@ -38,7 +38,9 @@ public:
     // middle of the beam. The darkness is drawn over the water; without this
     // it is not drawn over anything IN the water.
     void setLit(float amount) { m_lit = amount; }
-    void draw(sf::RenderTarget& target) const;
+    // hide is the tiling sheet every shape is surfaced with, the same one the
+    // big ones use: one sheet does hide, fin, plate and jaw.
+    void draw(sf::RenderTarget& target, const sf::Texture& hide) const;
 
     void takeDamage(int amount);
 

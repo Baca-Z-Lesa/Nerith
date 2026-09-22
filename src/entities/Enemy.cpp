@@ -1,6 +1,7 @@
 #include "entities/Enemy.h"
 
 #include "core/Config.h"
+#include "entities/BossArt.h"
 #include "core/Random.h"
 #include "world/Arena.h"
 
@@ -838,48 +839,40 @@ float Enemy::getHealthFraction() const
                       0.0f, 1.0f);
 }
 
-void Enemy::draw(sf::RenderTarget& target) const
+void Enemy::draw(sf::RenderTarget& target, const sf::Texture& hide) const
 {
-    // The body goes down before the head, tail first, so the rings overlap the
-    // way a body actually does and the head sits on top of its own neck.
+    // The sprite is no longer drawn: it is the pose. Everything the motion
+    // pass already worked out - where the creature ended up after its bob,
+    // which way it is yawed, what the hit flash left of its proportions and
+    // what colour the fight wants it - is read straight back off it and handed
+    // to the drawing, so none of that had to be worked out twice or kept in
+    // step by hand.
+    creatureart::Pose pose;
+
+    pose.at = m_sprite.getPosition();
+    pose.angle = m_sprite.getRotation();
+    pose.tint = m_sprite.getColor();
+    pose.size = m_stats->radius;
+
+    const float base = std::max(0.001f, m_stats->scale);
+    pose.along = m_sprite.getScale().x / base;
+    pose.across = m_sprite.getScale().y / base;
+
+    constexpr float Tau = 6.283185307f;
+    const float clock = m_phase + m_age * Tau;
+
+    pose.beat = std::sin(clock * 1.7f);
+    pose.breath = 0.5f + 0.5f * std::sin(clock * 0.9f);
+
+    // A mouth that works on the creature's own rhythm, and opens wider the
+    // closer it is to doing something about you.
+    pose.jaw = std::clamp(0.24f + 0.34f * std::sin(clock * 1.1f), 0.0f, 1.0f);
+    pose.flinch = std::clamp(m_hitFlashTimer / config::EnemyHitFlashDuration, 0.0f, 1.0f);
+    pose.tell = m_bursting ? 1.0f : 0.0f;
+
     if (m_segment)
-    {
-        const sf::Color tint = m_sprite.getColor();
+        pose.spine = &m_body;
 
-        // The tail goes down first of all, so the last ring overlaps its root
-        // and the join is a body rather than two sprites touching. It is drawn
-        // pointing at the ring ahead of it, the same way a link is.
-        if (m_tail && m_body.size() >= 2)
-        {
-            const sf::Vector2f last = m_body.back();
-            const sf::Vector2f back = last - m_body[m_body.size() - 2];
-
-            if (back.lengthSquared() > 0.0001f)
-            {
-                const sf::Vector2f away = back.normalized();
-
-                sf::Sprite tail = *m_tail;
-                tail.setPosition(last + away * (config::SerpentSpacing
-                                                * config::SerpentTailReach));
-                tail.setRotation((-away).angle());
-                tail.setColor(tint);
-                target.draw(tail);
-            }
-        }
-
-        for (std::size_t i = m_body.size(); i-- > 0;)
-        {
-            sf::Sprite ring = *m_segment;
-            ring.setPosition(m_body[i]);
-
-            // Tapering to the tail, so it ends rather than stopping.
-            const float taper = 1.0f - 0.45f * static_cast<float>(i)
-                                           / static_cast<float>(config::SerpentSegments);
-            ring.setScale(m_segment->getScale() * taper);
-            ring.setColor(tint);
-            target.draw(ring);
-        }
-    }
-
-    target.draw(m_sprite);
+    creatureart::draw(target, m_type, pose, hide);
 }
+

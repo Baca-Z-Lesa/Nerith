@@ -102,7 +102,10 @@ namespace effects
     void hostileMuzzle(ParticleSystem& particles, sf::Vector2f position, sf::Vector2f direction);
     void thrusterBubbles(ParticleSystem& particles, sf::Vector2f position, sf::Vector2f direction);
     void impact(ParticleSystem& particles, sf::Vector2f position, sf::Vector2f direction);
-    void enemyDeath(ParticleSystem& particles, sf::Vector2f position);
+    // coat and size make the debris the colour and bulk of whatever died. The
+    // defaults are for the things that are not creatures: nests, pods, hulls.
+    void enemyDeath(ParticleSystem& particles, sf::Vector2f position,
+                    sf::Color coat = sf::Color(0, 0, 0, 0), float size = 0.0f);
     void playerHurt(ParticleSystem& particles, sf::Vector2f position);
     void playerDeath(ParticleSystem& particles, sf::Vector2f position);
     void ventBurst(ParticleSystem& particles, sf::Vector2f position, float radius);

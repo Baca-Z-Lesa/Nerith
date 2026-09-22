@@ -264,8 +264,28 @@ void effects::ventBurst(ParticleSystem& particles, sf::Vector2f position, float 
                      .count = 26 });
 }
 
-void effects::enemyDeath(ParticleSystem& particles, sf::Vector2f position)
+void effects::enemyDeath(ParticleSystem& particles, sf::Vector2f position, sf::Color coat,
+                         float size)
 {
+    // What is left of the animal. Now that a creature is a body rather than a
+    // stamp, one grey puff for all twelve of them is the wrong answer twice
+    // over: it is the same death every time, and it is nobody's colour. These
+    // are slow, big and the colour of whatever just came apart, so the water
+    // is briefly full of the thing that was in it.
+    if (coat.a > 0 && size > 0.0f)
+    {
+        particles.emit({ .position = position,
+                         .spread = 3.15f,
+                         .speedMin = 24.0f, .speedMax = 130.0f,
+                         .lifeMin = 0.9f, .lifeMax = 2.0f,
+                         .sizeMin = size * 0.16f, .sizeMax = size * 0.42f,
+                         .endSizeScale = 0.55f,
+                         .drag = 2.6f,
+                         .buoyancy = -6.0f,
+                         .color = { coat.r, coat.g, coat.b, 230 },
+                         .count = 6 + static_cast<int>(size * 0.22f) });
+    }
+
     // Two layers: a warm flash from the eye, then a cloud of ink and bubbles.
     particles.emit({ .position = position,
                      .spread = 3.15f,
