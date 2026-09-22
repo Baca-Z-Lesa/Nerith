@@ -7672,6 +7672,7 @@ void Game::render(float alpha)
     // out of both. Painting the rock after the far layer would bury it, which
     // is exactly what used to happen to the basin itself.
     m_seabed.drawRock(m_window);
+    m_seabed.drawDeep(m_window, m_cameraCentre);
     m_seabed.drawFar(m_window, m_cameraCentre);
     m_arena.drawGround(m_window);
     m_seabed.draw(m_window);

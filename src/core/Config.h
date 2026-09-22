@@ -1109,14 +1109,23 @@ namespace config
     inline constexpr float LevelClearDuration = 2.2f;
     inline constexpr float DeathBannerDuration = 2.6f;
     // --- Depth in a flat scene ---
-    // Two extra bands either side of the floor. The numbers are how much of the
+    // Three extra bands around the floor. The numbers are how much of the
     // camera's movement each one gets: under 1 it lags behind and reads as far
     // away, over 1 it leads and reads as being between the camera and the sub.
     // Everything else here only keeps them from competing with the fight.
+    //
+    // The deep band is the one that says the basin is somewhere rather than
+    // everywhere: enormous shapes barely moving at the limit of sight, so far
+    // back that crossing the whole floor hardly shifts them. Two bands left the
+    // horizon ending at the far rocks; three give it somewhere to keep going.
+    inline constexpr float DeepParallax = 0.15f;
     inline constexpr float FarParallax = 0.42f;
     inline constexpr float NearParallax = 1.22f;
+    inline constexpr std::size_t DeepLayerCount = 14;
     inline constexpr std::size_t FarLayerCount = 26;
     inline constexpr std::size_t NearLayerCount = 34;
+    inline constexpr sf::Color DeepLayerTint{ 58, 74, 88 };
+    inline constexpr std::uint8_t DeepLayerAlpha = 66;
     inline constexpr sf::Color FarLayerTint{ 92, 112, 124 };
     inline constexpr std::uint8_t FarLayerAlpha = 120;
     inline constexpr sf::Color NearLayerTint{ 150, 186, 196, 40 };

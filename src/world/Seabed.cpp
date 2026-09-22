@@ -346,6 +346,31 @@ void Seabed::update(float deltaTime)
 
 void Seabed::buildParallax()
 {
+    // The deep band, first and furthest: a few enormous shapes ringed much
+    // wider than the far rocks and drawn far dimmer. At this parallax they
+    // barely move, which is exactly what makes them read as being miles off
+    // rather than as more scenery just past the wall.
+    for (std::size_t i = 0; i < config::DeepLayerCount; ++i)
+    {
+        const float angle = 360.0f * static_cast<float>(i) / config::DeepLayerCount
+                            + rng::range(-20.0f, 20.0f);
+        const float distance = rng::range(m_arenaRadius * 2.9f, m_arenaRadius * 4.6f);
+
+        Layer layer{ sf::Sprite(rng::range(0.0f, 1.0f) < 0.5f ? m_assets->rockA
+                                                              : m_assets->rockB),
+                     m_center + sf::Vector2f(distance, sf::degrees(angle)),
+                     0.0f, rng::range(0.0f, 6.28f) };
+
+        const sf::Vector2f size(layer.sprite.getTexture().getSize());
+        layer.sprite.setOrigin(size / 2.0f);
+
+        const float scale = rng::range(7.0f, 13.0f);
+        layer.sprite.setScale({ scale, scale });
+        layer.sprite.setRotation(sf::degrees(rng::range(0.0f, 360.0f)));
+
+        m_deep.push_back(std::move(layer));
+    }
+
     // The far band: boulders out past the reef, large and dim. They are never
     // reachable and never collide; they exist so the basin has somewhere to be
     // rather than ending at the wall.
@@ -390,6 +415,25 @@ void Seabed::buildParallax()
     }
 
     m_shadow.setPointCount(18);
+}
+
+void Seabed::drawDeep(sf::RenderTarget& target, sf::Vector2f cameraCentre) const
+{
+    // Almost all of the camera's movement is taken off it, so crossing the
+    // whole basin barely shifts these at all.
+    const sf::Vector2f lag = (cameraCentre - m_center) * (1.0f - config::DeepParallax);
+
+    for (const Layer& layer : m_deep)
+    {
+        sf::Sprite sprite = layer.sprite;
+        sprite.setPosition(layer.anchor + lag);
+
+        sf::Color tint = tintBy(config::DeepLayerTint, m_theme->propTint);
+        tint.a = config::DeepLayerAlpha;
+        sprite.setColor(tint);
+
+        target.draw(sprite);
+    }
 }
 
 void Seabed::drawFar(sf::RenderTarget& target, sf::Vector2f cameraCentre) const

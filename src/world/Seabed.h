@@ -56,9 +56,12 @@ public:
 
     void draw(sf::RenderTarget& target) const;
 
-    // Two extra layers that are what actually make a flat top-down scene read
+    // Three extra layers that are what actually make a flat top-down scene read
     // as having depth:
     //
+    //   drawDeep   enormous shapes at the limit of sight, barely moving with
+    //              the camera at all, so the basin sits inside something rather
+    //              than ending at the far rocks;
     //   drawFar    a band of rock receding past the reef, drawn through a view
     //              that lags the camera, so it slides more slowly than the
     //              floor and therefore reads as further away;
@@ -66,8 +69,9 @@ public:
     //              through a view that leads the camera, so they slide faster
     //              and pass over it.
     //
-    // Both take the camera centre rather than reading it, because the parallax
-    // offset is the whole trick and it belongs in one place.
+    // All three take the camera centre rather than reading it, because the
+    // parallax offset is the whole trick and it belongs in one place.
+    void drawDeep(sf::RenderTarget& target, sf::Vector2f cameraCentre) const;
     void drawFar(sf::RenderTarget& target, sf::Vector2f cameraCentre) const;
     void drawNear(sf::RenderTarget& target, sf::Vector2f cameraCentre) const;
 
@@ -116,6 +120,7 @@ private:
     std::vector<Critter> m_critters;
     float                m_critterTimer;
 
+    std::vector<Layer> m_deep;
     std::vector<Layer> m_far;
     std::vector<Layer> m_near;
 
