@@ -1781,13 +1781,43 @@ void Game::activateMenuChoice()
             break;
 
         case MainMenu::Choice::Reset:
-            startNewRun();
-            openMenu();
+            // Handled by holding, not by pressing: see updateScuttle. A tap
+            // here does nothing on purpose, because a tap is what a player
+            // does by accident on the row above the one they wanted.
             break;
 
         case MainMenu::Choice::Quit:
             m_window.close();
             break;
+    }
+}
+
+void Game::updateScuttle(float deltaTime)
+{
+    // Erasing a run is the only thing in the game that cannot be taken back,
+    // and it used to be one keypress on a row directly under SURFACE. It is a
+    // hold now: the row fills under the words, and letting go at any point
+    // empties it. Nobody scuttles a campaign without watching it happen.
+    const bool onIt = m_menu.getSelected() == MainMenu::Choice::Reset;
+    const bool down = sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Enter)
+                      || sf::Keyboard::isKeyPressed(sf::Keyboard::Scancode::Space);
+
+    if (!onIt || !down)
+    {
+        m_scuttleHold = 0.0f;
+        m_menu.setHold(0.0f);
+        return;
+    }
+
+    m_scuttleHold += deltaTime;
+    m_menu.setHold(m_scuttleHold / config::ScuttleHold);
+
+    if (m_scuttleHold >= config::ScuttleHold)
+    {
+        m_scuttleHold = 0.0f;
+        m_menu.setHold(0.0f);
+        startNewRun();
+        openMenu();
     }
 }
 
@@ -2092,28 +2122,6 @@ void Game::processEvents()
                 continue;
             }
 
-            if (pressed == keyFor(Action::Surface))
-            {
-                // Blowing the tanks. The bell at the mouth is the way up that
-                // keeps what you are carrying; this is the way up from
-                // anywhere, and everything in the hold is the price of it.
-                //
-                // It exists so a dive can always be abandoned - a sub pinned
-                // in the far end of a basin with two plates of hull left has
-                // to have an out - and it costs exactly the thing that made
-                // going out there worth it.
-                if (m_paused)
-                {
-                    m_hold.fill(0);
-                    bankSalvage();
-                    followedDown();
-                    m_save.selectedLevel = m_level.getNumber();
-                    openDeck();
-                }
-
-                continue;
-            }
-
             if (pressed == keyFor(Action::Lamp))
             {
                 // Kill the lamp. Nearly blind, but so is everything else.
@@ -2137,20 +2145,6 @@ void Game::processEvents()
             {
                 if (m_state == State::Fighting && !m_showUpgrades)
                     queue(Command::Dash);
-
-                continue;
-            }
-
-            if (pressed == keyFor(Action::Upgrades))
-            {
-                // Between levels the tree is the screen, so there is nothing to
-                // toggle; after a death there is nothing left to spend.
-                if (m_state != State::Upgrading && m_state != State::GameOver)
-                {
-                    m_showUpgrades = !m_showUpgrades;
-                    m_upgradeScreen.clearCursor();
-                    m_upgradeScreen.recentre();
-                }
 
                 continue;
             }
@@ -6652,9 +6646,7 @@ namespace
         { "DASH",         Opt::Bind, Action::Dash },
         { "LAMP",         Opt::Bind, Action::Lamp },
         { "CYCLE GUN",    Opt::Bind, Action::FireMode },
-        { "BLOW TANKS",   Opt::Bind, Action::Surface },
         { "PAUSE",        Opt::Bind, Action::Pause },
-        { "UPGRADES",     Opt::Bind, Action::Upgrades },
 
         { "",             Opt::Header },
         { "BACK TO DEFAULTS", Opt::Defaults },
@@ -6841,7 +6833,10 @@ sf::Keyboard::Scancode Game::keyFor(Action action) const
 {
     const std::size_t index = static_cast<std::size_t>(action);
 
-    if (index < m_save.keys.size())
+    // Only a list of exactly the right length is trusted: a longer one was
+    // written when there were more actions and every index past the one that
+    // went is now pointing at the wrong thing.
+    if (m_save.keys.size() == ActionCount)
         return static_cast<sf::Keyboard::Scancode>(m_save.keys[index]);
 
     return DefaultKeys[index];
@@ -6858,10 +6853,12 @@ void Game::bindKey(int row, sf::Keyboard::Scancode key)
     if (option.kind != Opt::Bind)
         return;
 
-    if (m_save.keys.size() < ActionCount)
+    // Any mismatch and the whole list goes back to the defaults, not just the
+    // missing tail. A save written when there were more actions than there are
+    // now would otherwise slide every binding past the one that went, and a
+    // player would find pause on whatever used to blow the tanks.
+    if (m_save.keys.size() != ActionCount)
     {
-        // First rebind: start from whatever the defaults were, so the other
-        // ten actions do not silently become unbound.
         m_save.keys.resize(ActionCount);
         for (std::size_t i = 0; i < ActionCount; ++i)
             m_save.keys[i] = static_cast<int>(DefaultKeys[i]);
@@ -7453,6 +7450,7 @@ void Game::presentUpdate(float deltaTime)
 
         case State::Menu:
             m_menuTime += deltaTime;
+            updateScuttle(deltaTime);
             m_menu.setCursor(m_window.mapPixelToCoords(sf::Mouse::getPosition(m_window), m_ui));
             break;
 

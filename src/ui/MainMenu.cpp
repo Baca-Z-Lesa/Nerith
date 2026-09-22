@@ -226,11 +226,27 @@ void MainMenu::draw(sf::RenderTarget& target, float time)
             }
         }
 
+        // The one entry that cannot be undone fills rather than fires. It is
+        // the only row in the game that asks for a second of commitment, and
+        // it asks for it by filling up under the words so there is never a
+        // moment where a player has scuttled a run without watching it happen.
+        if (picked && entry.choice == Choice::Reset && m_hold > 0.0f)
+        {
+            const float done = std::clamp(m_hold, 0.0f, 1.0f);
+
+            mark({ at.x + 2.0f, at.y + 2.0f }, { (size.x - 4.0f) * done, size.y - 4.0f },
+                 sf::Color(126, 32, 30, 190));
+        }
+
         pixelfont::append(m_text, entry.label,
                           { centredX(entry.label, 2.1f), bounds.position.y + 7.0f }, 2.1f,
                           blend(config::HudDimTextColor, config::HudTextColor, lit));
-        pixelfont::append(m_text, entry.note,
-                          { centredX(entry.note, 1.2f), bounds.position.y + 28.0f }, 1.2f,
+
+        const std::string note = (picked && entry.choice == Choice::Reset)
+                                     ? "HOLD ENTER TO SCUTTLE"
+                                     : entry.note;
+
+        pixelfont::append(m_text, note, { centredX(note, 1.2f), bounds.position.y + 28.0f }, 1.2f,
                           config::HudDimTextColor);
     }
 

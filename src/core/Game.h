@@ -581,6 +581,9 @@ private:
 
     const config::DifficultyDef& difficulty() const;
 
+    // Erasing a run is a hold, not a press. See the note in the definition.
+    void updateScuttle(float deltaTime);
+
     // What a creature sounds like when it is hit and when it stops. A basin
     // full of different animals used to sound like one animal being killed
     // over and over.
@@ -827,6 +830,7 @@ private:
     float     m_hullGroan = 0.0f;  // seconds until the hull next groans
     float     m_groanPinch = 0.0f; // seconds of draw-in left after a groan
 
+    float     m_scuttleHold = 0.0f;    // seconds spent holding to erase a run
     float     m_phenomenonTimer = 0.0f; // until this depth's water does its thing
     bool      m_atMouth = false;        // inside the way out, so arriving fires once
 

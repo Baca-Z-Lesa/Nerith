@@ -21,11 +21,18 @@ enum class Action
     Dash,
     Lamp,
     FireMode,
-    Surface,    // blow the tanks and run, leaving the hold behind
     Pause,
-    Upgrades,
     Count
 };
+
+// Two actions used to live here and no longer do.
+//
+// BLOW TANKS surfaced you from anywhere for the price of the hold, and
+// UPGRADES opened the tree in the middle of a dive. Both were escape hatches
+// out of the place the game is about being in: one made the swim back to the
+// bell optional, the other made the bench on the deck a formality. The way up
+// is the bell or the bottom, and the way to spend salvage is to walk to the
+// bench - which is why there is a deck to walk on at all.
 
 inline constexpr std::size_t ActionCount = static_cast<std::size_t>(Action::Count);
 
@@ -39,9 +46,7 @@ inline constexpr std::array<sf::Keyboard::Scancode, ActionCount> DefaultKeys{ {
     sf::Keyboard::Scancode::LShift,
     sf::Keyboard::Scancode::F,
     sf::Keyboard::Scancode::E,
-    sf::Keyboard::Scancode::Q,
     sf::Keyboard::Scancode::Escape,
-    sf::Keyboard::Scancode::Tab,
 } };
 
 inline constexpr std::array<const char*, ActionCount> ActionNames{ {
@@ -52,9 +57,7 @@ inline constexpr std::array<const char*, ActionCount> ActionNames{ {
     "DASH",
     "LAMP",
     "CYCLE GUN",
-    "BLOW TANKS",
     "PAUSE",
-    "UPGRADES",
 } };
 
 // A short name for a key, for the bindings list. Anything without one shows as

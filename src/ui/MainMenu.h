@@ -38,6 +38,10 @@ public:
     Choice getSelected() const;
     std::size_t getSelectedIndex() const { return m_selected; }
 
+    // How far through holding down the one entry that cannot be undone, 0 to 1.
+    // The menu only draws it; whoever owns the keyboard decides when it fills.
+    void setHold(float hold) { m_hold = hold; }
+
     void draw(sf::RenderTarget& target, float time);
 
 private:
@@ -68,6 +72,7 @@ private:
     // Where the clock was on the previous frame, so the eases have a delta
     // without the caller having to start passing one.
     float m_lastTime = 0.0f;
+    float m_hold = 0.0f; // how far through scuttling the run, 0 to 1
 
     sf::RectangleShape m_veil;
     sf::RectangleShape m_box;

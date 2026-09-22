@@ -2021,6 +2021,10 @@ namespace config
     // a dive. Capped so a long fight does not white the screen out.
     inline constexpr int GlassCrackMax = 14;
 
+    // How long SCUTTLE has to be held. Erasing a run is the only thing in the
+    // game that cannot be taken back, and it sits one row under SURFACE.
+    inline constexpr float ScuttleHold = 1.4f;
+
     // Something enormous, a long way out, that has nothing to do with you. It
     // is never drawn and it never arrives: it is heard, and a good enough sonar
     // gets a return off it. What is down there is the thing waiting at the
