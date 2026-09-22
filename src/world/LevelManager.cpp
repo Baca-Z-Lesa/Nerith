@@ -152,7 +152,17 @@ std::optional<EnemyType> LevelManager::takeSpawn(std::size_t aliveEnemies)
     if (!m_objective || !m_objective->wantsSpawning() || m_def.isBoss || m_queue.empty())
         return std::nullopt;
 
-    if (m_spawnTimer > 0.0f || aliveEnemies >= m_def.maxAlive + config::GlobalMaxAliveBonus)
+    // The ceiling moves with the difficulty too, not only the length of the
+    // queue. A setting that promises fewer of them and only shortens the queue
+    // changes how long a level lasts and not how hard it is: what a player
+    // feels is how many are on them at once, and that was the same number on
+    // all three settings.
+    const int ceiling = std::max(1, static_cast<int>(std::lround(
+                                        static_cast<float>(m_def.maxAlive)
+                                        * difficulty().countScale)))
+                        + config::GlobalMaxAliveBonus;
+
+    if (m_spawnTimer > 0.0f || static_cast<int>(aliveEnemies) >= ceiling)
         return std::nullopt;
 
     if (m_queueIndex >= m_queue.size())

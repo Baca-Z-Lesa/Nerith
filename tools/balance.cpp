@@ -68,6 +68,12 @@ namespace
         int   members = 0;
     };
 
+    // Which set of screws the numbers below are being read through. DESCENT is
+    // the campaign as designed; the other two are the same tables seen through
+    // their multipliers, which is the only honest way to ask whether the easy
+    // and hard settings still sit either side of it after the economy moved.
+    const config::DifficultyDef* g_diff = &config::Difficulties[1];
+
     Water waterOf(const LevelDef& def)
     {
         Water water;
@@ -81,11 +87,14 @@ namespace
                 config::EnemyTable[static_cast<std::size_t>(group.type)];
 
             const int count = static_cast<int>(std::lround(static_cast<float>(group.count)
-                                                           * config::GlobalCountScale));
+                                                           * config::GlobalCountScale
+                                                           * g_diff->countScale));
 
-            water.health += static_cast<float>(count * stats.health) * def.scaling.health;
-            water.damage +=
-                static_cast<float>(count * (stats.contactDamage + def.scaling.bonusDamage));
+            water.health += static_cast<float>(count * stats.health) * def.scaling.health
+                            * g_diff->enemyHealth;
+            water.damage += static_cast<float>(count * (stats.contactDamage
+                                                        + def.scaling.bonusDamage))
+                            * g_diff->enemyDamage;
             water.salvage += static_cast<float>(count * stats.salvage);
             water.members += count;
         }
@@ -164,6 +173,15 @@ namespace
         }
 
         pay.floor = static_cast<int>(static_cast<float>(findsAt(depth)) * meanFindValue(depth));
+
+        // Every salvage the game pays out goes through one door, and that door
+        // is where the difficulty's cut is taken.
+        const float take = g_diff->salvageScale;
+        pay.clear = static_cast<int>(static_cast<float>(pay.clear) * take);
+        pay.kills = static_cast<int>(static_cast<float>(pay.kills) * take);
+        pay.extra = static_cast<int>(static_cast<float>(pay.extra) * take);
+        pay.floor = static_cast<int>(static_cast<float>(pay.floor) * take);
+
         pay.total = pay.clear + pay.kills + pay.extra + pay.floor;
 
         return pay;
@@ -186,7 +204,10 @@ namespace
         const Water water = waterOf(def);
 
         Ask ask;
-        ask.alive = static_cast<float>(def.maxAlive + config::GlobalMaxAliveBonus);
+        ask.alive = static_cast<float>(
+                        std::max(1, static_cast<int>(std::lround(
+                                        static_cast<float>(def.maxAlive) * g_diff->countScale))))
+                    + static_cast<float>(config::GlobalMaxAliveBonus);
 
         if (def.isBoss || water.members == 0)
             return ask;
@@ -346,6 +367,59 @@ int main()
     std::printf("  opening water  %6d  %4.0f%%\n", clear, 100.0f * clear / all);
     std::printf("  killing things %6d  %4.0f%%\n", kills, 100.0f * kills / all);
     std::printf("  the floor      %6d  %4.0f%%\n", floorPay, 100.0f * floorPay / all);
+
+    // --- the three settings ------------------------------------------------
+    //
+    // The tables above are DESCENT. These are the same tables read through the
+    // other two sets of screws, because the presets were written against an
+    // economy that has since been cut fivefold and a curve that has since been
+    // rewritten, and nobody had checked that they still sit either side of it.
+    std::printf("\nTHE THREE SETTINGS\n");
+    std::printf("%-10s %7s %7s %7s %8s %9s %9s\n", "", "BUYS", "BITE", "GRIND", "ALIVE",
+                "FIRST BOSS", "LAST BOSS");
+
+    for (const config::DifficultyDef& setting : config::Difficulties)
+    {
+        g_diff = &setting;
+
+        int earned = 0;
+        float bite = 0.0f;
+        float grind = 0.0f;
+        float alive = 0.0f;
+        int counted = 0;
+
+        for (int level = 1; level <= authoredLevelCount(); ++level)
+        {
+            earned += payOf(level).total;
+
+            const Ask ask = askOf(level);
+            if (levelFor(level).isBoss)
+                continue;
+
+            bite += ask.bite;
+            grind += ask.grind;
+            alive += ask.alive;
+            ++counted;
+        }
+
+        const float n = static_cast<float>(std::max(1, counted));
+
+        // A boss pool is scaled by the same health screw the water is.
+        const auto bossSeconds = [&](int index) {
+            const BossDef& def = bossDefFor(static_cast<BossId>(index));
+            const float pool = static_cast<float>(def.coreHealth * std::max(1, def.lives))
+                               * setting.enemyHealth;
+            return pool / (DamagePerSecond[static_cast<std::size_t>(index)]
+                           * exposureOf(def.mind));
+        };
+
+        std::printf("%-10s %6.0f%% %7.1f %7.1f %8.1f %9.0f %9.0f\n", setting.name,
+                    100.0f * static_cast<float>(earned) / static_cast<float>(treeTotal),
+                    bite / n, grind / n, alive / n, bossSeconds(0),
+                    bossSeconds(static_cast<int>(BossId::Count) - 1));
+    }
+
+    g_diff = &config::Difficulties[1];
 
     return 0;
 }

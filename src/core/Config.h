@@ -1140,9 +1140,17 @@ namespace config
     };
 
     inline constexpr std::array<DifficultyDef, 3> Difficulties{ {
-        { "SURVEY", "FEWER OF THEM, AND THEY HIT SOFTER.", 0.75f, 0.60f, 0.78f, 1.0f },
+        // The salvage column is the price of the setting. It used to pay the
+        // same on SURVEY as on DESCENT, which made the easy setting free: the
+        // same tree in the same number of dives for less work. It now trades,
+        // and the three read monotonically from left to right.
+        //
+        // ABYSSAL's health screw also lands on boss pools, and at 1.35 it
+        // turned the last fight from the two minutes it was tuned to into
+        // nearly three - which is not a harder fight, it is a longer one.
+        { "SURVEY", "FEWER OF THEM, AND THEY HIT SOFTER.", 0.75f, 0.60f, 0.78f, 0.85f },
         { "DESCENT", "THE DIVE AS IT WAS BUILT.", 1.0f, 1.0f, 1.0f, 1.0f },
-        { "ABYSSAL", "MORE OF THEM, TOUGHER, AND THEY BITE.", 1.35f, 1.5f, 1.22f, 1.25f },
+        { "ABYSSAL", "MORE OF THEM, TOUGHER, AND THEY BITE.", 1.22f, 1.5f, 1.22f, 1.25f },
     } };
 
     // --- Level flow ---
