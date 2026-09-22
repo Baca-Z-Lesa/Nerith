@@ -582,6 +582,10 @@ private:
     const config::DifficultyDef& difficulty() const;
 
     // Erasing a run is a hold, not a press. See the note in the definition.
+    // A shot turning on a warden plate: sparks off the armour, its own noise,
+    // and one more on the blocked tally.
+    void deflected(sf::Vector2f at, sf::Vector2f travel, sf::Vector2f facing);
+
     void updateScuttle(float deltaTime);
 
     // What a creature sounds like when it is hit and when it stops. A basin

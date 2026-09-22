@@ -1424,6 +1424,14 @@ void Game::onPlayerDied()
             m_save.killed.resize(EnemyTypeCount, 0);
 
         m_save.killed[index] = std::max(1, m_save.killed[index]);
+
+        // And the other column: how many dives this particular animal has
+        // ended. A player who has been killed by the same thing four times is
+        // being told something, and the game may as well be the one to say it.
+        if (m_save.deaths.size() <= index)
+            m_save.deaths.resize(EnemyTypeCount, 0);
+
+        ++m_save.deaths[index];
     }
 
     // Everything the dive was carrying goes down with it. The hold is the
@@ -1790,6 +1798,37 @@ void Game::activateMenuChoice()
             m_window.close();
             break;
     }
+}
+
+void Game::deflected(sf::Vector2f at, sf::Vector2f travel, sf::Vector2f facing)
+{
+    // The one rule in the game that is never written down anywhere: a warden
+    // can only be hurt from behind. It has to be learned from what happens,
+    // which means what happens has to be unmistakable and has to be its own
+    // thing - a quieter version of a normal hit teaches nothing, because a
+    // quieter hit is what being nearly out of range sounds like.
+    const sf::Vector2f plate = facing.lengthSquared() > 0.0001f
+                                   ? facing.normalized()
+                                   : -travel;
+
+    // Off the plate, not back down the barrel: the shot keeps the speed it
+    // arrived with and loses only the part that was going into the armour.
+    const sf::Vector2f off = travel - plate * (2.0f * travel.dot(plate));
+
+    m_effects.emit({ .position = at,
+                     .direction = off,
+                     .spread = 0.70f,
+                     .speedMin = 180.0f, .speedMax = 460.0f,
+                     .lifeMin = 0.12f, .lifeMax = 0.34f,
+                     .sizeMin = 1.5f, .sizeMax = 3.5f,
+                     .endSizeScale = 0.1f,
+                     .drag = 5.0f,
+                     .color = { 255, 224, 176, 235 },
+                     .count = 10 });
+
+    m_audio.playAt(Sfx::Deflect, at, 1.0f, occlusionAt(at));
+    addHitRing(at, config::JetRingRadius * 0.8f, config::BlockArmourColor);
+    ++m_blocks;
 }
 
 void Game::updateScuttle(float deltaTime)
@@ -2551,8 +2590,7 @@ void Game::updateHarpoon(float deltaTime)
 
         if (enemy.deflects(at))
         {
-            effects::impact(m_effects, at, -m_harpoon->getDirection());
-            m_audio.play(Sfx::Impact, 0.6f);
+            deflected(at, m_harpoon->getDirection(), enemy.getFacing());
             m_harpoon.reset();
             return;
         }
@@ -5569,10 +5607,13 @@ void Game::handleCollisions()
                 // rather than as a rule.
                 if (enemy.deflects(shot.getPosition()))
                 {
-                    effects::impact(m_effects, shot.getPosition(), -shot.getDirection());
-                    m_audio.play(Sfx::Impact, 0.6f);
-                    addHitRing(shot.getPosition(), config::JetRingRadius * 0.8f,
-                               config::BlockArmourColor);
+                    // Sparks go where the shot went, turned: they run off the
+                    // plate rather than back down the barrel, which is the
+                    // difference between a shot being stopped and a shot being
+                    // deflected - and deflected is the thing the player has to
+                    // learn, because the answer is to get behind it.
+                    deflected(shot.getPosition(), shot.getDirection(),
+                              enemy.getFacing());
                     spent = true;
                     break;
                 }
@@ -6434,6 +6475,22 @@ void Game::drawKillerCard()
     centred(what, 1.5f, config::HudTextColor);
     y += 4.0f;
     centred(how, 1.5f, config::HudDimTextColor);
+
+    // How many dives this one has ended. Said plainly, because being told that
+    // the same animal has now killed you four times is the game pointing at a
+    // habit rather than at bad luck.
+    if (m_lastWound.creature)
+    {
+        const std::size_t index = static_cast<std::size_t>(*m_lastWound.creature);
+        const int tally = index < m_save.deaths.size() ? m_save.deaths[index] : 0;
+
+        if (tally > 1)
+        {
+            y += 10.0f;
+            centred("THAT IS " + std::to_string(tally) + " DIVES IT HAS ENDED", 1.3f,
+                    config::HudBossColor);
+        }
+    }
 
     m_window.draw(text);
 }

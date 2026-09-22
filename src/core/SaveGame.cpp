@@ -70,6 +70,12 @@ SaveGame SaveGame::load()
             while (stream >> count)
                 data.killed.push_back(std::max(0, count));
         }
+        else if (key == "deaths")
+        {
+            int count = 0;
+            while (stream >> count)
+                data.deaths.push_back(std::max(0, count));
+        }
         else if (key == "logs")
         {
             int index = 0;
@@ -148,6 +154,7 @@ SaveGame SaveGame::load()
 
     if (!sameRoster)
         data.killed.clear();
+        data.deaths.clear();
 
     data.selectedLevel = std::max(1, data.selectedLevel);
     data.salvage = std::max(0, data.salvage);
@@ -198,6 +205,14 @@ void SaveGame::save() const
     {
         file << "killed";
         for (const int count : killed)
+            file << ' ' << count;
+        file << '\n';
+    }
+
+    if (!deaths.empty())
+    {
+        file << "deaths";
+        for (const int count : deaths)
             file << ' ' << count;
         file << '\n';
     }

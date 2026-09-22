@@ -25,6 +25,7 @@ enum class Sfx
     Vent,
     BossPhase,     // a creature changing its mind
     BossDeath,
+    Deflect,       // a shot turning on plate: the warden's one rule, made audible
     Charge,
     Siren,         // the hull alarm, when there is almost none of it left
     HullGroan,     // the hull working under the pressure, deeper the further down

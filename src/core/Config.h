@@ -1834,6 +1834,7 @@ namespace config
     inline constexpr float VolumeBossPhase = 96.0f;
     inline constexpr float VolumeBossDeath = 100.0f;
     inline constexpr float VolumeCharge = 34.0f;
+    inline constexpr float VolumeDeflect = 58.0f;
     inline constexpr float VolumeSiren = 44.0f;
     inline constexpr float VolumeHullGroan = 46.0f;
 

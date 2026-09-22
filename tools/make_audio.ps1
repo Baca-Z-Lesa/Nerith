@@ -802,6 +802,46 @@ public static class Synth
         return b;
     }
 
+    // A shot turning on plate. Nothing else in the game makes this noise, and
+    // that is the whole job: the rule that a warden can only be hurt from
+    // behind is never written down anywhere, so it has to be audible. Bright,
+    // inharmonic and over quickly - a struck plate, not a hit.
+    public static float[] Deflect()
+    {
+        float len = 0.5f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        float[] strike = new float[n];
+        for (int i = 0; i < n; i++) strike[i] = Noise();
+        LowPass(strike, 7000f);
+
+        // Deliberately not a harmonic series: a flat plate rings on ratios
+        // that do not belong to any note, which is why metal sounds like metal.
+        double[] partial = { 1.0, 2.76, 5.40, 8.93, 13.34 };
+        float[] weight = { 1.0f, 0.62f, 0.38f, 0.22f, 0.12f };
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+
+            float ring = 0f;
+            for (int p = 0; p < partial.Length; p++)
+            {
+                ring += weight[p] * (float)Math.Sin(2 * Math.PI * 720.0 * partial[p] * t)
+                        * Decay(t, len, 1.4f + 0.9f * p);
+            }
+
+            // The strike itself: gone in a fiftieth of a second.
+            float hit = strike[i] * Decay(t, 0.05f, 3.4f) * 0.8f;
+
+            b[i] = (ring * 0.26f + hit) * 0.52f;
+        }
+
+        Edges(b, 0.004f);
+        return b;
+    }
+
     // --- the four objectives, each with its own voice -------------------
     //
     // These used to borrow: lighting a beacon played the sound of a shaft
@@ -989,7 +1029,10 @@ $jobs = @(
 
     # The surface: the one actual tune in the game, so that going under can
     # take it away.
-    @("music_surface.wav",   [Synth]::MusicSurface(16.0))
+    @("music_surface.wav",   [Synth]::MusicSurface(16.0)),
+
+    # A shot turning on plate, which is how the warden's one rule is taught.
+    @("deflect.wav",         [Synth]::Deflect())
 )
 
 foreach ($job in $jobs) {

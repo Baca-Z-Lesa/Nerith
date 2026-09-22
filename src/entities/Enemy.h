@@ -49,6 +49,10 @@ public:
     // Asked by the collision code before any damage is handed over.
     bool deflects(sf::Vector2f from) const;
 
+    // Which way its shield is facing. Only the deflection feedback asks, so it
+    // can throw the sparks off the plate rather than back down the barrel.
+    sf::Vector2f getFacing() const { return m_aimDirection; }
+
     // Revenant: false while it is under the floor, when it can neither be hit
     // nor hurt anything.
     bool isVulnerable() const;

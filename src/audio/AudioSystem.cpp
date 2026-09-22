@@ -29,6 +29,7 @@ namespace
             case Sfx::Vent:       return "assets/audio/vent.wav";
             case Sfx::BossPhase:  return "assets/audio/boss_phase.wav";
             case Sfx::BossDeath:  return "assets/audio/boss_death.wav";
+            case Sfx::Deflect:    return "assets/audio/deflect.wav";
             case Sfx::Charge:     return "assets/audio/charge.wav";
             case Sfx::Siren:      return "assets/audio/siren.wav";
             case Sfx::HullGroan:  return "assets/audio/hull_groan.wav";
@@ -92,6 +93,7 @@ namespace
             case Sfx::Vent:       return config::VolumeVent;
             case Sfx::BossPhase:  return config::VolumeBossPhase;
             case Sfx::BossDeath:  return config::VolumeBossDeath;
+            case Sfx::Deflect:    return config::VolumeDeflect;
             case Sfx::Charge:     return config::VolumeCharge;
             case Sfx::Siren:      return config::VolumeSiren;
             case Sfx::HullGroan:  return config::VolumeHullGroan;

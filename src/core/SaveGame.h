@@ -34,6 +34,11 @@ struct SaveGame
     // place in the game where these animals hold still long enough to look at.
     std::vector<int> killed;
 
+    // And what has killed YOU, and how often. The logbook counts what a hunt
+    // went well against; this counts the other column, so the death card can
+    // say whether this is a new way to die or the same one again.
+    std::vector<int> deaths;
+
     // Which dead divers' recorders have been brought up, as indices into the
     // log table. Kept for good: a log is radioed up the moment it is read, so
     // it is the one thing a drowning does not take back.
