@@ -57,6 +57,10 @@ namespace
             case Sfx::FindSmall:  return "assets/audio/find_small.wav";
             case Sfx::FindGood:   return "assets/audio/find_good.wav";
             case Sfx::FindRich:   return "assets/audio/find_rich.wav";
+            case Sfx::MarkLit:    return "assets/audio/mark_lit.wav";
+            case Sfx::WardBitten: return "assets/audio/ward_bitten.wav";
+            case Sfx::QuarryDown: return "assets/audio/quarry_down.wav";
+            case Sfx::MouthNear:  return "assets/audio/mouth_near.wav";
             case Sfx::CutHull:    return "assets/audio/cut_hull.wav";
             case Sfx::HullGive:   return "assets/audio/hull_give.wav";
             case Sfx::BroodBurn:  return "assets/audio/brood_burn.wav";
@@ -109,6 +113,10 @@ namespace
             case Sfx::FindGood:
             case Sfx::FindRich:   return config::VolumeFind;
             case Sfx::CutHull:    return config::VolumeCut;
+            case Sfx::MarkLit:
+            case Sfx::WardBitten:
+            case Sfx::QuarryDown:
+            case Sfx::MouthNear:  return config::VolumeObjective;
             case Sfx::ShaftOpen:
             case Sfx::HullGive:
             case Sfx::LiftGo:

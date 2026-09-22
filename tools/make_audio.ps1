@@ -735,6 +735,145 @@ public static class Synth
         Edges(b, 0.02f);
         return b;
     }
+
+    // --- the four objectives, each with its own voice -------------------
+    //
+    // These used to borrow: lighting a beacon played the sound of a shaft
+    // unlocking and something biting one played the sound of a hull failing.
+    // Both are the wrong event, and a player learns what a sound means long
+    // before they can say why.
+
+    // A beacon coming on. The relay goes first - a hard, dry clunk - and the
+    // tone only arrives once the thing is actually lit.
+    public static float[] MarkLit()
+    {
+        float len = 1.1f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        float[] clunk = new float[n];
+        for (int i = 0; i < n; i++) clunk[i] = Noise();
+        LowPass(clunk, 1800f);
+
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+
+            // The relay: over almost at once.
+            float hit = clunk[i] * Decay(t, 0.09f, 3.0f) * 0.7f;
+
+            // Then it lights: two clean tones a fifth apart, the upper one
+            // arriving a beat late so it reads as coming up rather than as
+            // being switched on.
+            float lead = t < 0.10f ? 0f : (float)Math.Sin(2 * Math.PI * 392.0 * (t - 0.10f));
+            float over = t < 0.26f ? 0f : (float)Math.Sin(2 * Math.PI * 588.0 * (t - 0.26f));
+
+            float ring = (lead * 0.55f + over * 0.45f) * Decay(Math.Max(0f, t - 0.10f), len, 1.6f);
+
+            b[i] = (hit + ring * 0.5f) * 0.6f;
+        }
+        Edges(b, 0.01f);
+        return b;
+    }
+
+    // Something taking a bite out of one. Wet, short, and it drags the pitch
+    // down with it - the opposite shape to the beacon lighting.
+    public static float[] WardBitten()
+    {
+        float len = 0.8f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        float[] wet = new float[n];
+        for (int i = 0; i < n; i++) wet[i] = Noise();
+        LowPass(wet, 900f);
+
+        double phase = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float fall = t / len;
+
+            double hz = 300.0 * (1.0 - 0.62 * fall);
+            phase += 2 * Math.PI * hz / Rate;
+
+            float tear = wet[i] * Decay(t, 0.34f, 2.2f);
+            float voice = (float)Math.Sin(phase) * Decay(t, len, 1.9f);
+
+            b[i] = (tear * 0.8f + voice * 0.5f) * 0.62f;
+        }
+        Edges(b, 0.01f);
+        return b;
+    }
+
+    // The hunted thing going down. Bigger and longer than an ordinary death,
+    // because the level has been about this one animal.
+    public static float[] QuarryDown()
+    {
+        float len = 1.6f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        float[] body = new float[n];
+        for (int i = 0; i < n; i++) body[i] = Noise();
+        LowPass(body, 620f);
+
+        double phase = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float fall = t / len;
+
+            // A long way down: it starts where an animal shouts and ends
+            // somewhere below where one can.
+            double hz = 210.0 * (1.0 - 0.80 * fall) + 26.0;
+            phase += 2 * Math.PI * hz / Rate;
+
+            float voice = ((float)Math.Sin(phase)
+                           + 0.42f * (float)Math.Sin(phase * 2.0)) * Decay(t, len, 1.5f);
+
+            // And the last of the air going out of it.
+            float gasp = body[i] * Decay(Math.Max(0f, t - 0.55f), len, 2.4f) * 0.5f;
+
+            b[i] = (voice * 0.6f + gasp) * 0.62f;
+        }
+        Edges(b, 0.02f);
+        return b;
+    }
+
+    // Reaching the way out. The one sound in the game that opens rather than
+    // closes: noise clearing off a tone that rises and stays up.
+    public static float[] MouthNear()
+    {
+        float len = 1.8f;
+        int n = Count(len);
+        float[] b = new float[n];
+
+        float[] wash = new float[n];
+        for (int i = 0; i < n; i++) wash[i] = Noise();
+        LowPass(wash, 2400f);
+
+        double phase = 0.0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = T(i);
+            float rise = Math.Min(1f, t / 0.9f);
+
+            double hz = 196.0 + 196.0 * rise; // up an octave, and it holds
+            phase += 2 * Math.PI * hz / Rate;
+
+            float open = (float)Math.Sin(phase) * Math.Min(1f, t / 0.35f)
+                         * (1f - 0.35f * Decay(t, len, 0.8f));
+
+            // The hiss falls away as the tone arrives, so it reads as water
+            // clearing rather than as something else starting.
+            float air = wash[i] * (1f - rise) * 0.55f;
+
+            b[i] = (open * 0.42f + air) * Decay(t, len, 1.1f) * 0.62f;
+        }
+        Edges(b, 0.02f);
+        return b;
+    }
 }
 "@
 
@@ -773,7 +912,14 @@ $jobs = @(
     @("music_pulse.wav",     [Synth]::MusicPulse(16.0)),
     @("music_dread.wav",     [Synth]::MusicDread(16.0)),
     @("music_stalk.wav",     [Synth]::MusicStalk(16.0)),
-    @("hull_groan.wav",      [Synth]::HullGroan())
+    @("hull_groan.wav",      [Synth]::HullGroan()),
+
+    # One per objective, so a beacon lighting no longer plays the sound of a
+    # shaft unlocking and something biting one no longer plays a hull failing.
+    @("mark_lit.wav",        [Synth]::MarkLit()),
+    @("ward_bitten.wav",     [Synth]::WardBitten()),
+    @("quarry_down.wav",     [Synth]::QuarryDown()),
+    @("mouth_near.wav",      [Synth]::MouthNear())
 )
 
 foreach ($job in $jobs) {

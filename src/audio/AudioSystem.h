@@ -65,6 +65,14 @@ enum class Sfx
     FindGood,
     FindRich,
 
+    // One per objective. These used to borrow - lighting a beacon played a
+    // shaft unlocking, something biting one played a hull failing - and a
+    // player learns what a sound means long before they can say why.
+    MarkLit,      // a beacon coming on: the relay, then the tone
+    WardBitten,   // something taking a bite out of one
+    QuarryDown,   // the hunted thing, going down
+    MouthNear,    // the way out, opening
+
     CutHull,      // a torch on somebody else's plate
     HullGive,     // and the moment it stops being sealed
     BroodBurn,

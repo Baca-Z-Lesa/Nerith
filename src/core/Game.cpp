@@ -1130,6 +1130,7 @@ void Game::beginLevel(int number, bool fresh)
     // in a basin to an immediate call would read as a scripted greeting.
     m_giantHold = 0.0f;
     m_giantNext = rng::range(config::GiantIntervalMin, config::GiantIntervalMax);
+    m_atMouth = false;
 
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced. The two
@@ -3891,7 +3892,16 @@ void Game::updateEscape()
     // turned out to be.
     m_level.setEscapeDistance(m_escapeFrom > 1.0f ? away / m_escapeFrom : 0.0f);
 
-    if (away <= config::MouthReach)
+    // The sound is the arrival, not the standing there: it fires on the step
+    // across the line and not on every frame the sub spends inside it.
+    const bool inside = away <= config::MouthReach;
+
+    if (inside && !m_atMouth)
+        m_audio.playAt(Sfx::MouthNear, mouth, 1.0f, occlusionAt(mouth));
+
+    m_atMouth = inside;
+
+    if (inside)
         m_level.notifyReachedMouth();
 }
 
@@ -3980,7 +3990,7 @@ void Game::updateMarks(float deltaTime)
                 mark.bite = config::WardBiteInterval;
                 mark.flash = 1.0f;
                 m_level.notifyWardBitten();
-                m_audio.playAt(Sfx::HullGive, mark.position, 0.8f, occlusionAt(mark.position));
+                m_audio.playAt(Sfx::WardBitten, mark.position, 0.8f, occlusionAt(mark.position));
                 addHitRing(mark.position, config::MarkRadius * 2.2f, config::WardColor);
             }
 
@@ -4003,7 +4013,7 @@ void Game::updateMarks(float deltaTime)
         mark.lit = true;
         mark.flash = 1.0f;
         m_level.notifyMarkLit();
-        m_audio.playAt(Sfx::ShaftOpen, mark.position, 1.2f, occlusionAt(mark.position));
+        m_audio.playAt(Sfx::MarkLit, mark.position, 1.2f, occlusionAt(mark.position));
         addHitRing(mark.position, config::MarkRadius * 3.0f, config::MarkLitColor);
         addFlash(config::MarkLitColor, 0.25f);
     }
@@ -5200,6 +5210,8 @@ void Game::killEnemy(Enemy& enemy)
     if (enemy.isQuarry())
     {
         m_level.notifyQuarryKilled();
+        m_audio.playAt(Sfx::QuarryDown, enemy.getPosition(), 1.0f,
+                       occlusionAt(enemy.getPosition()));
         bigMoment(enemy.getPosition(), config::HudSalvageColor, config::ShakeBossPart,
                   config::SlowMotionBossAct);
     }

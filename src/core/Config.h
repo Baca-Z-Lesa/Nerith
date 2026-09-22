@@ -1813,6 +1813,10 @@ namespace config
     inline constexpr float VolumeDeckRig = 26.0f;
     inline constexpr float VolumeFind = 34.0f;
     inline constexpr float VolumeCut = 30.0f;
+
+    // The four objective voices. Louder than salvage and quieter than a boss:
+    // these are the things the level is actually about.
+    inline constexpr float VolumeObjective = 52.0f;
     inline constexpr float VolumeLift = 62.0f;
     inline constexpr float VolumeLiftHold = 26.0f;
     inline constexpr float VolumeReel = 56.0f;
