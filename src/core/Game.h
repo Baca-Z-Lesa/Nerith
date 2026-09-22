@@ -827,6 +827,8 @@ private:
     float     m_hullGroan = 0.0f;  // seconds until the hull next groans
     float     m_groanPinch = 0.0f; // seconds of draw-in left after a groan
 
+    float     m_phenomenonTimer = 0.0f; // until this depth's water does its thing
+
     // The thing out in the dark: when it next passes, how long this pass has
     // left, where it is and which way it is going.
     float        m_giantNext = 0.0f;

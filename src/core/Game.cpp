@@ -4758,6 +4758,28 @@ void Game::spawnAmbience(float deltaTime)
         m_bubbleTimer = config::AmbientBubbleInterval;
         effects::ambientBubble(m_ambience, randomVisiblePoint());
     }
+
+    // And the one thing this depth's water does that no other depth's does.
+    // Plankton in the shallows, gas off old pipework on the shelf, snow in the
+    // trench, something lighting itself in the abyss, soot over the vents, and
+    // almost nothing at all at the bottom.
+    //
+    // The theme carries the whole description, so this reads a table and never
+    // asks which depth it is in.
+    const DepthTheme& theme = themeFor(m_level.getDepth());
+
+    if (theme.phenomenonEvery <= 0.0f)
+        return;
+
+    m_phenomenonTimer -= deltaTime;
+    if (m_phenomenonTimer <= 0.0f)
+    {
+        m_phenomenonTimer = theme.phenomenonEvery * rng::range(0.7f, 1.3f);
+
+        ParticleSpec spec = theme.phenomenon;
+        spec.position = randomVisiblePoint();
+        m_ambience.emit(spec);
+    }
 }
 
 // ---------------------------------------------------------------------------

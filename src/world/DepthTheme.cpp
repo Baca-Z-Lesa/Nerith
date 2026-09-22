@@ -19,7 +19,13 @@ namespace
           1.00f, 34.0f,
           // Nothing but weed and rock. The shallows are the one floor where
           // what is down there is only what grew there.
-          { { nullptr, nullptr, nullptr } }, 0.00f },
+          { { nullptr, nullptr, nullptr } }, 0.00f,
+          // Plankton, drifting down through water that still has light in it.
+          0.55f,
+          { .spread = 3.15f, .speedMin = 6.0f, .speedMax = 16.0f,
+            .lifeMin = 3.0f, .lifeMax = 5.5f, .sizeMin = 1.5f, .sizeMax = 3.0f,
+            .endSizeScale = 0.6f, .drag = 0.8f, .buoyancy = -4.0f,
+            .color = { 120, 190, 170 }, .count = 5 } },
 
         { "THE SHELF",
           { 2, 4, 8 }, { 12, 25, 33 }, { 7, 15, 22 },
@@ -29,7 +35,14 @@ namespace
           { 224, 230, 240 },
           0.94f, 36.0f,
           // The first floor anybody worked. Pipe, split crates, cut cable.
-          { { "assets/textures/deep_pipes.png", nullptr, nullptr } }, 0.22f },
+          { { "assets/textures/deep_pipes.png", nullptr, nullptr } }, 0.22f,
+          // Gas still leaking out of somebody else's pipework, in strings.
+          1.6f,
+          { .direction = { 0.0f, -1.0f }, .spread = 0.35f,
+            .speedMin = 20.0f, .speedMax = 46.0f,
+            .lifeMin = 1.8f, .lifeMax = 3.2f, .sizeMin = 1.5f, .sizeMax = 3.5f,
+            .endSizeScale = 1.2f, .drag = 1.2f, .buoyancy = 30.0f,
+            .color = { 170, 210, 225 }, .count = 7 } },
 
         { "THE TRENCH",
           { 3, 3, 8 }, { 14, 16, 32 }, { 8, 9, 19 },
@@ -40,7 +53,14 @@ namespace
           0.88f, 38.0f,
           // Still their gear, and the first thing that fell and stayed.
           { { "assets/textures/deep_pipes.png", "assets/textures/deep_bones.png",
-              nullptr } }, 0.28f },
+              nullptr } }, 0.28f,
+          // Marine snow, falling harder than it does up top: everything that
+          // died in the water above this one is on its way past.
+          0.50f,
+          { .spread = 3.15f, .speedMin = 8.0f, .speedMax = 20.0f,
+            .lifeMin = 3.0f, .lifeMax = 6.0f, .sizeMin = 1.5f, .sizeMax = 3.5f,
+            .endSizeScale = 0.7f, .drag = 1.0f, .buoyancy = -10.0f,
+            .color = { 150, 156, 190 }, .count = 6 } },
 
         { "THE ABYSS",
           { 3, 2, 4 }, { 17, 12, 17 }, { 9, 7, 10 },
@@ -51,7 +71,14 @@ namespace
           0.82f, 40.0f,
           // And the first course of block nobody laid.
           { { "assets/textures/deep_bones.png", "assets/textures/deep_wall.png",
-              nullptr } }, 0.32f },
+              nullptr } }, 0.32f,
+          // Something out there lights itself, briefly, for reasons of its own.
+          // Few, bright and gone - the only light down here nobody switched on.
+          0.85f,
+          { .spread = 3.15f, .speedMin = 4.0f, .speedMax = 14.0f,
+            .lifeMin = 1.6f, .lifeMax = 3.0f, .sizeMin = 3.0f, .sizeMax = 6.0f,
+            .endSizeScale = 0.35f, .drag = 1.5f, .buoyancy = 2.0f,
+            .color = { 176, 112, 238 }, .count = 5 } },
 
         // The floor is open here and what comes out of it is the only light
         // the depth has of its own.
@@ -65,7 +92,14 @@ namespace
           // The floor is open here, so this is the one depth with anything
           // living on it in numbers.
           { { "assets/textures/deep_worms.png", "assets/textures/deep_bones.png",
-              "assets/textures/deep_wall.png" } }, 0.38f },
+              "assets/textures/deep_wall.png" } }, 0.38f,
+          // Soot off a black smoker, going up hard and spreading as it climbs.
+          0.70f,
+          { .direction = { 0.0f, -1.0f }, .spread = 0.50f,
+            .speedMin = 30.0f, .speedMax = 70.0f,
+            .lifeMin = 2.2f, .lifeMax = 4.0f, .sizeMin = 3.0f, .sizeMax = 7.0f,
+            .endSizeScale = 1.8f, .drag = 1.6f, .buoyancy = 42.0f,
+            .color = { 150, 60, 44 }, .count = 9 } },
 
         // And the bottom of it. Nothing here is any colour; the only thing the
         // lamp finds is bone, and the dark is tight enough to touch.
@@ -78,7 +112,14 @@ namespace
           0.66f, 44.0f,
           // Mostly architecture by now, and the bones of whatever used it.
           { { "assets/textures/deep_wall.png", "assets/textures/deep_wall.png",
-              "assets/textures/deep_bones.png" } }, 0.45f },
+              "assets/textures/deep_bones.png" } }, 0.45f,
+          // Almost nothing, very slowly. The bottom is the one depth whose
+          // water is nearly still, and the emptiness is the phenomenon.
+          2.2f,
+          { .spread = 3.15f, .speedMin = 3.0f, .speedMax = 9.0f,
+            .lifeMin = 5.0f, .lifeMax = 8.0f, .sizeMin = 2.0f, .sizeMax = 5.0f,
+            .endSizeScale = 0.5f, .drag = 0.6f, .buoyancy = -3.0f,
+            .color = { 110, 130, 116 }, .count = 2 } },
     };
 
     constexpr std::size_t ThemeCount = sizeof(Themes) / sizeof(Themes[0]);

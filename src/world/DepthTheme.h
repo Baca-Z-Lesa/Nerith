@@ -1,5 +1,7 @@
 #pragma once
 
+#include "effects/ParticleSystem.h"
+
 #include <SFML/Graphics/Color.hpp>
 
 #include <array>
@@ -44,6 +46,16 @@ struct DepthTheme
     // near the surface the floor is mostly floor, and at the bottom most of
     // what is down there is evidence.
     float dressShare;
+
+    // The one thing this depth's water does that no other depth's does, and
+    // the seconds between bursts of it. Purely atmosphere: it never collides,
+    // never damages and never blocks - it is only ever weather.
+    //
+    // A ParticleSpec rather than a name, so a new phenomenon is numbers in
+    // this table and not a branch anywhere. Its position is filled in at the
+    // moment of emitting, somewhere the player can actually see.
+    float          phenomenonEvery; // 0 switches it off
+    ParticleSpec   phenomenon;
 };
 
 // How many there are. Anything that wants to walk every depth - the texture
