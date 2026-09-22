@@ -108,7 +108,6 @@ $Materials = @{
     'deck_hose.png'    = 'hardware'
     'deck_raft.png'    = 'hardware'
     'deck_bitts.png'   = 'metal'
-    'deck_sub.png'     = 'metal'
 
     # --- what is lying on the floor down there ---
     'find_scrap.png'  = 'metal'
