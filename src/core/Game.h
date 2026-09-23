@@ -514,6 +514,21 @@ private:
         float        life = 1.0f;
     };
 
+    // A lamp left burning on the floor. Nothing about it moves once it is
+    // down: it is a place, not an effect.
+    struct Beacon
+    {
+        sf::Vector2f at;
+        float        age = 0.0f;
+    };
+
+    std::vector<Beacon> m_beacons;
+    float               m_beaconGap = 0.0f;
+
+    void dropBeacon();
+    void drawBeacons();
+    void drawBeaconLit();
+
     void addDanger(sf::Vector2f at, sf::Vector2f aim, float reach, float halfAngle, float life);
     void updateDangers(float deltaTime);
     void drawDangers();

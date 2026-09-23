@@ -43,6 +43,7 @@ enum class Stat
     OrbitCount,          // motes circling the sub, eating incoming orbs
     LampRadius,
     LampAngle,           // degrees of extra half-angle on the beam
+    BeaconCount,         // lamps the sub can leave burning on the floor
     Count
 };
 
@@ -78,6 +79,7 @@ enum class Trait
     Refit,           // the hull comes back between dives
     Harpoon,         // a fire mode: a heavy head on a line that drags you to it
     Pulse,           // a fire mode: no projectile at all, the water itself
+    Beacons,         // drop a lamp and leave it burning where you put it
     Count
 };
 

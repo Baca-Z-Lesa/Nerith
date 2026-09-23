@@ -42,6 +42,7 @@ namespace
         cap(Stat::ExecuteThreshold, 0.25f);
         cap(Stat::DroneCount, 5.0f);
         cap(Stat::MineCount, 5.0f);
+        cap(Stat::BeaconCount, 6.0f);
 
         // An economy stat rather than a combat one, and the worst of them:
         // +230% on top of a streak multiplier of 2.2 is seven times the

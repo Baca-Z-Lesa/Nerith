@@ -21,6 +21,7 @@ enum class Action
     Dash,
     Lamp,
     FireMode,
+    Beacon,     // leave a lamp burning where you are
     Pause,
     Count
 };
@@ -46,6 +47,7 @@ inline constexpr std::array<sf::Keyboard::Scancode, ActionCount> DefaultKeys{ {
     sf::Keyboard::Scancode::LShift,
     sf::Keyboard::Scancode::F,
     sf::Keyboard::Scancode::E,
+    sf::Keyboard::Scancode::G,
     sf::Keyboard::Scancode::Escape,
 } };
 
@@ -57,6 +59,7 @@ inline constexpr std::array<const char*, ActionCount> ActionNames{ {
     "DASH",
     "LAMP",
     "CYCLE GUN",
+    "DROP LAMP",
     "PAUSE",
 } };
 

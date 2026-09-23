@@ -314,14 +314,22 @@ void UpgradeTree::build()
           14, 4, Icon::Map, { "son3" },
           { { Stat::SonarRange, 340.0f, 0.0f }, { Stat::ProjectileSpeed, 0.0f, 0.12f } },
           {}, {}, cell(4, 1, 0) },
-        { "son5", "LANTERN", "+140 lamp reach and 8 degrees of beam. You see more of what is coming.",
+        // The lamp limb ends in the only light in the game that is not bolted
+        // to you. A dropped lamp stays where it was put for the rest of the
+        // dive, which is what turns a basin from a corridor you get lost in
+        // into somewhere you have been: you mark the way back, you mark the
+        // nest you could not finish, you light the room you are working in.
+        { "son5", "LANTERN",
+          "+140 lamp reach and 8 degrees of beam, and 2 lamps you can leave burning.",
           20, 4, Icon::Lamp, { "son4" },
-          { { Stat::LampRadius, 140.0f, 0.0f }, { Stat::LampAngle, 8.0f, 0.0f } },
-          {}, {}, cell(4, 1, 1) },
-        { "son6", "FLOOD LAMP", "+240 reach, +12 degrees of beam, and +260 sonar range with it.",
+          { { Stat::LampRadius, 140.0f, 0.0f }, { Stat::LampAngle, 8.0f, 0.0f },
+            { Stat::BeaconCount, static_cast<float>(config::BeaconBase), 0.0f } },
+          { Trait::Beacons }, {}, cell(4, 1, 1) },
+        { "son6", "FLOOD LAMP",
+          "+240 reach, +12 degrees of beam, +260 sonar range, and 2 more lamps to leave.",
           28, 4, Icon::Beacon, { "son5" },
           { { Stat::LampRadius, 240.0f, 0.0f }, { Stat::LampAngle, 12.0f, 0.0f },
-            { Stat::SonarRange, 260.0f, 0.0f } },
+            { Stat::SonarRange, 260.0f, 0.0f }, { Stat::BeaconCount, 2.0f, 0.0f } },
           {}, {}, cell(4, 1, 2) },
 
         { "son7", "MARK", "+60% damage against boss parts and organs.",

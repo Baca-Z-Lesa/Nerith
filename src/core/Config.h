@@ -2094,6 +2094,19 @@ namespace config
     // nothing else was using.
     // Where a boss move is about to land. Additive on the floor, filling up as
     // the clock runs out, so how full it is says how long is left.
+    // A lamp the sub leaves behind. It is the one light in the game that is not
+    // attached to you: you put it somewhere and it is still there an hour
+    // later, which is what turns a basin from a corridor you are lost in into
+    // somewhere you have been. It reveals what walks into it - the dark is
+    // painted over everything, so whatever is inside a beacon is drawn again
+    // afterwards - and it never runs out, because a lamp you have to ration is
+    // a lamp nobody puts down.
+    inline constexpr float BeaconReach = 210.0f;
+    inline constexpr float BeaconCore = 26.0f;
+    inline constexpr sf::Color BeaconColor{ 236, 196, 120 };
+    inline constexpr int   BeaconBase = 2;      // with the trait and nothing else
+    inline constexpr float BeaconDropGap = 0.35f; // so one press is one lamp
+
     inline constexpr sf::Color DangerColor{ 168, 52, 44 };
     inline constexpr float SoundLead = 0.55f; // seconds of floor warning
 

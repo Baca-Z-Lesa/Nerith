@@ -1164,6 +1164,8 @@ void Game::beginLevel(int number, bool fresh)
     m_giantNext = rng::range(config::GiantIntervalMin, config::GiantIntervalMax);
     m_atMouth = false;
     m_dangers.clear();
+    m_beacons.clear();
+    m_beaconGap = 0.0f;
 
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced. The two
@@ -2181,6 +2183,12 @@ void Game::processEvents()
                 else
                     openMenu();
 
+                continue;
+            }
+
+            if (pressed == keyFor(Action::Beacon))
+            {
+                dropBeacon();
                 continue;
             }
 
@@ -6340,6 +6348,116 @@ bool Game::mapSeen(sf::Vector2f at) const
            && m_mapSeen[static_cast<std::size_t>(cell)] != 0u;
 }
 
+void Game::dropBeacon()
+{
+    if (!m_playerStats.has(Trait::Beacons) || m_state != State::Fighting || m_paused)
+        return;
+
+    if (m_beaconGap > 0.0f)
+        return;
+
+    m_beaconGap = config::BeaconDropGap;
+
+    const int allowed = std::max(1, m_playerStats.getInt(Stat::BeaconCount,
+                                                         config::BeaconBase));
+
+    // The oldest goes out when a new one is lit. Carrying a fixed number and
+    // choosing which to put down beats rationing: a lamp you are saving for
+    // later is a lamp that spends the whole dive in the rack.
+    while (static_cast<int>(m_beacons.size()) >= allowed && !m_beacons.empty())
+        m_beacons.erase(m_beacons.begin());
+
+    m_beacons.push_back({ m_player.getPosition(), 0.0f });
+
+    m_audio.playAt(Sfx::MarkLit, m_player.getPosition(), 0.7f, 0.0f, 1.25f);
+    addHitRing(m_player.getPosition(), config::BeaconCore * 2.0f, config::BeaconColor);
+}
+
+void Game::drawBeacons()
+{
+    // The pool each one throws on the floor, laid down with the rest of the
+    // light and before the dark, so the sand and whatever is lying on it are
+    // lit by it the same way the sub's own lamp lights them.
+    if (m_beacons.empty())
+        return;
+
+    sf::VertexArray glow(sf::PrimitiveType::Triangles);
+
+    for (const Beacon& lamp : m_beacons)
+    {
+        // Breathing very slightly, on its own clock, so a row of them down a
+        // corridor is a row of separate lamps rather than one repeated decal.
+        const float breath = 1.0f + 0.05f * std::sin(m_presentTime * 1.6f + lamp.at.x * 0.01f);
+
+        const auto pool = [&](float radius, std::uint8_t alpha) {
+            constexpr int Steps = 22;
+
+            for (int i = 0; i < Steps; ++i)
+            {
+                const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / Steps);
+                const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / Steps);
+
+                sf::Color hot = config::BeaconColor;
+                hot.a = alpha;
+
+                sf::Color gone = config::BeaconColor;
+                gone.a = 0;
+
+                glow.append(sf::Vertex{ lamp.at, hot });
+                glow.append(sf::Vertex{ lamp.at + sf::Vector2f(radius, a0), gone });
+                glow.append(sf::Vertex{ lamp.at + sf::Vector2f(radius, a1), gone });
+            }
+        };
+
+        pool(config::BeaconReach * breath, 96);
+        pool(config::BeaconCore * 2.4f * breath, 150);
+    }
+
+    sf::RenderStates add;
+    add.blendMode = sf::BlendAdd;
+    m_window.draw(glow, add);
+}
+
+void Game::drawBeaconLit()
+{
+    // The dark is painted over everything, so anything standing in a beacon
+    // has just been painted out with the rest of the basin. It is drawn again
+    // here - which is the whole point of putting a lamp down, and the
+    // difference between a light and a decoration.
+    if (m_beacons.empty())
+        return;
+
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive())
+            continue;
+
+        // The nearest lamp is the one lighting it, and it is drawn lit FROM
+        // there - so something standing on the far side of a beacon is a
+        // silhouette against it rather than a thing that happens to be visible.
+        const Beacon* nearest = nullptr;
+        float best = config::BeaconReach + enemy.getRadius();
+
+        for (const Beacon& lamp : m_beacons)
+        {
+            const float away = (enemy.getPosition() - lamp.at).length();
+            if (away < best)
+            {
+                best = away;
+                nearest = &lamp;
+            }
+        }
+
+        if (nearest != nullptr)
+            enemy.draw(m_window, m_assets.boss(creatureart::surfaceOf(enemy.getType())),
+                       nearest->at);
+    }
+
+    // And the lamps themselves over the top, so they are visible from the far
+    // side of a basin they are lighting.
+    drawBeacons();
+}
+
 void Game::addDanger(sf::Vector2f at, sf::Vector2f aim, float reach, float halfAngle,
                      float life)
 {
@@ -7825,6 +7943,7 @@ void Game::step(float deltaTime)
                 updateSonar(deltaTime);
                 updateGiant(deltaTime);
                 updateDangers(deltaTime);
+                m_beaconGap = std::max(0.0f, m_beaconGap - deltaTime);
 
                 // The map fills in behind the sub as it goes. A broken hull
                 // does not stop you seeing where you are - it stops the
@@ -7977,6 +8096,7 @@ void Game::render(float alpha)
     m_arena.drawGround(m_window);
     m_seabed.draw(m_window);
     m_arena.drawLight(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
+    drawBeacons();
 
     m_ambience.draw(m_window);
 
@@ -8165,6 +8285,7 @@ void Game::render(float alpha)
     m_arena.drawAbsorb(m_window, m_player.getPosition());
 
     m_arena.drawDark(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
+    drawBeaconLit();
 
     // And the rock's own share of it: everything on the far side of a wall the
     // beam ran into. Over the dark rather than part of it, because the two are
