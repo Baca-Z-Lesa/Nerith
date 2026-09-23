@@ -7656,7 +7656,7 @@ void Game::drawCredits()
         { "WRITTEN IN C++ AND SFML 3, WITHOUT AN ENGINE", 1.7f, false },
         { "", 1.0f, false },
         { "DESIGN AND DIRECTION", 1.5f, true },
-        { "PAPO", 2.0f, false },
+        { "PATRIK NOTTNY", 2.0f, false },
         { "", 1.0f, false },
         { "CODE", 1.5f, true },
         { "PAPO  WITH  CLAUDE", 2.0f, false },

@@ -135,7 +135,13 @@ float pixelfont::measure(std::string_view text, float scale)
     if (text.empty())
         return 0.0f;
 
-    const float advance = (GlyphWidth + Tracking) * scale;
+    // The glyph is DRAWN in whole pixels, so its width has to be measured in
+    // them too. Advancing by the fractional scale while drawing at the rounded
+    // one makes every letter wider than the step to the next, and the line
+    // crushes together - which is exactly what it did. The gap between letters
+    // keeps the asked-for scale, so a line is still about the length it was.
+    const float step = stepOf(scale);
+    const float advance = GlyphWidth * step + Tracking * scale;
     return static_cast<float>(text.size()) * advance - Tracking * scale;
 }
 
@@ -173,6 +179,6 @@ void pixelfont::append(sf::VertexArray& vertices, std::string_view text,
             }
         }
 
-        penX += (GlyphWidth + Tracking) * scale;
+        penX += GlyphWidth * step + Tracking * scale;
     }
 }
