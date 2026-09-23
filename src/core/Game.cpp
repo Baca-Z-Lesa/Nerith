@@ -6451,7 +6451,6 @@ void Game::drawWaterRoster()
     if (kinds == 0)
         return;
 
-    const sf::Texture& hide = m_assets.boss(config::BossHidePath);
 
     sf::VertexArray text(sf::PrimitiveType::Triangles);
     float y = config::RosterTop;
@@ -6469,7 +6468,8 @@ void Game::drawWaterRoster()
         mark.breath = 0.5f;
         mark.jaw = 0.3f;
 
-        creatureart::draw(m_window, static_cast<EnemyType>(i), mark, hide);
+        creatureart::draw(m_window, static_cast<EnemyType>(i), mark,
+                          m_assets.boss(creatureart::surfaceOf(static_cast<EnemyType>(i))));
 
         // Only worth a number once there is more than one of them: a lone
         // creature is its own count.
@@ -7479,7 +7479,7 @@ void Game::drawBestiary()
     portrait.breath = 0.5f + 0.5f * std::sin(m_menuTime * 0.8f);
     portrait.jaw = 0.42f + 0.22f * std::sin(m_menuTime * 0.9f);
 
-    creatureart::draw(m_window, type, portrait, m_assets.boss(config::BossHidePath));
+    creatureart::draw(m_window, type, portrait, m_assets.boss(creatureart::surfaceOf(type)));
 
     const float textX = 440.0f;
 
@@ -8040,7 +8040,8 @@ void Game::render(float alpha)
     }
 
     for (const Enemy& enemy : m_enemies)
-        enemy.draw(m_window, m_assets.boss(config::BossHidePath));
+        enemy.draw(m_window, m_assets.boss(creatureart::surfaceOf(enemy.getType())),
+                   m_player.getPosition());
 
     for (const Projectile& shot : m_enemyShots)
         shot.draw(m_window);

@@ -88,17 +88,64 @@ namespace
         into.append(sf::Vertex{ at, colour, uvOf(skin, at) });
     }
 
+    // ------------------------------------------------------------------
+    //  Light
+    //
+    //  Nothing drawn in this game had a side facing the lamp and a side facing
+    //  away. The lamp painted out whatever was outside its cone and left
+    //  everything inside it equally lit, so a creature was a flat cutout with a
+    //  texture on: the shapes were right and the volume was not there at all.
+    //
+    //  Seen from straight down there are no normals to read, but there is
+    //  something almost as good and free: which way a point on a shape lies
+    //  from the middle of that shape. The rim a body turns toward the light
+    //  takes more of it and the rim it turns away takes less, which is all a
+    //  round thing does. One dot product per vertex, no shader, and every
+    //  spindle, disc, limb and plate in the game gets a top and an underside.
+    //
+    //  The direction is file scope rather than an argument because it would
+    //  otherwise be threaded through twenty drawing helpers to say the same
+    //  thing every time. It is written once at the top of a draw and read for
+    //  the rest of it; nothing here is touched from more than one thread.
+    sf::Vector2f g_light{ -0.55f, -0.84f };
+
+    sf::Color shade(sf::Color colour, sf::Vector2f outward, float depth = 1.0f)
+    {
+        if (outward.lengthSquared() < 0.000001f)
+            return colour;
+
+        const float lit = outward.normalized().dot(g_light);
+        const float k = 1.0f + config::ShadeDepth * depth * lit;
+
+        const auto mix = [k](std::uint8_t c) {
+            return static_cast<std::uint8_t>(
+                std::clamp(static_cast<float>(c) * k, 0.0f, 255.0f));
+        };
+
+        return sf::Color(mix(colour.r), mix(colour.g), mix(colour.b), colour.a);
+    }
+
     // A convex outline, as a fan off its own first point. Every shape in the
     // creature is convex on purpose - a fan is three lines of code and a
     // general polygon is a triangulator, and nothing here needs one.
     void shape(sf::VertexArray& into, const std::vector<sf::Vector2f>& points, sf::Color colour,
                const Skin& skin)
     {
+        if (points.size() < 3)
+            return;
+
+        // The middle of the shape, so every rim point knows which way it turns.
+        sf::Vector2f middle{ 0.0f, 0.0f };
+        for (const sf::Vector2f& p : points)
+            middle += p;
+
+        middle /= static_cast<float>(points.size());
+
         for (std::size_t i = 1; i + 1 < points.size(); ++i)
         {
-            vert(into, points[0], colour, skin);
-            vert(into, points[i], colour, skin);
-            vert(into, points[i + 1], colour, skin);
+            vert(into, points[0], shade(colour, points[0] - middle), skin);
+            vert(into, points[i], shade(colour, points[i] - middle), skin);
+            vert(into, points[i + 1], shade(colour, points[i + 1] - middle), skin);
         }
     }
 
@@ -116,9 +163,12 @@ namespace
             const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / static_cast<float>(steps));
             const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / static_cast<float>(steps));
 
+            const sf::Vector2f p0 = centre + sf::Vector2f(radius, a0);
+            const sf::Vector2f p1 = centre + sf::Vector2f(radius, a1);
+
             vert(into, centre, colour, skin);
-            vert(into, centre + sf::Vector2f(radius, a0), colour, skin);
-            vert(into, centre + sf::Vector2f(radius, a1), colour, skin);
+            vert(into, p0, shade(colour, p0 - centre), skin);
+            vert(into, p1, shade(colour, p1 - centre), skin);
         }
     }
 
@@ -132,8 +182,19 @@ namespace
 
         const sf::Vector2f side = across(along).normalized();
 
-        quad(into, root - side * rootHalf, tip - side * tipHalf,
-             tip + side * tipHalf, root + side * rootHalf, colour, skin);
+        // A limb is a cylinder seen from above: one flank turns to the light
+        // and the other turns away, and the seam down the middle is where it
+        // stops being either.
+        const sf::Color near_ = shade(colour, -side);
+        const sf::Color far_ = shade(colour, side);
+
+        into.append(sf::Vertex{ root - side * rootHalf, near_, uvOf(skin, root - side * rootHalf) });
+        into.append(sf::Vertex{ tip - side * tipHalf, near_, uvOf(skin, tip - side * tipHalf) });
+        into.append(sf::Vertex{ tip + side * tipHalf, far_, uvOf(skin, tip + side * tipHalf) });
+
+        into.append(sf::Vertex{ root - side * rootHalf, near_, uvOf(skin, root - side * rootHalf) });
+        into.append(sf::Vertex{ tip + side * tipHalf, far_, uvOf(skin, tip + side * tipHalf) });
+        into.append(sf::Vertex{ root + side * rootHalf, far_, uvOf(skin, root + side * rootHalf) });
     }
 
     // What the second phase looks like. Every creature keeps its own shape and
@@ -204,13 +265,20 @@ namespace
             const sf::Color c0 = blend(from, to, t0);
             const sf::Color c1 = blend(from, to, t1);
 
-            vert(into, at - side0 * w0, c0, skin);
-            vert(into, next - side1 * w1, c1, skin);
-            vert(into, next + side1 * w1, c1, skin);
+            // Rounded across its width, the same as a limb: the two flanks
+            // take the light differently and the arm stops being a flat strap.
+            const sf::Color n0 = shade(c0, -side0);
+            const sf::Color n1 = shade(c1, -side1);
+            const sf::Color f0 = shade(c0, side0);
+            const sf::Color f1 = shade(c1, side1);
 
-            vert(into, at - side0 * w0, c0, skin);
-            vert(into, next + side1 * w1, c1, skin);
-            vert(into, at + side0 * w0, c0, skin);
+            vert(into, at - side0 * w0, n0, skin);
+            vert(into, next - side1 * w1, n1, skin);
+            vert(into, next + side1 * w1, f1, skin);
+
+            vert(into, at - side0 * w0, n0, skin);
+            vert(into, next + side1 * w1, f1, skin);
+            vert(into, at + side0 * w0, f0, skin);
 
             at = next;
         }
@@ -2481,12 +2549,48 @@ namespace creatureart
         return i < Coats.size() ? Coats[i].hide : sf::Color(150, 160, 170);
     }
 
+    const char* surfaceOf(EnemyType type)
+    {
+        switch (type)
+        {
+            // Fish, and the things built like fish.
+            case EnemyType::Lurker:
+            case EnemyType::Lancer:
+            case EnemyType::Revenant:
+            case EnemyType::Stalker:   return config::BossHidePath;
+
+            // The one thing down here wearing armour rather than skin.
+            case EnemyType::Warden:    return config::HidePlatePath;
+
+            // Anything that is mostly water held in a bag: bells, mantles,
+            // brood sacs, larvae and a colony that is not even one animal.
+            case EnemyType::Weaver:
+            case EnemyType::Bloom:
+            case EnemyType::Spawnling:
+            case EnemyType::Brooder:
+            case EnemyType::Herald:
+            case EnemyType::Effigy:    return config::HideSoftPath;
+
+            // And the blind one, which is most of why it does not read as a
+            // fish even before you notice it has no eyes.
+            case EnemyType::Moth:      return config::HideFurPath;
+
+            default:                   return config::BossHidePath;
+        }
+    }
+
     void draw(sf::RenderTarget& target, EnemyType type, const Pose& pose, const sf::Texture& hide)
     {
         if (pose.size <= 0.5f || pose.tint.a == 0)
             return;
 
         const float tile = static_cast<float>(hide.getSize().x);
+
+        // Where the light is for this one. The lamp when the fight says so,
+        // and the fixed corner every sprite is lit from when it does not.
+        g_light = pose.lightFrom.lengthSquared() > 0.0001f
+                      ? pose.lightFrom.normalized()
+                      : sf::Vector2f{ -0.55f, -0.84f };
 
         sf::VertexArray skinned(sf::PrimitiveType::Triangles);
 

@@ -115,6 +115,13 @@ namespace creatureart
 
         // Creatures that tow a body rather than having one. Null for the rest.
         const std::vector<sf::Vector2f>* spine = nullptr;
+
+        // Which way the lamp is, from this creature. The flank it turns toward
+        // the light takes more of it, so a thing swimming across the beam is
+        // visibly turning in it rather than sliding across a flat picture.
+        // Zero leaves it on the fixed corner every sprite in the game is lit
+        // from, which is what the bosses and the logbook want.
+        sf::Vector2f lightFrom{ 0.0f, 0.0f };
     };
 
     void draw(sf::RenderTarget& target, EnemyType type, const Pose& pose,
@@ -123,4 +130,10 @@ namespace creatureart
     // What the creature is made of, for whoever has to throw pieces of it
     // about. Kept here because this is the only place that decides it.
     sf::Color coatOf(EnemyType type);
+
+    // And which sheet its surface comes off. Scale for the fish, plate for the
+    // armoured, soft for everything gelatinous, fur for the one animal down
+    // there that is not wet. Returned as the asset path, because the same
+    // place that decides what a creature is made of may as well say so.
+    const char* surfaceOf(EnemyType type);
 }

@@ -40,7 +40,9 @@ public:
     void setLit(float amount) { m_lit = amount; }
     // hide is the tiling sheet every shape is surfaced with, the same one the
     // big ones use: one sheet does hide, fin, plate and jaw.
-    void draw(sf::RenderTarget& target, const sf::Texture& hide) const;
+    // lamp is where the sub is, so the flank a creature turns to the light
+    // takes more of it.
+    void draw(sf::RenderTarget& target, const sf::Texture& hide, sf::Vector2f lamp) const;
 
     void takeDamage(int amount);
 

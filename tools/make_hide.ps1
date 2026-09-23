@@ -134,5 +134,165 @@ foreach ($target in @(@($TexDir, $Size), @($PreviewDir, ($Size * 2)))) {
     $dst.Dispose()
 }
 
+# ======================================================================
+#  THE OTHER THREE SURFACES
+#
+#  One sheet was the right answer while only six bosses used it. Then all
+#  twelve of the small ones started being drawn too, and every one of them got
+#  the same sheet - so the jellyfish had fish scales, the crab had fish scales
+#  and the blind moth had fish scales. A surface is most of what says what an
+#  animal is MADE of, and making all of them out of the same thing threw that
+#  away for free.
+#
+#  Each of these is written after boss_hide is already saved and seeds its own
+#  generator, so the sheet the bosses have been using does not move.
+# ======================================================================
+
+function NewSheet {
+    $b = New-Object System.Drawing.Bitmap -ArgumentList $W, $W, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $gg = [System.Drawing.Graphics]::FromImage($b)
+    $gg.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $gg.Clear((C 244 244 244))
+    return @($b, $gg)
+}
+
+function WrappedLine($g, $col, $x0, $y0, $x1, $y1, $width) {
+    $pen = New-Object System.Drawing.Pen -ArgumentList $col, ([float]$width)
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    foreach ($dx in @(-$W, 0, $W)) {
+        foreach ($dy in @(-$W, 0, $W)) {
+            $g.DrawLine($pen, [float]($x0 + $dx), [float]($y0 + $dy), [float]($x1 + $dx), [float]($y1 + $dy))
+        }
+    }
+    $pen.Dispose()
+}
+
+function SaveSheet($bmp, $name) {
+    foreach ($target in @(@($TexDir, $Size), @($PreviewDir, ($Size * 2)))) {
+        $dir = $target[0]
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+
+        $dst = New-Object System.Drawing.Bitmap -ArgumentList $target[1], $target[1], ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $gd = [System.Drawing.Graphics]::FromImage($dst)
+        $gd.InterpolationMode  = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $gd.PixelOffsetMode    = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $gd.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+        $gd.DrawImage($bmp, (New-Object System.Drawing.Rectangle -ArgumentList 0, 0, $target[1], $target[1]))
+        $gd.Dispose()
+        $dst.Save("$dir\$name", [System.Drawing.Imaging.ImageFormat]::Png)
+        $dst.Dispose()
+    }
+}
+
+# --- plate: what a carapace is made of --------------------------------
+# Hard-edged slabs in a brick course, each bevelled light on the shoulder it
+# turns to the lamp and dark on the one it turns away. Nothing here is round,
+# because the whole point of it is that it is not skin.
+"  plate"
+$res = NewSheet; $pb = $res[0]; $pg = $res[1]
+$rand = New-Object System.Random -ArgumentList 71717
+
+$cols = 4
+$rows = 5
+$cw = $W / $cols
+$ch = $W / $rows
+
+for ($row = 0; $row -lt $rows; $row++) {
+    for ($col = 0; $col -lt $cols; $col++) {
+        $x = ($col + (($row % 2) * 0.5)) * $cw
+        $y = $row * $ch
+        $ix = $cw * 0.44
+        $iy = $ch * 0.42
+
+        # The slab, then the two bevels. Drawn as arcs of a very flat ellipse
+        # so the corners stay square without needing a polygon path.
+        Wrapped $pg (C 238 238 238 255) ($x + $cw * 0.5) ($y + $ch * 0.5) $ix $iy
+        Wrapped $pg (C 255 255 255 190) ($x + $cw * 0.5 - $ix * 0.24) ($y + $ch * 0.5 - $iy * 0.26) ($ix * 0.70) ($iy * 0.66)
+        WrappedArc $pg (C 108 108 108 190) ($x + $cw * 0.5) ($y + $ch * 0.5) $ix $iy 8 164 (3.0 * $SS)
+
+        # Two bolts on every slab, because plate is bolted to something.
+        foreach ($side in @(-0.62, 0.62)) {
+            $bx = $x + $cw * 0.5 + $ix * $side
+            $by = $y + $ch * 0.5
+            Wrapped $pg (C 132 132 132 170) $bx $by (1.5 * $SS) (1.5 * $SS)
+            Wrapped $pg (C 255 255 255 140) ($bx - 0.5 * $SS) ($by - 0.5 * $SS) (0.8 * $SS) (0.8 * $SS)
+        }
+    }
+}
+
+for ($i = 0; $i -lt 160; $i++) {
+    $x = $rand.NextDouble() * $W
+    $y = $rand.NextDouble() * $W
+    $r = (0.6 + $rand.NextDouble() * 1.6) * $SS
+    $dark = 150 + $rand.Next(0, 70)
+    Wrapped $pg (C $dark $dark $dark 52) $x $y $r $r
+}
+
+$pg.Dispose(); SaveSheet $pb "hide_plate.png"; $pb.Dispose()
+
+# --- soft: what a bell and a mantle are made of -----------------------
+# Almost nothing. A jelly has no texture to speak of: a few broad swells where
+# the body is thicker, some fine veins, and that is the whole surface. The
+# restraint IS the material - anything busy here stops reading as translucent.
+"  soft"
+$res = NewSheet; $sb = $res[0]; $sg = $res[1]
+$rand = New-Object System.Random -ArgumentList 33199
+
+for ($i = 0; $i -lt 22; $i++) {
+    $x = $rand.NextDouble() * $W
+    $y = $rand.NextDouble() * $W
+    $r = (6.0 + $rand.NextDouble() * 16.0) * $SS
+    Wrapped $sg (C 252 252 252 120) $x $y $r ($r * (0.6 + $rand.NextDouble() * 0.7))
+}
+
+for ($i = 0; $i -lt 26; $i++) {
+    $x = $rand.NextDouble() * $W
+    $y = $rand.NextDouble() * $W
+    $len = (10.0 + $rand.NextDouble() * 26.0) * $SS
+    $ang = $rand.NextDouble() * 6.283
+    WrappedLine $sg (C 206 206 206 90) $x $y ($x + [Math]::Cos($ang) * $len) ($y + [Math]::Sin($ang) * $len) (1.1 * $SS)
+}
+
+for ($i = 0; $i -lt 90; $i++) {
+    $x = $rand.NextDouble() * $W
+    $y = $rand.NextDouble() * $W
+    $r = (0.4 + $rand.NextDouble() * 1.0) * $SS
+    Wrapped $sg (C 214 214 214 46) $x $y $r $r
+}
+
+$sg.Dispose(); SaveSheet $sb "hide_soft.png"; $sb.Dispose()
+
+# --- fur: what something that is not wet is made of -------------------
+# Fine strokes, all leaning the same way with only a little scatter, which is
+# what separates fur from scribble. The blind one is the only animal down there
+# with any, and it is most of why it does not read as a fish.
+"  fur"
+$res = NewSheet; $fb = $res[0]; $fg = $res[1]
+$rand = New-Object System.Random -ArgumentList 90210
+
+for ($i = 0; $i -lt 900; $i++) {
+    $x = $rand.NextDouble() * $W
+    $y = $rand.NextDouble() * $W
+    $len = (2.5 + $rand.NextDouble() * 5.5) * $SS
+    $ang = -0.62 + ($rand.NextDouble() - 0.5) * 0.55
+    $dark = 168 + $rand.Next(0, 66)
+
+    WrappedLine $fg (C $dark $dark $dark 96) $x $y ($x + [Math]::Cos($ang) * $len) ($y + [Math]::Sin($ang) * $len) (0.9 * $SS)
+}
+
+for ($i = 0; $i -lt 220; $i++) {
+    $x = $rand.NextDouble() * $W
+    $y = $rand.NextDouble() * $W
+    $len = (2.0 + $rand.NextDouble() * 4.0) * $SS
+    $ang = -0.62 + ($rand.NextDouble() - 0.5) * 0.55
+
+    WrappedLine $fg (C 255 255 255 120) $x $y ($x + [Math]::Cos($ang) * $len) ($y + [Math]::Sin($ang) * $len) (0.7 * $SS)
+}
+
+$fg.Dispose(); SaveSheet $fb "hide_fur.png"; $fb.Dispose()
+
+"done"
+
 $bmp.Dispose()
 "  boss_hide.png  ($Size x $Size, tiling)"

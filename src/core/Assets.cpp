@@ -149,8 +149,14 @@ Assets::Assets()
     // The drawn bosses share one sheet, and it has to repeat: the body is
     // mapped along its own length, so a long animal runs off the end of a
     // single tile immediately.
-    want(config::BossHidePath);
-    m_bossTextures.at(config::BossHidePath).setRepeated(true);
+    // The four surfaces every drawn creature is made of. All tiling, because
+    // the shape asks for a point on the sheet rather than a corner of one.
+    for (const char* sheet : { config::BossHidePath, config::HidePlatePath,
+                               config::HideSoftPath, config::HideFurPath })
+    {
+        want(sheet);
+        m_bossTextures.at(sheet).setRepeated(true);
+    }
 
     if (!icon.loadFromFile(config::IconPath))
         throw std::runtime_error(std::string("failed to load icon: ") + config::IconPath);

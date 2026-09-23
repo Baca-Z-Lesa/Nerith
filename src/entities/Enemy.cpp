@@ -839,7 +839,7 @@ float Enemy::getHealthFraction() const
                       0.0f, 1.0f);
 }
 
-void Enemy::draw(sf::RenderTarget& target, const sf::Texture& hide) const
+void Enemy::draw(sf::RenderTarget& target, const sf::Texture& hide, sf::Vector2f lamp) const
 {
     // The sprite is no longer drawn: it is the pose. Everything the motion
     // pass already worked out - where the creature ended up after its bob,
@@ -872,6 +872,8 @@ void Enemy::draw(sf::RenderTarget& target, const sf::Texture& hide) const
 
     if (m_segment)
         pose.spine = &m_body;
+
+    pose.lightFrom = lamp - pose.at;
 
     creatureart::draw(target, m_type, pose, hide);
 }

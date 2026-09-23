@@ -1222,6 +1222,18 @@ namespace config
     inline constexpr const char* BossHidePath = "assets/textures/boss_hide.png";
     inline constexpr float BossHideTile = 74.0f;
 
+    // How far either side of flat a drawn surface swings as it turns toward
+    // the light or away from it. Enough to give a body a top and an underside,
+    // short of enough to read as two different colours of animal.
+    inline constexpr float ShadeDepth = 0.34f;
+
+    // Three more surfaces, because one sheet meant the jellyfish had fish
+    // scales, the crab had fish scales and the blind moth had fish scales. A
+    // surface is most of what says what an animal is made of.
+    inline constexpr const char* HidePlatePath = "assets/textures/hide_plate.png";
+    inline constexpr const char* HideSoftPath  = "assets/textures/hide_soft.png";
+    inline constexpr const char* HideFurPath   = "assets/textures/hide_fur.png";
+
     // =====================================================================
     //  SALVAGE
     //  What is actually down there and what it is worth on the deck. Killing
