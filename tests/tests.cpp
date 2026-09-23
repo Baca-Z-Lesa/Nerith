@@ -9,6 +9,7 @@
 #include "upgrades/Stats.h"
 #include "upgrades/UpgradeTree.h"
 #include "world/LevelDef.h"
+#include "world/Objective.h"
 #include "core/Config.h"
 
 #include <cmath>
@@ -332,6 +333,57 @@ namespace
         check(stale.getUnlockedCount() == 1, "an unknown id in a save is skipped");
     }
 
+    // ------------------------------------------------------------ objectives
+    void testObjectiveProgress()
+    {
+        std::printf("objective progress\n");
+
+        // A floor is a job you can take in several trips, so a goal has to be
+        // able to say where it got to and be put back there. Every counting
+        // objective has to round trip, or a player's nine broken nests come
+        // back as none and the feature silently does nothing.
+        {
+            DestroyNestsObjective nests(12);
+            check(nests.getDone() == 0, "a fresh goal has done nothing");
+
+            nests.onNestDestroyed();
+            nests.onNestDestroyed();
+            check(nests.getDone() == 2, "a goal counts what it has been told");
+
+            DestroyNestsObjective resumed(12);
+            resumed.setDone(nests.getDone());
+            check(resumed.getDone() == 2, "and a new one can be put back there");
+            check(!resumed.isComplete(), "two of twelve is not finished");
+
+            resumed.setDone(12);
+            check(resumed.isComplete(), "and twelve of twelve is");
+        }
+
+        {
+            LiftQuotaObjective hold(9);
+            hold.onSalvageLifted();
+            LiftQuotaObjective again(9);
+            again.setDone(hold.getDone());
+            check(again.getDone() == 1, "a lifted quota round trips");
+        }
+
+        {
+            RestoreObjective beacons(4);
+            beacons.onMarkLit();
+            RestoreObjective again(4);
+            again.setDone(beacons.getDone());
+            check(again.getDone() == 1, "a lit beacon round trips");
+        }
+
+        {
+            // And the one that must NOT: a run for the mouth is a distance,
+            // not a tally, so it starts every dive from where the sub is.
+            EscapeObjective out;
+            out.setDone(5);
+            check(out.getDone() == 0, "escaping keeps no progress between dives");
+        }
+    }
+
     // --------------------------------------------------------------- balance
     void testBalance()
     {
@@ -413,6 +465,7 @@ int main()
     testStats();
     testLevels();
     testTree();
+    testObjectiveProgress();
     testBalance();
 
     std::printf("\n%d checks, %d failed\n", checks, failures);

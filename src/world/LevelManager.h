@@ -75,6 +75,12 @@ public:
     float getProgress() const;
     std::string getObjectiveLabel() const;
 
+    // What the goal has counted so far, and putting it back. A level is a job
+    // rather than a test: what got done before you surfaced is still done when
+    // you come back to it. See Objective::getDone.
+    int  getObjectiveDone() const;
+    void setObjectiveDone(int done);
+
     // True while the script still has something left to release.
     bool hasSpawnsLeft() const;
 

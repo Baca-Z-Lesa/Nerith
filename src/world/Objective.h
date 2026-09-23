@@ -48,6 +48,18 @@ public:
 
     // False once the level should stop feeding creatures in.
     virtual bool wantsSpawning() const { return true; }
+
+    // How much of the job is already done, as a whole number of whatever this
+    // goal counts - pieces lifted, nests broken, beacons lit, seconds held.
+    //
+    // A level is a job rather than a test now: what you got through before you
+    // came up is still got through when you go back down. So an objective has
+    // to be able to say where it had got to and be put back there. Anything
+    // that is not cumulative - a distance from the mouth, a boss's health -
+    // leaves these alone and starts every dive from nothing, which is correct
+    // for all three of them.
+    virtual int  getDone() const { return 0; }
+    virtual void setDone(int) {}
 };
 
 // Fill the hold. Two thirds of the campaign used to be "kill everything" or
@@ -65,6 +77,9 @@ public:
     bool isComplete() const override;
     float getProgress() const override;
     std::string getLabel() const override;
+
+    int  getDone() const override { return m_lifted; }
+    void setDone(int done) override { m_lifted = done; }
 
 private:
     int m_target;
@@ -86,6 +101,9 @@ public:
     float getProgress() const override;
     std::string getLabel() const override;
 
+    int  getDone() const override { return static_cast<int>(m_elapsed); }
+    void setDone(int done) override { m_elapsed = static_cast<float>(done); }
+
 private:
     float m_target;
     float m_elapsed;
@@ -103,6 +121,9 @@ public:
     bool isComplete() const override;
     float getProgress() const override;
     std::string getLabel() const override;
+
+    int  getDone() const override { return m_opened; }
+    void setDone(int done) override { m_opened = done; }
 
 private:
     int m_total;
@@ -123,6 +144,9 @@ public:
     float getProgress() const override;
     std::string getLabel() const override;
 
+    int  getDone() const override { return m_found ? 1 : 0; }
+    void setDone(int done) override { m_found = done > 0; }
+
 private:
     bool m_found;
 };
@@ -139,6 +163,9 @@ public:
     float getProgress() const override;
     std::string getLabel() const override;
     bool wantsSpawning() const override;
+
+    int  getDone() const override { return static_cast<int>(m_elapsed); }
+    void setDone(int done) override { m_elapsed = static_cast<float>(done); }
 
 private:
     float m_target;
@@ -164,6 +191,9 @@ public:
     // sending its own the moment the last nest is out.
     bool wantsSpawning() const override;
 
+    int  getDone() const override { return m_destroyed; }
+    void setDone(int done) override { m_destroyed = done; }
+
 private:
     int m_total;
     int m_destroyed;
@@ -183,6 +213,9 @@ public:
     bool isComplete() const override;
     float getProgress() const override;
     std::string getLabel() const override;
+
+    int  getDone() const override { return m_delivered; }
+    void setDone(int done) override { m_delivered = done; }
 
 private:
     int m_total;
@@ -224,6 +257,9 @@ public:
     float getProgress() const override;
     std::string getLabel() const override;
 
+    int  getDone() const override { return m_killed ? 1 : 0; }
+    void setDone(int done) override { m_killed = done > 0; }
+
 private:
     bool m_killed;
 };
@@ -242,6 +278,9 @@ public:
     bool isComplete() const override;
     float getProgress() const override;
     std::string getLabel() const override;
+
+    int  getDone() const override { return m_lit; }
+    void setDone(int done) override { m_lit = done; }
 
 private:
     int m_total;
@@ -263,6 +302,9 @@ public:
     bool isComplete() const override;
     float getProgress() const override;
     std::string getLabel() const override;
+
+    int  getDone() const override { return static_cast<int>(m_lifted); }
+    void setDone(int done) override { m_lifted = static_cast<float>(done); }
 
 private:
     float m_target;

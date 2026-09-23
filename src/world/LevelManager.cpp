@@ -291,3 +291,16 @@ std::string LevelManager::getObjectiveLabel() const
 {
     return m_objective ? m_objective->getLabel() : std::string();
 }
+
+int LevelManager::getObjectiveDone() const
+{
+    return m_objective ? m_objective->getDone() : 0;
+}
+
+void LevelManager::setObjectiveDone(int done)
+{
+    // Never on a boss floor. A boss is not a job you chip at over several
+    // trips: it is one fight, and it starts whole every time.
+    if (m_objective && !m_def.isBoss && done > 0)
+        m_objective->setDone(done);
+}

@@ -39,6 +39,13 @@ struct SaveGame
     // say whether this is a new way to die or the same one again.
     std::vector<int> deaths;
 
+    // How far a level got before the sub came back up, and which level it was.
+    // Only one is kept: it is the floor you are working on, not a ledger of
+    // every floor you have half done. Erased by dying, which is what makes
+    // surfacing alive worth the swim.
+    int progressLevel = 0;
+    int progressDone = 0;
+
     // Which dead divers' recorders have been brought up, as indices into the
     // log table. Kept for good: a log is radioed up the moment it is read, so
     // it is the one thing a drowning does not take back.

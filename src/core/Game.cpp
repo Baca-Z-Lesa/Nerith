@@ -1092,6 +1092,14 @@ void Game::beginLevel(int number, bool fresh)
 {
     m_level.start(number);
 
+    // Whatever this floor had already got through, if the last sub down here
+    // came back up alive. A level is a job rather than a test: twelve nests is
+    // twelve nests whether they go in one trip or three, and a player who has
+    // broken nine of them has broken nine of them. Dying wipes it, which is
+    // what keeps the swim back to the bell worth making.
+    if (m_save.progressLevel == number)
+        m_level.setObjectiveDone(m_save.progressDone);
+
     // A new basin every single time. It used to be cut from the level number
     // alone, which made a level the same place on every dive - repeatable,
     // which sounded like a virtue right up until the second run down the same
@@ -1433,6 +1441,12 @@ void Game::onPlayerDied()
 
         ++m_save.deaths[index];
     }
+
+    // And the work goes with it. Nine nests broken is nine nests broken only
+    // if the sub that broke them came back up: the floor is a job you can take
+    // in several trips, not a job you can take in several deaths.
+    m_save.progressLevel = 0;
+    m_save.progressDone = 0;
 
     // Everything the dive was carrying goes down with it. The hold is the
     // expensive half of that: a crate of ore is four rooms of work.
@@ -3010,6 +3024,17 @@ void Game::takeLift(bool down)
 
     bankSalvage();
     m_save.selectedLevel = m_level.getNumber();
+
+    // And what this floor got through keeps. Only here - this is the one exit
+    // that is a sub coming back up rather than a sub being lost, and that is
+    // the whole reason the swim to the bell is worth making.
+    //
+    // A finished floor keeps nothing: diving it again is a fresh job, not a
+    // level that clears itself the instant you arrive.
+    const bool done = m_level.isComplete();
+
+    m_save.progressLevel = done ? 0 : m_level.getNumber();
+    m_save.progressDone = done ? 0 : m_level.getObjectiveDone();
 
     playFilm(Cinematic::Reel::Up, State::Deck, false, "SURFACING");
 }

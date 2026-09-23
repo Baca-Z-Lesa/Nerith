@@ -44,6 +44,7 @@ $sources = @(
     "src\upgrades\Stats.cpp",
     "src\upgrades\UpgradeTree.cpp",
     "src\world\LevelDef.cpp",
+    "src\world\Objective.cpp",
     "src\ui\UpgradeIcons.cpp",
     "src\core\Random.cpp"
 ) | ForEach-Object { "`"$root\$_`"" }
