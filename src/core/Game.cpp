@@ -1849,7 +1849,8 @@ void Game::deflected(sf::Vector2f at, sf::Vector2f travel, sf::Vector2f facing)
                      .endSizeScale = 0.1f,
                      .drag = 5.0f,
                      .color = { 255, 224, 176, 235 },
-                     .count = 10 });
+                     .count = 10,
+                     .shape = ParticleSpec::Streak });
 
     m_audio.playAt(Sfx::Deflect, at, 1.0f, occlusionAt(at));
     addHitRing(at, config::JetRingRadius * 0.8f, config::BlockArmourColor);

@@ -43,6 +43,7 @@ void ParticleSystem::emit(const ParticleSpec& spec)
         particle.drag = spec.drag;
         particle.buoyancy = spec.buoyancy;
         particle.color = spec.color;
+        particle.shape = spec.shape;
 
         m_particles.push_back(particle);
     }
@@ -136,15 +137,38 @@ void ParticleSystem::rebuildVertices()
 
         const float half = particle.endSize + (particle.size - particle.endSize) * remaining;
 
-        const float left = particle.position.x - half;
-        const float right = particle.position.x + half;
-        const float top = particle.position.y - half;
-        const float bottom = particle.position.y + half;
+        // Which quarter of the sheet this one is. Four shapes in one texture,
+        // so telling a spark from a chunk from a bubble still costs one draw
+        // call for the whole system.
+        const float cell = textureSize.x / static_cast<float>(ParticleSpec::Count);
+        const float u0 = cell * static_cast<float>(
+                             std::clamp(particle.shape, 0, ParticleSpec::Count - 1));
+        const float u1 = u0 + cell;
 
-        const sf::Vertex topLeft{ { left, top }, color, { 0.0f, 0.0f } };
-        const sf::Vertex topRight{ { right, top }, color, { textureSize.x, 0.0f } };
-        const sf::Vertex bottomRight{ { right, bottom }, color, { textureSize.x, textureSize.y } };
-        const sf::Vertex bottomLeft{ { left, bottom }, color, { 0.0f, textureSize.y } };
+        // A streak is drawn along whatever threw it and stretched by how fast
+        // it is still going. Everything else stays square to the screen: a
+        // turning bubble is a bubble that is spinning, which it is not.
+        sf::Vector2f along{ 1.0f, 0.0f };
+        sf::Vector2f side{ 0.0f, 1.0f };
+        float reach = half;
+
+        if (particle.shape == ParticleSpec::Streak
+            && particle.velocity.lengthSquared() > 1.0f)
+        {
+            along = particle.velocity.normalized();
+            side = { -along.y, along.x };
+            reach = half * (1.0f + std::min(3.0f, particle.velocity.length() / 160.0f));
+        }
+
+        const sf::Vector2f a = particle.position - along * reach - side * half;
+        const sf::Vector2f b = particle.position + along * reach - side * half;
+        const sf::Vector2f c = particle.position + along * reach + side * half;
+        const sf::Vector2f d = particle.position - along * reach + side * half;
+
+        const sf::Vertex topLeft{ a, color, { u0, 0.0f } };
+        const sf::Vertex topRight{ b, color, { u1, 0.0f } };
+        const sf::Vertex bottomRight{ c, color, { u1, textureSize.y } };
+        const sf::Vertex bottomLeft{ d, color, { u0, textureSize.y } };
 
         m_vertices.append(topLeft);
         m_vertices.append(topRight);
@@ -220,7 +244,8 @@ void effects::thrusterBubbles(ParticleSystem& particles, sf::Vector2f position, 
                      .drag = 1.6f,
                      .buoyancy = 22.0f,
                      .color = { 130, 200, 205, 110 },
-                     .count = 2 });
+                     .count = 2,
+                     .shape = ParticleSpec::Bubble });
 }
 
 void effects::impact(ParticleSystem& particles, sf::Vector2f position, sf::Vector2f direction)
@@ -283,7 +308,8 @@ void effects::enemyDeath(ParticleSystem& particles, sf::Vector2f position, sf::C
                          .drag = 2.6f,
                          .buoyancy = -6.0f,
                          .color = { coat.r, coat.g, coat.b, 230 },
-                         .count = 6 + static_cast<int>(size * 0.22f) });
+                         .count = 6 + static_cast<int>(size * 0.22f),
+                         .shape = ParticleSpec::Shard });
     }
 
     // Two layers: a warm flash from the eye, then a cloud of ink and bubbles.
@@ -372,7 +398,8 @@ void effects::ambientBubble(ParticleSystem& particles, sf::Vector2f position)
                      .drag = 0.6f,
                      .buoyancy = 18.0f,
                      .color = { 130, 205, 210, 80 },
-                     .count = 1 });
+                     .count = 1,
+                     .shape = ParticleSpec::Bubble });
 }
 
 float ParticleSystem::carriedForTest() const

@@ -27,6 +27,13 @@ struct ParticleSpec
     float buoyancy = 0.0f;     // upward pull; positive rises, negative sinks
     sf::Color color{ 255, 255, 255 };
     int count = 8;
+
+    // Which of the four shapes in the sheet. A spark, a chunk of an animal, a
+    // bubble and a cloud of silt used to be the same picture in four colours,
+    // and in a dark basin the colour is the first thing the water takes away.
+    // Dot is the default and is exactly what everything used to be.
+    enum Shape { Dot = 0, Shard = 1, Bubble = 2, Streak = 3, Count = 4 };
+    int shape = Dot;
 };
 
 // All live particles are packed into one additively blended vertex array, so
@@ -85,6 +92,7 @@ private:
         float drag;
         float buoyancy;
         sf::Color color;
+        int   shape;
     };
 
     void rebuildVertices();
