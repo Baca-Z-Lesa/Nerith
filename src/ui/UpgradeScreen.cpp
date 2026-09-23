@@ -853,9 +853,131 @@ void UpgradeScreen::draw(sf::RenderTarget& target, const UpgradeTree& tree, cons
 {
     target.draw(m_backdrop);
 
+    if (m_summary)
+    {
+        drawSummary(target, tree, stats);
+        drawChrome(target, tree, salvage, depth, prompt);
+        drawLevelStrip(target);
+        return;
+    }
+
     drawLinks(target, tree);
     drawBranchLabels(target, tree);
     drawNodes(target, tree, stats, salvage);
     drawChrome(target, tree, salvage, depth, prompt);
     drawLevelStrip(target);
+}
+
+void UpgradeScreen::drawSummary(sf::RenderTarget& target, const UpgradeTree& tree,
+                                const Stats& stats)
+{
+    // Ninety-nine nodes and nowhere that adds them up. A player who has spent
+    // four campaigns in this tree knows what they bought and has no idea what
+    // they are driving: the numbers are spread over a hundred cards, most of
+    // them percentages of each other, and nothing anywhere says what the sub
+    // actually does now. This is that page, in sentences.
+    m_text.clear();
+
+    const auto number = [](float value) {
+        const long whole = std::lround(value * 10.0f);
+        std::string out = std::to_string(whole / 10);
+
+        if (whole % 10 != 0)
+            out += "." + std::to_string(std::abs(whole % 10));
+
+        return out;
+    };
+
+    const float rate = config::PlayerFireCooldown
+                       / std::max(0.05f, stats.get(Stat::FireRate, 1.0f));
+    const float damage = stats.get(Stat::ProjectileDamage,
+                                   static_cast<float>(config::WaterJetDamage));
+
+    std::vector<std::pair<std::string, std::string>> lines;
+
+    lines.emplace_back("THE GUN",
+                       "IT PUTS OUT " + number(damage / std::max(0.01f, rate))
+                           + " DAMAGE A SECOND.");
+
+    if (stats.getInt(Stat::Pierce, 0) > 0)
+        lines.back().second += "  IT GOES THROUGH "
+                               + std::to_string(stats.getInt(Stat::Pierce, 0) + 1) + ".";
+
+    if (stats.has(Trait::Ricochet))
+        lines.emplace_back("", "IT BOUNCES OFF ROCK "
+                                   + std::to_string(stats.getInt(Stat::RicochetCount, 0))
+                                   + " TIMES.");
+
+    if (stats.has(Trait::Crit))
+        lines.emplace_back("", "ONE SHOT IN "
+                                   + number(1.0f / std::max(0.01f,
+                                                            stats.get(Stat::CritChance, 0.0f)))
+                                   + " LANDS DOUBLE.");
+
+    const int hull = stats.getInt(Stat::MaxHealth, config::PlayerMaxHealth);
+    const int armour = stats.getInt(Stat::Armour, 0);
+
+    std::string skin = "THE HULL TAKES " + std::to_string(hull) + " HITS.";
+    if (armour > 0)
+        skin += "  " + std::to_string(armour) + " OFF EVERY WOUND, NEVER ALL OF IT.";
+
+    lines.emplace_back("THE HULL", skin);
+
+    if (stats.has(Trait::Shield))
+        lines.emplace_back("", std::to_string(stats.getInt(Stat::ShieldCharges, 0))
+                                   + " SHIELD CHARGES, REGROWN BETWEEN BITES.");
+
+    lines.emplace_back("THE WATER",
+                       "THE LAMP REACHES "
+                           + number(config::CameraLampReference
+                                    + stats.get(Stat::LampRadius, 0.0f))
+                           + ".");
+
+    if (stats.has(Trait::Sonar))
+        lines.emplace_back("", "SONAR SWEEPS "
+                                   + number(stats.get(Stat::SonarRange, config::SonarBaseRange))
+                                   + ".");
+
+    if (stats.has(Trait::Drones))
+        lines.emplace_back("THE ESCORT",
+                           std::to_string(stats.getInt(Stat::DroneCount, 0))
+                               + " DRONES PICK THEIR OWN TARGETS.");
+
+    if (stats.has(Trait::Mines))
+        lines.emplace_back("", std::to_string(stats.getInt(Stat::MineCount, 0))
+                                   + " MINES IN THE WATER AT ONCE.");
+
+    if (stats.get(Stat::SalvageBonus, 0.0f) > 0.001f)
+        lines.emplace_back("THE HOLD",
+                           "EVERY PIECE IS WORTH "
+                               + std::to_string(static_cast<int>(std::lround(
+                                     100.0f + stats.get(Stat::SalvageBonus, 0.0f) * 100.0f)))
+                               + "%.");
+
+    // Tight enough that the longest build - every node in the tree, which is
+    // the most lines this can ever have - still lands above the bottom strip.
+    // At its first spacing the last group was printed underneath it.
+    float y = 132.0f;
+    const float x = 150.0f;
+
+    // No count here: the chrome at the top left already says how many are
+    // installed, and two counts on one screen that disagree by one is worse
+    // than one count.
+    pixelfont::append(m_text, "THE SUB", { x, 92.0f }, 3.4f, config::HudTextColor);
+
+    for (const auto& line : lines)
+    {
+        if (!line.first.empty())
+        {
+            y += 12.0f;
+            pixelfont::append(m_text, line.first, { x, y }, 1.6f, config::HudSalvageColor);
+            y += 23.0f;
+        }
+
+        pixelfont::append(m_text, line.second, { x + 18.0f, y }, 1.5f, config::HudTextColor);
+        y += 22.0f;
+    }
+
+    target.draw(m_text);
+    m_text.clear();
 }

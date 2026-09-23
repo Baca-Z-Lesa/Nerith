@@ -46,11 +46,18 @@ public:
 
     // stats is what the sub already has, so a node can say when its numbers
     // would land on a ceiling and do nothing.
+    // The other page: what the sub actually is, in sentences, instead of
+    // ninety-nine cards the player has to add up themselves.
+    void toggleSummary() { m_summary = !m_summary; }
+    bool showingSummary() const { return m_summary; }
+
     void draw(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats,
               int salvage, int depth,
               const std::string& prompt);
 
 private:
+    bool m_summary = false; // showing the sub rather than the tree
+
     void focusOn(std::size_t index, const UpgradeTree& tree);
 
     sf::Vector2f centreOf(const UpgradeNode& node) const;
@@ -65,6 +72,7 @@ private:
 
     void drawLinks(sf::RenderTarget& target, const UpgradeTree& tree);
     void drawBranchLabels(sf::RenderTarget& target, const UpgradeTree& tree);
+    void drawSummary(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats);
     void drawNodes(sf::RenderTarget& target, const UpgradeTree& tree, const Stats& stats,
                    int salvage);
     void drawLevelStrip(sf::RenderTarget& target);

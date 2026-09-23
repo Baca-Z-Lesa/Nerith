@@ -2204,6 +2204,13 @@ void Game::processEvents()
 
             switch (keyPressed->scancode)
             {
+                case sf::Keyboard::Scancode::Tab:
+                    // The other page of the board: what the sub actually is,
+                    // rather than the ninety-nine cards it was assembled from.
+                    if (upgradesVisible())
+                        m_upgradeScreen.toggleSummary();
+                    break;
+
                 case sf::Keyboard::Scancode::Equal:
                 case sf::Keyboard::Scancode::NumpadPlus:
                     if (upgradesVisible())
@@ -8145,9 +8152,9 @@ void Game::render(float alpha)
 
     if (upgradesVisible())
     {
-        std::string prompt = m_state == State::Upgrading
-                                 ? "ENTER TO GO BACK ON DECK"
-                                 : "TAB TO CLOSE";
+        std::string prompt = m_upgradeScreen.showingSummary()
+                                 ? "TAB FOR THE BOARD"
+                                 : "TAB FOR THE SUB   -   ENTER TO GO BACK ON DECK";
 
         if (m_respecArmed)
         {
