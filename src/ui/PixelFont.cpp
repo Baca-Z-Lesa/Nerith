@@ -1,6 +1,8 @@
 #include "ui/PixelFont.h"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace
@@ -106,6 +108,28 @@ namespace
     }
 }
 
+namespace
+{
+    // The font is drawn a pixel at a time, one quad per lit pixel, each the
+    // size of the scale. At 1.6 those quads land at 0, 1.6, 3.2, 4.8 - every
+    // column on a different fractional boundary, rounded differently by the
+    // rasteriser - so the strokes of a letter come out different widths and
+    // the spacing wobbles. It is the faint griminess nobody can name and
+    // everybody can see, and it was on every screen in the game.
+    //
+    // Whole numbers for the STROKE, and the asked-for scale for everything
+    // else. Rounding the advance too was the obvious move and it is wrong: at
+    // the small end 1.2 rounds to 1, every label in the game that used it
+    // loses a fifth of its size, and a one-pixel stroke falls apart the moment
+    // anything downscales the frame. Sizing the quads in whole pixels while
+    // spacing the letters exactly where they were gives uniform strokes and
+    // moves nothing on any screen.
+    float stepOf(float scale)
+    {
+        return std::max(1.0f, std::round(scale));
+    }
+}
+
 float pixelfont::measure(std::string_view text, float scale)
 {
     if (text.empty())
@@ -118,11 +142,21 @@ float pixelfont::measure(std::string_view text, float scale)
 void pixelfont::append(sf::VertexArray& vertices, std::string_view text,
                        sf::Vector2f position, float scale, sf::Color color)
 {
+    const float step = stepOf(scale);
+
     float penX = position.x;
 
     for (const char character : text)
     {
         const Glyph& glyph = Glyphs[glyphIndex(character)];
+
+        // Each letter is put down on a whole pixel and built out of whole
+        // pixels. Where the NEXT letter starts is still the exact fractional
+        // advance, so a line is the width it always was and everything
+        // centred on it stays centred - only the letters themselves stop
+        // straddling pixel boundaries and coming out with uneven strokes.
+        const float glyphX = std::round(penX);
+        const float glyphY = std::round(position.y);
 
         for (std::size_t row = 0; row < glyph.size(); ++row)
         {
@@ -133,9 +167,9 @@ void pixelfont::append(sf::VertexArray& vertices, std::string_view text,
                     continue;
 
                 appendQuad(vertices,
-                           { penX + static_cast<float>(column) * scale,
-                             position.y + static_cast<float>(row) * scale },
-                           scale, color);
+                           { glyphX + static_cast<float>(column) * step,
+                             glyphY + static_cast<float>(row) * step },
+                           step, color);
             }
         }
 
