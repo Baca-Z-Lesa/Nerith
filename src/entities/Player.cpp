@@ -2,6 +2,7 @@
 
 #include "core/Assets.h"
 #include "core/Config.h"
+#include "entities/BossArt.h"
 #include "world/Arena.h"
 
 #include <SFML/Window/Keyboard.hpp>
@@ -12,7 +13,6 @@
 Player::Player(const Assets& assets, const Stats& stats)
     : m_stats(&stats)
     , m_sprite(assets.player)
-    , m_visuals(assets)
     , m_position(config::WindowWidth / 2.0f, config::WindowHeight / 2.0f)
     , m_aimDirection(1.0f, 0.0f)
     , m_dashDirection(1.0f, 0.0f)
@@ -110,7 +110,6 @@ void Player::present(float alpha)
 
     m_sprite.setScale({ config::PlayerScale * along, config::PlayerScale * across });
     m_sprite.setPosition(at);
-    m_visuals.present(at, m_aimDirection.angle());
 }
 
 void Player::aimAt(sf::Vector2f target)
@@ -257,8 +256,9 @@ void Player::update(float deltaTime, sf::Vector2f steering, sf::Vector2f aimTarg
 
     m_bank += (wanted - m_bank) * std::min(1.0f, config::SubBankEase * deltaTime);
 
-    m_visuals.setShieldUp(m_shieldCharges > 0);
-    m_visuals.update(m_position, m_aimDirection.angle(), *m_stats, deltaTime);
+    // The screw turns with the distance covered rather than with the clock, so
+    // a sub holding station has a screw that is holding station too.
+    m_spin += (m_position - before).length() * config::PlayerScrewRate;
 }
 
 float Player::urgency() const
@@ -458,9 +458,33 @@ sf::Vector2f Player::getSternPosition() const
     return m_position - m_aimDirection * config::PlayerSternOffset;
 }
 
-void Player::draw(sf::RenderTarget& target) const
+void Player::draw(sf::RenderTarget& target, const sf::Texture& hide) const
 {
-    m_visuals.drawUnder(target);
-    target.draw(m_sprite);
-    m_visuals.drawOver(target);
+    // The sprite is the pose, the same bargain the creatures make: everything
+    // the movement pass already worked out - where it ended up, which way it
+    // is pointed, what the motion did to its proportions, what colour the
+    // fight wants it - is read straight back off it.
+    subart::Pose pose;
+
+    pose.at = m_sprite.getPosition();
+    pose.angle = m_sprite.getRotation();
+    pose.tint = m_sprite.getColor();
+    pose.size = config::PlayerHalfLength;
+
+    const float base = std::max(0.001f, config::PlayerScale);
+    pose.along = m_sprite.getScale().x / base;
+    pose.across = m_sprite.getScale().y / base;
+
+    pose.spin = m_spin;
+    pose.thrust = m_moving ? 1.0f : 0.0f;
+    pose.flinch = std::clamp(m_invulnerabilityTimer
+                                 / std::max(0.05f, config::PlayerInvulnerabilityDuration),
+                             0.0f, 1.0f);
+
+    for (std::size_t part = 0; part < static_cast<std::size_t>(ShipPart::Count); ++part)
+        pose.fitted[part] = m_stats->fitted(static_cast<ShipPart>(part));
+
+    pose.shieldUp = m_shieldCharges > 0;
+
+    subart::draw(target, pose, hide);
 }

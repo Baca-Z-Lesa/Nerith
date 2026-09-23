@@ -2688,6 +2688,223 @@ namespace creatureart
     }
 }
 
+namespace subart
+{
+    void draw(sf::RenderTarget& target, const Pose& pose, const sf::Texture& hide)
+    {
+        if (pose.size <= 0.5f || pose.tint.a == 0)
+            return;
+
+        g_light = pose.lightFrom.lengthSquared() > 0.0001f
+                      ? pose.lightFrom.normalized()
+                      : sf::Vector2f{ -0.55f, -0.84f };
+
+        sf::VertexArray skinned(sf::PrimitiveType::Triangles);
+
+        Frame F;
+        F.fwd = unit(pose.angle);
+        F.side = across(F.fwd);
+        F.along = pose.along;
+        F.across = pose.across;
+        F.at = pose.at - F.fwd * (pose.flinch * pose.size * 0.16f);
+
+        Skin skin;
+        skin.origin = F.at;
+        skin.along = F.fwd;
+        // Twice the repeat a creature gets. Plating on a machine is a smaller
+        // pattern than skin on an animal, and at the sheet's own rate the
+        // slabs came out the size of scales - which made the hull read as a
+        // fish with a propeller on it.
+        skin.tile = static_cast<float>(hide.getSize().x) * 2.0f;
+
+        const float R = pose.size;
+
+        const auto worn = [&pose](sf::Color base) { return wash(base, pose.tint); };
+
+        const sf::Color steel = worn({ 96, 112, 126 });
+        const sf::Color deep = worn({ 54, 66, 78 });
+        const sf::Color trim = worn({ 158, 176, 188 });
+        const sf::Color glass = worn({ 132, 214, 216 });
+
+        const auto fitted = [&pose](ShipPart part) {
+            return pose.fitted[static_cast<std::size_t>(part)];
+        };
+
+        // --- what hangs underneath ----------------------------------------
+        if (fitted(ShipPart::TorpedoTube))
+        {
+            // A tube slung under the port shoulder, capped at the muzzle.
+            for (const float s : { -1.0f, 1.0f })
+            {
+                sweep(skinned, F.p(-R * 0.10f, s * R * 0.44f), F.p(R * 0.62f, s * R * 0.40f),
+                      R * 0.13f, R * 0.11f, deep, skin);
+                disc(skinned, F.p(R * 0.62f, s * R * 0.40f), R * 0.11f, worn({ 22, 26, 32 }), skin, 10);
+            }
+        }
+
+        if (fitted(ShipPart::BigEngine))
+        {
+            // A second nacelle each side of the stern. The engine is the one
+            // upgrade you should be able to see from behind.
+            for (const float s : { -1.0f, 1.0f })
+            {
+                sweep(skinned, F.p(-R * 0.30f, s * R * 0.34f), F.p(-R * 1.02f, s * R * 0.30f),
+                      R * 0.17f, R * 0.13f, deep, skin);
+                disc(skinned, F.p(-R * 1.02f, s * R * 0.30f), R * 0.12f, worn({ 30, 36, 42 }), skin, 10);
+            }
+        }
+
+        // --- the screw ----------------------------------------------------
+        for (int blade = 0; blade < 4; ++blade)
+        {
+            const sf::Angle a = sf::degrees(90.0f * static_cast<float>(blade)) + sf::radians(pose.spin);
+
+            // Seen from above a turning screw is blades foreshortened by where
+            // they are in the turn, which is a cosine and nothing else.
+            const float lean = std::cos(a.asRadians());
+
+            sweep(skinned, F.p(-R * 1.04f, 0.0f),
+                  F.p(-R * 1.04f - R * 0.10f * lean, std::sin(a.asRadians()) * R * 0.30f),
+                  R * 0.05f, R * 0.09f, worn({ 120, 128, 132 }), skin);
+        }
+
+        disc(skinned, F.p(-R * 1.04f, 0.0f), R * 0.08f, worn({ 64, 72, 80 }), skin, 10);
+
+        // --- the hull -----------------------------------------------------
+        // A pressure vessel: widest a third back, drawn to a point at the bow
+        // and tapering to the shaft at the stern.
+        spindle(skinned, F, R * 1.06f, -R * 1.00f, R * 0.52f, 0.36f, steel, skin, 15);
+
+        // The casing along the top, which is what stops it reading as a fish.
+        spindle(skinned, F, R * 0.70f, -R * 0.66f, R * 0.30f, 0.42f, worn({ 112, 128, 142 }),
+                skin, 11);
+
+        // Plate seams across it.
+        for (int i = 0; i < 4; ++i)
+        {
+            const float x = R * (0.46f - 0.34f * static_cast<float>(i));
+            // A weld, not a gap. At the weight they first had they read as
+            // slots cut through the hull.
+            sweep(skinned, F.p(x, -R * 0.42f), F.p(x, R * 0.42f), R * 0.014f, R * 0.014f,
+                  fade(worn({ 30, 38, 46 }), 120), skin);
+        }
+
+        // --- the fins -----------------------------------------------------
+        // Dive planes forward, and a cross of control surfaces at the stern.
+        for (const float s : { -1.0f, 1.0f })
+        {
+            const float bite = s * (0.5f + 0.5f * pose.thrust);
+
+            // Dive planes: forward, short, and raked back. Set amidships and
+            // reaching out they were pectoral fins, and a submarine that has
+            // pectoral fins is a fish.
+            sweep(skinned, F.p(R * 0.54f, s * R * 0.36f),
+                  F.p(R * 0.30f, s * R * 0.66f), R * 0.11f, R * 0.04f,
+                  worn({ 84, 98, 110 }), skin);
+
+            // Control surfaces, not a tail: short, square and close in to the
+            // shaft. Splayed out they read as a fluke, and the one thing this
+            // shape must not be mistaken for is another animal.
+            sweep(skinned, F.p(-R * 0.66f, s * R * 0.26f),
+                  F.p(-R * 0.94f, s * R * 0.52f + bite * R * 0.04f),
+                  R * 0.11f, R * 0.06f, worn({ 76, 90, 102 }), skin);
+        }
+
+        // --- the sail -----------------------------------------------------
+        spindle(skinned, F, R * 0.34f, -R * 0.24f, R * 0.20f, 0.45f, worn({ 128, 146, 158 }),
+                skin, 9);
+
+        // --- armour -------------------------------------------------------
+        if (fitted(ShipPart::ArmourPlates))
+        {
+            // A belt along each flank rather than slabs laid over the back.
+            // Laid over it they read as patches on a damaged hull, which is
+            // the opposite of what an upgrade should say.
+            for (const float s : { -1.0f, 1.0f })
+            {
+                for (int i = 0; i < 4; ++i)
+                {
+                    const float x = R * (0.52f - 0.30f * static_cast<float>(i));
+
+                    sweep(skinned, F.p(x + R * 0.13f, s * R * 0.44f),
+                          F.p(x - R * 0.13f, s * R * 0.47f), R * 0.06f, R * 0.06f,
+                          worn({ 116, 130, 142 }), skin);
+                }
+            }
+        }
+
+        // --- guns ---------------------------------------------------------
+        if (fitted(ShipPart::HeavyCannon))
+        {
+            sweep(skinned, F.p(R * 0.18f, -R * 0.30f), F.p(R * 0.96f, -R * 0.26f),
+                  R * 0.11f, R * 0.07f, worn({ 74, 84, 94 }), skin);
+            disc(skinned, F.p(R * 0.96f, -R * 0.26f), R * 0.07f, worn({ 18, 22, 26 }), skin, 8);
+        }
+
+        if (fitted(ShipPart::TwinCannon))
+        {
+            for (const float s : { -1.0f, 1.0f })
+            {
+                sweep(skinned, F.p(R * 0.26f, s * R * 0.14f), F.p(R * 0.92f, s * R * 0.16f),
+                      R * 0.07f, R * 0.05f, worn({ 86, 96, 106 }), skin);
+                disc(skinned, F.p(R * 0.92f, s * R * 0.16f), R * 0.05f, worn({ 18, 22, 26 }),
+                     skin, 8);
+            }
+        }
+
+        if (fitted(ShipPart::SonarDish))
+        {
+            // A dish on the bow, facing forward, with its stalk.
+            sweep(skinned, F.p(R * 0.88f, 0.0f), F.p(R * 1.16f, 0.0f), R * 0.06f, R * 0.05f,
+                  worn({ 70, 80, 90 }), skin);
+            disc(skinned, F.p(R * 1.16f, 0.0f), R * 0.15f, worn({ 148, 164, 172 }), skin, 12);
+            disc(skinned, F.p(R * 1.16f, 0.0f), R * 0.08f, worn({ 46, 58, 66 }), skin, 10);
+        }
+
+        // --- the glass ----------------------------------------------------
+        // The one warm thing on it, and the reason the player knows which end
+        // is the front without reading the shape.
+        disc(skinned, F.p(R * 0.74f, 0.0f), R * 0.15f, worn({ 30, 40, 48 }), skin, 12);
+        disc(skinned, F.p(R * 0.75f, 0.0f), R * 0.10f, glass, skin, 10);
+
+        // Nav lights, port and starboard, the way round they actually go.
+        disc(skinned, F.p(R * 0.40f, -R * 0.46f), R * 0.055f, worn({ 226, 72, 64 }), skin, 8);
+        disc(skinned, F.p(R * 0.40f, R * 0.46f), R * 0.055f, worn({ 96, 224, 118 }), skin, 8);
+
+        sf::RenderStates states;
+        states.texture = &hide;
+        target.draw(skinned, states);
+
+        // --- the shield ---------------------------------------------------
+        if (pose.fitted[static_cast<std::size_t>(ShipPart::ShieldBubble)])
+        {
+            sf::VertexArray bubble(sf::PrimitiveType::Triangles);
+
+            sf::Color glow = pose.shieldUp ? config::ShieldColor : sf::Color(60, 90, 100, 60);
+            glow = wash(glow, pose.tint);
+
+            const float reach = config::ShieldRadius * (R / 32.0f);
+            const float thick = std::max(1.5f, reach * 0.06f);
+
+            Skin flat;
+            flat.origin = F.at;
+            flat.along = F.fwd;
+
+            for (int i = 0; i < 30; ++i)
+            {
+                const sf::Angle a0 = sf::degrees(360.0f * static_cast<float>(i) / 30.0f);
+                const sf::Angle a1 = sf::degrees(360.0f * static_cast<float>(i + 1) / 30.0f);
+
+                quad(bubble, F.at + sf::Vector2f(reach - thick, a0),
+                     F.at + sf::Vector2f(reach, a0), F.at + sf::Vector2f(reach, a1),
+                     F.at + sf::Vector2f(reach - thick, a1), glow, flat);
+            }
+
+            target.draw(bubble);
+        }
+    }
+}
+
 namespace bossart
 {
     void draw(sf::RenderTarget& target, BossSkin skin, const Body& body, const sf::Texture& hide)

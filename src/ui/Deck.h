@@ -1,6 +1,6 @@
 #pragma once
 
-#include "entities/ShipVisuals.h"
+#include "entities/BossArt.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/RenderTexture.hpp>
@@ -197,14 +197,11 @@ private:
     // bolted on. The stats it reads are borrowed, never owned, so a null
     // pointer just means "not told yet" and it is not drawn.
     //
-    // It is composed into its own canvas at the hull's native resolution and
-    // then drawn from that, smoothed, so that making it big is an enlargement
-    // rather than a ragged pixel double. m_subCanvas must outlive m_subImage,
-    // which borrows its texture - hence the order.
-    sf::Sprite      m_subHull;
-    ShipVisuals     m_subKit;
-    sf::RenderTexture m_subCanvas;
-    sf::Sprite      m_subImage;
+    // Drawn out of shapes rather than composed out of sprites, so hero size on
+    // the deck is simply a bigger number - and it is exactly the same drawing
+    // the player sees in the water.
+    subart::Pose       m_sub;
+    const sf::Texture* m_plating;
     const Stats*    m_subStats = nullptr;
 
     // Everything lying about that is not a station. One sprite per placement

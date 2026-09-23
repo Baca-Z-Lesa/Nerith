@@ -1,6 +1,5 @@
 #pragma once
 
-#include "entities/ShipVisuals.h"
 #include "upgrades/Stats.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
@@ -29,7 +28,9 @@ public:
     // stutter on every frame that did not line up with a step.
     void remember() { m_prevPosition = m_position; }
     void present(float alpha);
-    void draw(sf::RenderTarget& target) const;
+    // hide is the tiling sheet the hull is plated with, the same sheet the
+    // armoured creature is made of.
+    void draw(sf::RenderTarget& target, const sf::Texture& hide) const;
 
     // Puts the sub back at full health, for a restart.
     void reset();
@@ -112,7 +113,6 @@ private:
     const Stats* m_stats;
 
     sf::Sprite   m_sprite;
-    ShipVisuals  m_visuals;
 
     sf::Vector2f m_position;
     sf::Vector2f m_prevPosition;
@@ -144,5 +144,6 @@ private:
     int   m_shieldCharges;
     float m_invulnerabilityTimer;
     bool  m_moving;
+    float m_spin = 0.0f;  // where the screw is in its turn
     bool  m_ventReady;
 };

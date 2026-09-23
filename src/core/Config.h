@@ -350,6 +350,10 @@ namespace config
     inline constexpr float PlayerSpeed = 228.0f;
     inline constexpr float PlayerFireCooldown = 0.21f;
     inline constexpr float PlayerMuzzleOffset = 30.0f;
+
+    // Half the sub's length, which is what the drawing is written against.
+    inline constexpr float PlayerHalfLength = 32.0f;
+    inline constexpr float PlayerScrewRate = 0.06f; // radians per pixel travelled
     inline constexpr float PlayerSternOffset = 26.0f;
     // Four hits. It was three, which is the right number for a game about
     // learning a level and the wrong one for a game about searching a dark
@@ -1443,17 +1447,14 @@ namespace config
     inline constexpr sf::Vector2f DeckSubAt{ 640.0f, 86.0f };
     inline constexpr float DeckSubTurn = 0.0f;   // lying along the gantry
 
-    // The sub is composed into its own canvas first and then drawn from it.
+    // Half its length on the deck.
     //
-    // Drawn straight onto the deck it came out notched: the hull art is 128px
-    // and it was being blown up by 1.3, so some source pixels landed on one
-    // screen pixel and some on two, and every edge on the machine turned into
-    // a staircase. Composed at Compose - which puts the hull at exactly its own
-    // resolution - and then scaled with the canvas smoothed, the enlargement is
-    // an interpolation rather than a ragged pixel double.
-    inline constexpr float DeckSubCompose = 2.0f;  // hull at 1:1 in the canvas
-    inline constexpr float DeckSubScale = 1.55f;   // and how big the canvas reads
-    inline constexpr unsigned int DeckSubCanvas = 256;
+    // It used to be a 128 pixel sprite composed into its own canvas, because
+    // blowing that sprite up by 1.3 put some source pixels on one screen pixel
+    // and some on two and turned every edge into a staircase. It is drawn out
+    // of shapes now, so hero size is simply a bigger number, and the canvas is
+    // gone along with the sprite that needed it.
+    inline constexpr float DeckSubLength = 90.0f;
     inline constexpr float DeckSubBob = 3.0f;    // it rides the swell under it
     inline constexpr float DeckSubSway = 1.7f;   // degrees, hanging on its slings
 

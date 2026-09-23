@@ -2,12 +2,14 @@
 
 #include "entities/BossDef.h"
 #include "entities/EnemyType.h"
+#include "upgrades/Stats.h"
 
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/System/Angle.hpp>
 #include <SFML/System/Vector2.hpp>
 
+#include <array>
 #include <vector>
 
 // A boss drawn rather than stamped.
@@ -136,4 +138,39 @@ namespace creatureart
     // there that is not wet. Returned as the asset path, because the same
     // place that decides what a creature is made of may as well say so.
     const char* surfaceOf(EnemyType type);
+}
+
+// And the thing the player is driving.
+//
+// Everything in the water was drawn out of shapes except the one object on
+// screen the whole time. The sub stayed a 128 pixel sprite with six more
+// sprites bolted to it, so the game had two art styles in every single frame:
+// smooth shaded creatures swimming around a pixel-art submarine that was the
+// only thing that never turned, never breathed and had no volume at all. It
+// was the most looked-at object in the game and the flattest.
+//
+// Built here instead, off the same vocabulary, with the same light on it - and
+// because it is shapes now it can move: the screw turns, the planes bite when
+// it manoeuvres, the hull squeezes when it does.
+namespace subart
+{
+    struct Pose
+    {
+        sf::Vector2f at{};
+        sf::Angle    angle{};
+        float        size = 32.0f;  // half its length, in pixels
+        float        along = 1.0f;  // what the motion is doing to its proportions
+        float        across = 1.0f;
+        float        spin = 0.0f;   // where the screw is in its turn
+        float        thrust = 0.0f; // 0..1, how hard it is driving
+        float        flinch = 0.0f; // 0..1, it has just been hit
+        sf::Color    tint{ 255, 255, 255, 255 };
+        sf::Vector2f lightFrom{ 0.0f, 0.0f };
+
+        // What the tree has bolted on, indexed by ShipPart.
+        std::array<bool, static_cast<std::size_t>(ShipPart::Count)> fitted{};
+        bool shieldUp = false;
+    };
+
+    void draw(sf::RenderTarget& target, const Pose& pose, const sf::Texture& hide);
 }

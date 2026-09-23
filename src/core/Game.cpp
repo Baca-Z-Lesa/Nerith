@@ -8180,7 +8180,7 @@ void Game::render(float alpha)
 
     if (m_player.isAlive())
     {
-        m_player.draw(m_window);
+        m_player.draw(m_window, m_assets.boss(config::HidePlatePath));
         drawOrbits();
     }
 

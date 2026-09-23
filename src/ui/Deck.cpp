@@ -192,9 +192,7 @@ Deck::Deck(const Assets& assets)
     , m_crate(assets.byPath(config::DeckCratePath))
     , m_body(assets.byPath(config::DeckDiverPath))
     , m_boot(assets.byPath(config::DeckBootPath))
-    , m_subHull(assets.player)
-    , m_subKit(assets)
-    , m_subImage(m_subCanvas.getTexture())
+    , m_plating(&assets.boss(config::HidePlatePath))
 {
     const auto centre = [](sf::Sprite& sprite) {
         const sf::Vector2f size(sprite.getTexture().getSize());
@@ -207,26 +205,6 @@ Deck::Deck(const Assets& assets)
     centre(m_crate);
     centre(m_body);
     centre(m_boot);
-    centre(m_subHull);
-
-    // Composed at the hull's own resolution, so nothing is resampled until the
-    // finished canvas is enlarged - once, smoothly.
-    m_subHull.setScale({ config::PlayerScale * config::DeckSubCompose,
-                         config::PlayerScale * config::DeckSubCompose });
-
-    if (m_subCanvas.resize({ config::DeckSubCanvas, config::DeckSubCanvas }))
-        m_subCanvas.setSmooth(true);
-
-    m_subImage.setTexture(m_subCanvas.getTexture(), true);
-    m_subImage.setOrigin({ config::DeckSubCanvas * 0.5f, config::DeckSubCanvas * 0.5f });
-    m_subImage.setScale({ config::DeckSubScale, config::DeckSubScale });
-
-    // Fitted but not charged. A live shield at this scale is a bright ring
-    // most of the way across the sub, and it wins every time against the hull
-    // it is supposed to be protecting - which is the wrong thing to be looking
-    // at on the one screen that exists to show what you have built. Dull, it
-    // still says the emitter is there.
-    m_subKit.setShieldUp(false);
 
     m_crane.setPosition(station(Post::Crane).at);
     m_bench.setPosition(station(Post::Bench).at);
@@ -349,29 +327,24 @@ void Deck::update(float deltaTime, sf::Vector2f drive)
         const sf::Color tint = litTint(config::DeckNightTint,
                                        std::max(lightAt(config::DeckSubAt), 0.30f));
 
-        // Composed square and upright into its own canvas at native size. The
-        // tint and the heading are applied to the finished image instead, so
-        // the canvas holds one clean copy of the machine and nothing inside it
-        // is ever resampled twice.
-        const sf::Vector2f mid{ config::DeckSubCanvas * 0.5f, config::DeckSubCanvas * 0.5f };
+        // Drawn out of shapes, so it can simply be asked for at hero size. The
+        // canvas this used to be composed into existed only to stop a 128
+        // pixel sprite being pixel-doubled into a staircase, and there is no
+        // sprite left to double.
+        m_sub.at = at;
+        m_sub.angle = heading;
+        m_sub.size = config::DeckSubLength;
+        m_sub.tint = tint;
+        m_sub.spin = m_time * 1.4f;
+        m_sub.thrust = 0.0f;
 
-        m_subKit.setTint(sf::Color::White);
-        m_subKit.update(mid, sf::degrees(0.0f), *m_subStats, deltaTime);
-        m_subKit.present(mid, sf::degrees(0.0f), config::DeckSubCompose);
+        for (std::size_t part = 0; part < static_cast<std::size_t>(ShipPart::Count); ++part)
+            m_sub.fitted[part] = m_subStats->fitted(static_cast<ShipPart>(part));
 
-        m_subHull.setPosition(mid);
-        m_subHull.setRotation(sf::degrees(0.0f));
-        m_subHull.setColor(sf::Color::White);
-
-        m_subCanvas.clear(sf::Color::Transparent);
-        m_subKit.drawUnder(m_subCanvas);
-        m_subCanvas.draw(m_subHull);
-        m_subKit.drawOver(m_subCanvas);
-        m_subCanvas.display();
-
-        m_subImage.setPosition(at);
-        m_subImage.setRotation(heading);
-        m_subImage.setColor(tint);
+        // Fitted but not charged: a live shield at this scale is a bright ring
+        // most of the way across the sub and it beats the hull it is meant to
+        // be protecting, on the one screen that exists to show what you built.
+        m_sub.shieldUp = false;
     }
 }
 
@@ -1216,9 +1189,9 @@ void Deck::drawSub(sf::RenderTarget& target)
 
     // --- the machine -------------------------------------------------------
     //
-    // One finished image, composed in update out of exactly what is in the
-    // water: slung hardware underneath, the hull, then plating and guns over.
-    target.draw(m_subImage);
+    // Exactly the drawing that is in the water, asked for larger. It is shapes
+    // rather than a sprite now, so hero size is simply a bigger number.
+    subart::draw(target, m_sub, *m_plating);
 
     // --- and the two slings holding it -------------------------------------
     //
