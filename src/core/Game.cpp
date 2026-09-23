@@ -597,12 +597,20 @@ void Game::applyBossMove(const BossMove& move)
                 {
                     const float t = static_cast<float>(i) / static_cast<float>(count - 1) - 0.5f;
 
-                    scheduleVolley(config::SoundGap * static_cast<float>(wave),
+                    // Every wave pushed back by the lead, so the first one no
+                    // longer arrives in the same instant the wind-up starts.
+                    // Sideways is not an answer to a cone; being somewhere else
+                    // is, and being somewhere else needs a moment to do.
+                    scheduleVolley(config::SoundLead + config::SoundGap * static_cast<float>(wave),
                                    move.at + across * (t * spread * 0.4f),
                                    move.direction.rotatedBy(sf::degrees(t * spread * 0.22f)),
                                    config::SoundSpeed);
                 }
             }
+
+            // And the cone itself, on the floor, for exactly that long.
+            addDanger(move.at, move.direction, config::SoundReach,
+                      sf::degrees(config::SoundSpread * 0.7f).asRadians(), config::SoundLead);
 
             addFlash(config::HudBossColor, 0.35f);
             addShake(config::ShakeDeath * 0.6f);
@@ -1155,6 +1163,7 @@ void Game::beginLevel(int number, bool fresh)
     m_giantHold = 0.0f;
     m_giantNext = rng::range(config::GiantIntervalMin, config::GiantIntervalMax);
     m_atMouth = false;
+    m_dangers.clear();
 
     // The depth is the mood: the lamp, the sand, the darkness and the drone all
     // change together, so descending is felt rather than announced. The two
@@ -6331,6 +6340,88 @@ bool Game::mapSeen(sf::Vector2f at) const
            && m_mapSeen[static_cast<std::size_t>(cell)] != 0u;
 }
 
+void Game::addDanger(sf::Vector2f at, sf::Vector2f aim, float reach, float halfAngle,
+                     float life)
+{
+    Danger mark;
+    mark.at = at;
+    mark.aim = aim.lengthSquared() > 0.0001f ? aim.normalized() : sf::Vector2f{ 1.0f, 0.0f };
+    mark.reach = reach;
+    mark.half = halfAngle;
+    mark.life = std::max(0.05f, life);
+    mark.timer = mark.life;
+
+    m_dangers.push_back(mark);
+}
+
+void Game::updateDangers(float deltaTime)
+{
+    for (Danger& mark : m_dangers)
+        mark.timer -= deltaTime;
+
+    m_dangers.erase(std::remove_if(m_dangers.begin(), m_dangers.end(),
+                                   [](const Danger& mark) { return mark.timer <= 0.0f; }),
+                    m_dangers.end());
+}
+
+void Game::drawDangers()
+{
+    // Where the water is about to be, painted on the floor before it gets
+    // there. A boss move that arrives in the same instant it is announced is
+    // not a move the player answers, it is one they find out about - and the
+    // whole design of these fights is that every one of them has an answer
+    // other than having more hull.
+    //
+    // It fills rather than flashes: how full it is says how long is left,
+    // which is the one thing the player actually needs off it.
+    if (m_dangers.empty())
+        return;
+
+    sf::VertexArray mesh(sf::PrimitiveType::Triangles);
+
+    for (const Danger& mark : m_dangers)
+    {
+        const float left = std::clamp(mark.timer / mark.life, 0.0f, 1.0f);
+        const float grown = mark.reach * (1.0f - left);
+
+        sf::Color edge = config::DangerColor;
+        edge.a = static_cast<std::uint8_t>(170.0f * (0.45f + 0.55f * (1.0f - left)));
+
+        sf::Color pale = edge;
+        pale.a = static_cast<std::uint8_t>(edge.a / 4);
+
+        const int steps = 24;
+        const float span = mark.half > 0.0f ? mark.half : 3.14159265f;
+        const sf::Angle base = mark.aim.angle();
+
+        for (int i = 0; i < steps; ++i)
+        {
+            const float t0 = -1.0f + 2.0f * static_cast<float>(i) / steps;
+            const float t1 = -1.0f + 2.0f * static_cast<float>(i + 1) / steps;
+
+            const sf::Vector2f a = mark.at + sf::Vector2f(mark.reach,
+                                                          base + sf::radians(span * t0));
+            const sf::Vector2f b = mark.at + sf::Vector2f(mark.reach,
+                                                          base + sf::radians(span * t1));
+
+            // The outline of where it lands.
+            mesh.append(sf::Vertex{ mark.at, pale });
+            mesh.append(sf::Vertex{ a, pale });
+            mesh.append(sf::Vertex{ b, pale });
+
+            // And the part of it that has already filled.
+            const sf::Vector2f c = mark.at + sf::Vector2f(grown, base + sf::radians(span * t0));
+            const sf::Vector2f d = mark.at + sf::Vector2f(grown, base + sf::radians(span * t1));
+
+            mesh.append(sf::Vertex{ mark.at, edge });
+            mesh.append(sf::Vertex{ c, edge });
+            mesh.append(sf::Vertex{ d, edge });
+        }
+    }
+
+    m_window.draw(mesh, sf::BlendAdd);
+}
+
 void Game::drawWaterRoster()
 {
     // What is in the water with you, drawn rather than named. The HUD could
@@ -7733,6 +7824,7 @@ void Game::step(float deltaTime)
                 updateHarpoon(deltaTime);
                 updateSonar(deltaTime);
                 updateGiant(deltaTime);
+                updateDangers(deltaTime);
 
                 // The map fills in behind the sub as it goes. A broken hull
                 // does not stop you seeing where you are - it stops the
@@ -7991,6 +8083,8 @@ void Game::render(float alpha)
 
     // Near band last of everything in the world: silt passing between the
     // camera and the fight, which is what gives the water a thickness.
+    drawDangers();
+
     m_seabed.drawNear(m_window, m_cameraCentre);
 
     // Sonar: an expanding ring plus a marker on everything it finds, including

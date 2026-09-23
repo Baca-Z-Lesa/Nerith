@@ -914,6 +914,10 @@ namespace config
     inline constexpr float SoundGap = 0.22f;
     inline constexpr float SoundSpeed = 420.0f;
 
+    // How far down its own line the warning is painted. Roughly where the
+    // first wave has got to by the time the last one leaves.
+    inline constexpr float SoundReach = 520.0f;
+
     inline constexpr int   RakeSteps = 26;
     inline constexpr float RakeArc = 190.0f;          // degrees swept
     inline constexpr float RakeDelay = 0.07f;
@@ -2076,6 +2080,11 @@ namespace config
     // The column down the left that says what is in the water with you. Under
     // the hull pips and the objective bar, which is the one part of the frame
     // nothing else was using.
+    // Where a boss move is about to land. Additive on the floor, filling up as
+    // the clock runs out, so how full it is says how long is left.
+    inline constexpr sf::Color DangerColor{ 168, 52, 44 };
+    inline constexpr float SoundLead = 0.55f; // seconds of floor warning
+
     inline constexpr float RosterTop = 168.0f;
     inline constexpr float RosterStep = 38.0f;
     inline constexpr float RosterSize = 13.0f;

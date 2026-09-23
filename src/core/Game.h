@@ -503,6 +503,23 @@ private:
     // longer a shape the player can hold in their head, and a hunt across one
     // without a map is not tense, it is tedious.
     // What kinds are in the water, drawn down the left edge.
+    // Where the water is about to be, drawn on the floor before it gets there.
+    struct Danger
+    {
+        sf::Vector2f at;
+        sf::Vector2f aim{ 1.0f, 0.0f };
+        float        reach = 100.0f;
+        float        half = 0.0f;  // half angle in radians; 0 is a full circle
+        float        timer = 0.0f;
+        float        life = 1.0f;
+    };
+
+    void addDanger(sf::Vector2f at, sf::Vector2f aim, float reach, float halfAngle, float life);
+    void updateDangers(float deltaTime);
+    void drawDangers();
+
+    std::vector<Danger> m_dangers;
+
     void drawWaterRoster();
 
     void drawMinimap();
