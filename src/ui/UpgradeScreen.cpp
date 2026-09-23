@@ -533,7 +533,22 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
         return;
 
     const float width = config::NodeCardWidth * (0.34f + 0.66f * m_openness);
-    const float height = config::NodeCardHeight;
+    // Tall enough for whatever it has to say. The card used to be one fixed
+    // height, which was exactly right until it grew a line per number the node
+    // moves - and then a node that changes three of them printed its third
+    // straight through the status line at the bottom.
+    int readouts = 0;
+    for (const StatModifier& effect : node.effects)
+    {
+        if (std::abs(stats.get(effect.stat, 1.0f)
+                     - (stats.get(effect.stat, 1.0f) + effect.flat)) > 0.001f
+            || std::abs(effect.percent) > 0.001f || std::abs(effect.flat) > 0.001f)
+        {
+            ++readouts;
+        }
+    }
+
+    const float height = config::NodeCardHeight + 17.0f * static_cast<float>(readouts);
 
     sf::Vector2f corner{ centre.x + nodeRadius() + 14.0f, centre.y - height / 2.0f };
     if (corner.x + config::NodeCardWidth > static_cast<float>(config::WindowWidth) - 10.0f)
@@ -573,6 +588,75 @@ void UpgradeScreen::drawNodeCard(sf::RenderTarget& target, const UpgradeTree& tr
     pixelfont::append(m_text, node.description.substr(0, shown),
                       corner + sf::Vector2f{ 12.0f, 46.0f }, 1.3f,
                       fade(config::HudDimTextColor));
+
+    // What the number actually becomes.
+    //
+    // "+25% JET DAMAGE" is a promise, not a figure: a quarter more of what, on
+    // top of what else already bought, against a ceiling nobody mentioned. So
+    // the card works it out - the block as it stands, the block with this node
+    // applied, and the two printed side by side. It is the one line that turns
+    // buying into a decision instead of a hope.
+    {
+        struct Readout { Stat stat; const char* label; float base; bool percent; };
+
+        static const Readout Readouts[] = {
+            { Stat::ProjectileDamage, "JET DAMAGE", static_cast<float>(config::WaterJetDamage), false },
+            { Stat::FireRate,         "FIRE RATE",  1.0f, true },
+            { Stat::ProjectileSpeed,  "JET SPEED",  config::WaterJet.speed, false },
+            { Stat::Pierce,           "PIERCE",     0.0f, false },
+            { Stat::RicochetCount,    "BOUNCES",    0.0f, false },
+            { Stat::CritChance,       "CRIT",       0.0f, true },
+            { Stat::MaxHealth,        "HULL",       static_cast<float>(config::PlayerMaxHealth), false },
+            { Stat::Armour,           "ARMOUR",     0.0f, false },
+            { Stat::MoveSpeed,        "SPEED",      config::PlayerSpeed, false },
+            { Stat::ShieldCharges,    "SHIELD",     0.0f, false },
+            { Stat::TorpedoDamage,    "TORPEDO",    static_cast<float>(config::TorpedoBaseDamage), false },
+            { Stat::MineDamage,       "MINE",       static_cast<float>(config::MineBaseDamage), false },
+            { Stat::DroneCount,       "DRONES",     0.0f, false },
+            { Stat::MineCount,        "MINES",      0.0f, false },
+            { Stat::SonarRange,       "SONAR",      config::SonarBaseRange, false },
+            { Stat::SalvageBonus,     "SALVAGE",    0.0f, true },
+        };
+
+        Stats after = stats;
+        for (const StatModifier& effect : node.effects)
+            after.apply(effect);
+
+        float row = 66.0f;
+
+        for (const Readout& read : Readouts)
+        {
+            // Only the numbers this node actually touches.
+            bool touched = false;
+            for (const StatModifier& effect : node.effects)
+                touched = touched || effect.stat == read.stat;
+
+            if (!touched)
+                continue;
+
+            const float was = stats.get(read.stat, read.base);
+            const float now = after.get(read.stat, read.base);
+
+            if (std::abs(now - was) < 0.001f)
+                continue; // already at its ceiling: the status line says so
+
+            const auto show = [&read](float value) {
+                if (read.percent)
+                    return std::to_string(static_cast<int>(std::lround(value * 100.0f))) + "%";
+
+                return std::to_string(static_cast<int>(std::lround(value * 10.0f) / 10))
+                       + (std::abs(value - std::lround(value)) > 0.05f
+                              ? "." + std::to_string(static_cast<int>(std::lround(value * 10.0f)) % 10)
+                              : "");
+            };
+
+            pixelfont::append(m_text, std::string(read.label) + "  " + show(was) + " > " + show(now),
+                              corner + sf::Vector2f{ 12.0f, row }, 1.3f,
+                              fade(config::HudSalvageColor));
+
+            row += 17.0f;
+        }
+    }
 
     const std::size_t index = tree.indexOfNode(node.id);
     std::string status;

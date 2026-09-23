@@ -502,6 +502,9 @@ private:
     // The basin drawn small in the corner. With a generated map there is no
     // longer a shape the player can hold in their head, and a hunt across one
     // without a map is not tense, it is tedious.
+    // What kinds are in the water, drawn down the left edge.
+    void drawWaterRoster();
+
     void drawMinimap();
 
     // Cuts the minimap water for the basin as it now stands. Called when the

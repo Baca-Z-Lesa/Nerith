@@ -6324,6 +6324,70 @@ bool Game::mapSeen(sf::Vector2f at) const
            && m_mapSeen[static_cast<std::size_t>(cell)] != 0u;
 }
 
+void Game::drawWaterRoster()
+{
+    // What is in the water with you, drawn rather than named. The HUD could
+    // always tell you how much hull you had and how far through the job you
+    // were, and never what you were sharing the basin with - so a player who
+    // heard something behind them had no way of asking what it was without
+    // turning round and finding out the expensive way.
+    //
+    // Each kind once, with a count, and the creature itself rather than a word:
+    // the drawing already exists, it is the same animal they will meet, and a
+    // silhouette is read faster than a name at the edge of vision.
+    std::array<int, EnemyTypeCount> seen{};
+    int kinds = 0;
+
+    for (const Enemy& enemy : m_enemies)
+    {
+        if (!enemy.isAlive())
+            continue;
+
+        const std::size_t index = static_cast<std::size_t>(enemy.getType());
+        if (seen[index] == 0)
+            ++kinds;
+
+        ++seen[index];
+    }
+
+    if (kinds == 0)
+        return;
+
+    const sf::Texture& hide = m_assets.boss(config::BossHidePath);
+
+    sf::VertexArray text(sf::PrimitiveType::Triangles);
+    float y = config::RosterTop;
+
+    for (std::size_t i = 0; i < seen.size(); ++i)
+    {
+        if (seen[i] == 0)
+            continue;
+
+        creatureart::Pose mark;
+        mark.at = { config::HudMargin + config::RosterSize, y };
+        mark.angle = sf::degrees(0.0f);
+        mark.size = config::RosterSize;
+        mark.beat = std::sin(m_presentTime * 2.2f + static_cast<float>(i));
+        mark.breath = 0.5f;
+        mark.jaw = 0.3f;
+
+        creatureart::draw(m_window, static_cast<EnemyType>(i), mark, hide);
+
+        // Only worth a number once there is more than one of them: a lone
+        // creature is its own count.
+        if (seen[i] > 1)
+        {
+            pixelfont::append(text, std::to_string(seen[i]),
+                              { config::HudMargin + config::RosterSize * 2.6f, y - 5.0f },
+                              1.4f, config::HudDimTextColor);
+        }
+
+        y += config::RosterStep;
+    }
+
+    m_window.draw(text);
+}
+
 void Game::drawMinimap()
 {
     if (!m_mapFrame.usable)
@@ -8049,6 +8113,7 @@ void Game::render(float alpha)
     if (m_state == State::Fighting && !upgradesVisible() && !m_paused)
     {
         drawThreatVignette();
+        drawWaterRoster();
         drawMinimap();
     }
 

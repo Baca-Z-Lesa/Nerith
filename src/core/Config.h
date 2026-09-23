@@ -2073,6 +2073,13 @@ namespace config
     inline constexpr float BrightnessLift = 46.0f;
     inline constexpr float BrightnessDrop = 96.0f;
 
+    // The column down the left that says what is in the water with you. Under
+    // the hull pips and the objective bar, which is the one part of the frame
+    // nothing else was using.
+    inline constexpr float RosterTop = 168.0f;
+    inline constexpr float RosterStep = 38.0f;
+    inline constexpr float RosterSize = 13.0f;
+
     inline constexpr float MinimapWidth = 214.0f;
     inline constexpr float MinimapHeight = 142.0f;
     inline constexpr float MinimapMargin = 16.0f;
