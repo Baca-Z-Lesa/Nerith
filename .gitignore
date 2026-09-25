@@ -31,3 +31,4 @@ dist/
 
 # Test build output
 x64/Tests/
+docs/Nerith.html
