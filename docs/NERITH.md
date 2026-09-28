@@ -4,6 +4,8 @@ Sep 21, 2026 · @Autodesk
 
 ## Čo Nerith je
 
+![Titulná obrazovka. Hĺbka, do ktorej si sa dostal, je jediné skóre, ktoré hra ukazuje.](img/menu.png)
+
 2D top-down podvodná horor-strieľačka. Ponorka, tmavý bazén, lampa čo vidí len kúsok, a niečo v tej tme. Hráč sa spúšťa výťahom po poschodiach, zbiera salvage zo dna, vynára sa s nákladom a míňa ho v strome vylepšení. Kampaň má **30 levelov v 6 hĺbkach**, každé piate poschodie stráži boss.
 
 Príbeh: firma stratila v Nerith tri posádky. Ty si štvrtý v poradí. Poistka je zaplatená, otázky sa nekladú.
@@ -19,7 +21,7 @@ Tieto sa nemenia a všetko ostatné sa im podriaďuje:
 - Papo hrá zo **zbaleného buildu v `dist/`**, takže po opravách treba `tools/package.ps1`.
 - Komunikácia po slovensky.
 
-Dôležitý dôsledok: **nie sú shadery**. Všetko, čo by inde spravil shader — hmla, absorpcia farby, tiene — sa tu rieši geometriou a blend módmi, alebo sa nespraví.
+**Shadery sú dva, obe v GLSL priamo v kóde** (`sf::Shader` je súčasť SFML, nie nová závislosť). `WaterPass` beží cez celý osvetlený bazén medzi svetlom a tmou: voda jemne vlní obraz, svetlé veci majú v zakalenej vode halo, farba sa s odstupom od lampy mení na modrú a zásah roztrhne farebné kanály. Druhý rozmazáva popredie v cutscéne. Na karte bez shaderov sa absorpcia kreslí ako predtým, geometriou.
 
 ## Ako je to postavené
 
@@ -34,6 +36,8 @@ Dôležitý dôsledok: **nie sú shadery**. Všetko, čo by inde spravil shader 
 **Kampaň = tabuľka.** 30 riadkov v `LevelDef.h`: maxAlive, intervaly, objective, hĺbka. Krivka: pomaly hore, strmo na konci.
 
 ### Procedurálny pipeline
+
+![Ponorka so všetkým, čo strom dokáže priskrutkovať. Tá istá kresba je na palube aj vo vode.](img/sub.png)
 
 - **Art:** PowerShell + System.Drawing pod `tools/`. `make_3d.ps1` orchestruje, `relief.ps1` dáva grain/highlight, `organic.ps1` je slovník tvarov (Body, Fin, Limb, Eye, Lamp, Gills, Plates...). Seedy z názvu súboru. Nové: `make_gear.ps1`, `make_dress.ps1`, `deck_sub.png` v `make_deck.ps1`.
 - **Audio:** procedurálny C# `Synth` vložený v PowerShelli.
@@ -123,6 +127,8 @@ Zoradené podľa priority.
 
 ## Referencia: kampaň
 
+![Paluba medzi dvoma ponormi: žeriav predáva náklad, lavica je strom, zvon je cesta dole.](img/deck.png)
+
 30 levelov, 6 hĺbok po 5. Každý piaty je boss.
 
 | Hĺbka | Názov | Boss |
@@ -139,6 +145,8 @@ Zoradené podľa priority.
 **Postup v leveli sa uloží, ak sa vynoříš živý.** Smrť ho zmaže. Dokončený level si nedrží nič a boss nikdy.
 
 ## Referencia: tvory
+
+![Všetkých dvanásť tvorov. Každý je kreslený procedurálne, nie z textúry, a veľká podoba aj ikonka v logbooku sú tá istá kresba.](img/creatures.png)
 
 Všetkých 12 je kreslených procedurálne (`creatureart` v `BossArt.cpp`), s poctivou anatómiou a vlastným povrchom.
 
@@ -161,6 +169,8 @@ Všetkých 12 je kreslených procedurálne (`creatureart` v `BossArt.cpp`), s po
 
 ## Referencia: bossovia
 
+![Šesť bossov. Štyri z tiel majú naozaj inú siluetu, nie centrálne jadro s chápadlami.](img/bosses.png)
+
 Každý je **telo × myseľ × koža**. Koža kreslí to, čo robia články — nový tvar je nové rozloženie, nie nový kresliaci kód.
 
 | Boss | Telo | Myseľ | Čo robí |
@@ -175,6 +185,8 @@ Každý je **telo × myseľ × koža**. Koža kreslí to, čo robia články —
 Krivka (DESCENT): 46 → 55 → 70 → 85 → 100 → 120 sekúnd.
 
 ## Referencia: ekonomika a obtiažnosť
+
+![Stránka THE SUB: strom nehovorí, čo uzol robí, ale čo z toho ponorka vie.](img/tree.png)
 
 Jedna čistá kampaň kúpi **\~35 %** stromu (100 uzlov, 17 127 salvage). Príjem: 20 % otvorenie vody, 47 % zabíjanie, 33 % dno.
 
@@ -201,7 +213,7 @@ Všetko je **deterministické** — rovnaký seed, rovnaké bajty. Wav, ktorý s
 
 ## Časté otázky
 
-**Prečo žiadne shadery?** SFML 3 ich má, ale projekt na nich nestojí — všetko je geometria a blend módy. Preto sa tieňovanie robí **cez vrcholové farby**: smer od ťažiska tvaru k vrcholu voči svetlu, jeden skalárny súčin na vrchol.
+**Prečo sa tvory tieňujú vrcholmi a nie shaderom?** Lebo to stačí a nič to nestojí: smer od ťažiska tvaru k vrcholu voči svetlu, jeden skalárny súčin na vrchol. Shader robí len to, čo po pixeloch geometria nevie — vodu, halo, absorpciu a rozmazanie. Dlho sa tvrdilo, že shadery projekt „nemá"; nebola to pravda, len predpoklad.
 
 **Prečo je všetko kreslené a nie textúry?** Obrázok zvieraťa držaný v jednom uhle je obrázok, nie zviera — nedýcha, neotvára papuľe a nevie sa na teba pozrieť. Sprity ostali len na dekor paluby, salvage a dron.
 
