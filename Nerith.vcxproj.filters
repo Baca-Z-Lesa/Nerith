@@ -48,6 +48,9 @@
     <ClCompile Include="src\effects\ParticleSystem.cpp">
       <Filter>src\effects</Filter>
     </ClCompile>
+    <ClCompile Include="src\effects\WaterPass.cpp">
+      <Filter>src\effects</Filter>
+    </ClCompile>
     <ClCompile Include="src\entities\Boss.cpp">
       <Filter>src\entities</Filter>
     </ClCompile>
@@ -111,6 +114,9 @@
       <Filter>src\core</Filter>
     </ClInclude>
     <ClInclude Include="src\effects\ParticleSystem.h">
+      <Filter>src\effects</Filter>
+    </ClInclude>
+    <ClInclude Include="src\effects\WaterPass.h">
       <Filter>src\effects</Filter>
     </ClInclude>
     <ClInclude Include="src\entities\Boss.h">

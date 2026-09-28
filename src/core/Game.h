@@ -6,6 +6,7 @@
 #include "core/Controls.h"
 #include "core/SaveGame.h"
 #include "effects/ParticleSystem.h"
+#include "effects/WaterPass.h"
 #include "entities/Boss.h"
 #include "entities/Enemy.h"
 #include "entities/Player.h"
@@ -805,6 +806,9 @@ private:
     // Two layers: ambience sits under the entities, impacts sit over them.
     ParticleSystem m_ambience;
     ParticleSystem m_effects;
+
+    // The water between the basin and the eye. Owns no state the game reads.
+    WaterPass m_water;
 
     SaveGame m_save;
     State    m_state;

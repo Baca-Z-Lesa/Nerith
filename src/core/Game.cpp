@@ -8280,10 +8280,24 @@ void Game::render(float alpha)
     // complement of the lamp, so a creature standing outside the beam is not
     // dimmed, it is painted out - which is the only reason running with the
     // lamp off costs anything.
-    // What the water took out of the light on the way here. Before the dark,
+    // What the water does to the light on the way here. Before the dark,
     // because the dark is where the light stops and this is what happens to
-    // it while it is still arriving.
-    m_arena.drawAbsorb(m_window, m_player.getPosition());
+    // it while it is still arriving - and so the dark, the shadows and the
+    // beacons all land on top of it exactly as they did before it existed.
+    if (m_water.ready())
+    {
+        const sf::Vector2f sub = m_player.getPosition();
+        const sf::Vector2f lamp(m_window.mapCoordsToPixel(sub, m_camera));
+        const sf::Vector2f edge(m_window.mapCoordsToPixel(
+            sub + sf::Vector2f{ m_arena.getLampReach(), 0.0f }, m_camera));
+
+        m_water.apply(m_window, { lamp, edge.x - lamp.x, m_hurtFlash });
+    }
+    else
+    {
+        // A card with no shaders still gets the colour taken out, as a mesh.
+        m_arena.drawAbsorb(m_window, m_player.getPosition());
+    }
 
     m_arena.drawDark(m_window, m_player.getPosition(), m_player.getAimDirection().angle());
     drawBeaconLit();

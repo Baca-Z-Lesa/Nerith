@@ -2,6 +2,7 @@
 
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/Graphics/Shader.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/System/Vector2.hpp>
@@ -21,12 +22,12 @@ struct Assets;
 // where a player is actually willing to sit still - and neither of them is
 // words over a pattern. They are shots.
 //
-// Every shot is built in three depth bands. There are no shaders here, so a
-// foreground cannot be blurred, which means a foreground can only ever be a
-// large near-black silhouette moving faster than everything behind it - and
-// that parallax is the only depth a flat scene gets. BACK moves at a quarter
-// of the camera, MID at one, FORE at two and a bit. Every shot names all
-// three, because a shot with only a middle is a painting.
+// Every shot is built in three depth bands. BACK moves at a quarter of the
+// camera, MID at one, FORE at two and a bit, and FORE is the only one out of
+// focus: rock passing this close to a lens is never sharp, and a soft
+// near-black shape moving fast is what reads as near. Before the plate could
+// be blurred, speed was all a foreground had. Every shot names all three,
+// because a shot with only a middle is a painting.
 //
 // Any key skips the whole thing. Always, from the first frame, with the way
 // out printed in the corner: the second time a player sees a cutscene it is an
@@ -152,7 +153,12 @@ private:
     // One plate, placed. Everything painted goes through here so that a shot
     // never has to think about origins.
     void plate(sf::RenderTarget& target, sf::Sprite& sprite, sf::Vector2f at, float scale,
-               sf::Color tint, float turn = 0.0f);
+               sf::Color tint, float turn = 0.0f, const sf::Shader* shader = nullptr);
+
+    // The foreground rock: the ledge plate, placed like any other and drawn
+    // out of focus. Sharp on a card that cannot run the blur.
+    void fore(sf::RenderTarget& target, sf::Vector2f at, float scale, sf::Color tint,
+              float turn = 0.0f);
 
     // Where a point on a plate lands on the screen once the plate has been put
     // somewhere. Without this, a lamp painted over a window is a pair of magic
@@ -201,4 +207,8 @@ private:
     sf::Sprite m_ledge;
     sf::Sprite m_wreck;
     sf::Sprite m_hatch;
+
+    // The blur FORE is drawn through, and whether it compiled.
+    sf::Shader m_soften;
+    bool       m_softens = false;
 };

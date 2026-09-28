@@ -879,6 +879,31 @@ namespace config
     inline constexpr float AbsorbClear = 0.40f;  // of the lamp's reach
     inline constexpr float AbsorbFull = 1.25f;
 
+    // --- the water pass ---
+    // One fragment shader over the lit basin, run where the absorption used to
+    // be drawn: after everything the lamp lights, before the dark paints out
+    // everything it does not. Distances are pixels of the 1280x720 frame and
+    // are scaled up with the window, so fullscreen looks the same.
+    //
+    // Ripple is the water between the glass and the scene: the whole picture
+    // swims by about a pixel. Any more and aiming stops feeling honest.
+    inline constexpr float WaterRipple = 1.1f;
+    // Scatter is light hitting what is suspended in the water. Anything brighter
+    // than the floor bleeds a halo of itself this far out, bluer than it went
+    // in, so the beam, the particles and every eye in the dark get a glow that
+    // no geometry could draw without drawing it round every one of them.
+    inline constexpr float WaterScatter = 1.10f;
+    inline constexpr float WaterScatterRadius = 13.0f;
+    inline constexpr float WaterScatterFloor = 0.42f;
+    // A bite pulls the colour channels apart for as long as the red wash lasts:
+    // the glass flexing, felt at the edge of vision before the pips are read.
+    inline constexpr float WaterHurtSplit = 3.5f;
+
+    // How soft the cutscene's foreground rock is, in texels of the ledge plate.
+    // Something passing this close to a lens is never in focus, and until the
+    // plate could be blurred the only thing marking it as near was its speed.
+    inline constexpr float ForeBlur = 3.2f;
+
     inline constexpr int   BossUltraFromAct = 1;
     inline constexpr float BossUltraInterval = 15.0f;
 
@@ -1383,8 +1408,8 @@ namespace config
     //  to it.
     //
     //  The ambient is a multiply on every sprite rather than a veil over the
-    //  whole screen: a multiply costs nothing, a veil would grey the lights
-    //  out again, and a shader is not available to this project.
+    //  whole screen: a multiply costs nothing and a veil would grey the lights
+    //  out again.
     inline constexpr sf::Color DeckNightSea{ 6, 11, 16 };
     inline constexpr sf::Color DeckNightSwell{ 20, 32, 40 };
     inline constexpr sf::Color DeckNightFoam{ 58, 78, 86 };

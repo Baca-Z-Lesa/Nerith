@@ -24,9 +24,8 @@ namespace
     constexpr float Bottom = H - Letterbox;
     constexpr float MidY = H * 0.5f;
 
-    // What each depth band does with the camera. A foreground cannot be
-    // blurred without a shader, so the only thing that separates it from the
-    // middle distance is that it moves more than twice as much.
+    // What each depth band does with the camera. The foreground moves more
+    // than twice as much as the middle distance, and is out of focus too.
     constexpr float BackPan = 0.25f;
     constexpr float ForePan = 2.20f;
 
@@ -95,6 +94,46 @@ namespace
         const float x = std::sin(seed * 12.9898f) * 43758.5453f;
         return x - std::floor(x);
     }
+
+    // The foreground's focus. A plate drawn through this samples itself on
+    // two rings round every pixel, so an edge becomes a falloff. Averaged by
+    // alpha, because the see-through part of a plate has no colour worth
+    // having and would otherwise leave a dark rim round everything.
+    //
+    // Past the plate's border counts as empty rather than as more of the edge.
+    // Left to clamp, the texture would repeat its last row outward and the
+    // plate's own straight sides - which do cross the frame, in the shots
+    // where rock scrolls past - would stay razor sharp beside a soft skyline.
+    constexpr const char* Soften = R"(
+uniform sampler2D plate;
+uniform vec2 reach;   // the blur radius, in texture coordinates
+
+vec4 tap(vec2 p)
+{
+    if (p.x < 0.0 || p.y < 0.0 || p.x > 1.0 || p.y > 1.0)
+        return vec4(0.0);
+    vec4 s = texture2D(plate, p);
+    return vec4(s.rgb * s.a, s.a);
+}
+
+void main()
+{
+    vec2 uv = gl_TexCoord[0].xy;
+
+    vec4 sum = tap(uv) * 2.0;
+
+    for (int i = 0; i < 12; ++i)
+    {
+        float a = float(i) * 0.5236;
+        float ring = mod(float(i), 2.0) < 0.5 ? 0.5 : 1.0;
+        sum += tap(uv + vec2(cos(a), sin(a)) * ring * reach);
+    }
+
+    sum /= 14.0;
+    vec3 rgb = sum.a > 0.0 ? sum.rgb / sum.a : vec3(0.0);
+    gl_FragColor = vec4(rgb, sum.a) * gl_Color;
+}
+)";
 }
 
 Cinematic::Cinematic(const Assets& assets)
@@ -112,6 +151,16 @@ Cinematic::Cinematic(const Assets& assets)
     , m_hatch(assets.byPath(config::ReelHatchPath))
 {
     m_fill.setFillColor(sf::Color::Black);
+
+    if (sf::Shader::isAvailable()
+        && m_soften.loadFromMemory(Soften, sf::Shader::Type::Fragment))
+    {
+        const sf::Vector2f size(m_ledge.getTexture().getSize());
+        m_soften.setUniform("plate", sf::Shader::CurrentTexture);
+        m_soften.setUniform("reach", sf::Glsl::Vec2(config::ForeBlur / size.x,
+                                                    config::ForeBlur / size.y));
+        m_softens = true;
+    }
 }
 
 void Cinematic::begin(Reel reel, const std::string& caption)
@@ -381,8 +430,14 @@ float Cinematic::fitOf(const sf::Sprite& sprite) const
     return 1.0f;
 }
 
+void Cinematic::fore(sf::RenderTarget& target, sf::Vector2f at, float scale, sf::Color tint,
+                     float turn)
+{
+    plate(target, m_ledge, at, scale, tint, turn, m_softens ? &m_soften : nullptr);
+}
+
 void Cinematic::plate(sf::RenderTarget& target, sf::Sprite& sprite, sf::Vector2f at, float scale,
-                      sf::Color tint, float turn)
+                      sf::Color tint, float turn, const sf::Shader* shader)
 {
     scale *= fitOf(sprite);
 
@@ -397,7 +452,7 @@ void Cinematic::plate(sf::RenderTarget& target, sf::Sprite& sprite, sf::Vector2f
     sprite.setScale({ scale, scale });
     sprite.setRotation(sf::degrees(turn));
     sprite.setColor(tint);
-    target.draw(sprite);
+    target.draw(sprite, shader);
 }
 
 sf::Vector2f Cinematic::onPlate(const sf::Sprite& sprite, sf::Vector2f at, float scale,
@@ -498,8 +553,8 @@ void Cinematic::drawRig(sf::RenderTarget& target, float t)
 
     // FORE. Two shoulders of rock, which up here is the rig's own steelwork
     // between the camera and the light.
-    plate(target, m_ledge, { W * 0.10f + pan * ForePan, ledgeAt(1.6f) }, 1.6f, Shade);
-    plate(target, m_ledge, { W * 0.94f + pan * ForePan, ledgeAt(1.9f, 14.0f) }, 1.9f, Shade, 8.0f);
+    fore(target, { W * 0.10f + pan * ForePan, ledgeAt(1.6f) }, 1.6f, Shade);
+    fore(target, { W * 0.94f + pan * ForePan, ledgeAt(1.9f, 14.0f) }, 1.9f, Shade, 8.0f);
 
     // Rain in two passes, and the near one is faster. One pass of rain is a
     // texture; two at different speeds is weather.
@@ -578,7 +633,7 @@ void Cinematic::drawShutter(sf::RenderTarget& target, float t)
     wedge(front, { 0.0f, 1.0f }, 260.0f, 90.0f, fade(Lamp, 0.12f), fade(Lamp, 0.0f));
 
     // FORE. One shoulder rising past the lens as the bell drops.
-    plate(target, m_ledge, { W * 0.26f, ledgeAt(1.7f) - 46.0f * ease(t) }, 1.7f, Shade);
+    fore(target, { W * 0.26f, ledgeAt(1.7f) - 46.0f * ease(t) }, 1.7f, Shade);
 
     motes(m_total, { 20.0f, -260.0f }, 14.0f, fade(Sky, 0.22f), 60);
     flush(target);
@@ -680,10 +735,10 @@ void Cinematic::drawSounding(sf::RenderTarget& target, float t)
     plate(target, m_bell, bellAt, 0.46f, sf::Color(140, 152, 160), sway * 0.3f);
 
     // FORE. Ledges tearing past while the fall lasts, and still once it stops.
-    plate(target, m_ledge, { -380.0f, Top - 120.0f + std::fmod(m_scroll * 900.0f, 1400.0f) },
-          1.6f, Shade);
-    plate(target, m_ledge, { W + 380.0f, Top - 700.0f + std::fmod(m_scroll * 900.0f, 1400.0f) },
-          1.6f, Shade, 12.0f);
+    fore(target, { -380.0f, Top - 120.0f + std::fmod(m_scroll * 900.0f, 1400.0f) },
+         1.6f, Shade);
+    fore(target, { W + 380.0f, Top - 700.0f + std::fmod(m_scroll * 900.0f, 1400.0f) },
+         1.6f, Shade, 12.0f);
 
     // Silt reverses when the fall does: it was streaming up past a falling
     // boat, and a boat that has stopped is just hanging in it.
@@ -761,10 +816,10 @@ void Cinematic::drawNerith(sf::RenderTarget& target, float t)
          0.45f);
 
     // FORE. Two shoulders sliding out of frame as the camera comes in.
-    plate(target, m_ledge, { W * 0.04f - pan * ForePan * 0.3f, ledgeAt(1.8f) }, 1.8f,
-          sf::Color(5, 8, 10));
-    plate(target, m_ledge, { W * 1.00f + pan * ForePan * 0.3f, ledgeAt(2.0f, 20.0f) }, 2.0f,
-          sf::Color(5, 8, 10), 10.0f);
+    fore(target, { W * 0.04f - pan * ForePan * 0.3f, ledgeAt(1.8f) }, 1.8f,
+         sf::Color(5, 8, 10));
+    fore(target, { W * 1.00f + pan * ForePan * 0.3f, ledgeAt(2.0f, 20.0f) }, 2.0f,
+         sf::Color(5, 8, 10), 10.0f);
 
     motes(m_total, { -30.0f, 50.0f }, 9.0f, fade(Sky, 0.12f), 60);
     flush(target);
@@ -857,8 +912,8 @@ void Cinematic::drawTrench(sf::RenderTarget& target, float t)
     plate(target, m_bell, bellAt, 0.40f / push, sf::Color(130, 142, 150));
 
     // FORE.
-    plate(target, m_ledge, { W * 0.08f, ledgeAt(1.8f) - 40.0f * ease(t) }, 1.8f, Shade);
-    plate(target, m_ledge, { W * 0.96f, ledgeAt(2.0f, 16.0f) - 40.0f * ease(t) }, 2.0f, Shade, -8.0f);
+    fore(target, { W * 0.08f, ledgeAt(1.8f) - 40.0f * ease(t) }, 1.8f, Shade);
+    fore(target, { W * 0.96f, ledgeAt(2.0f, 16.0f) - 40.0f * ease(t) }, 2.0f, Shade, -8.0f);
 
     motes(m_total, { 0.0f, 120.0f }, 10.0f, fade(Sky, 0.12f), 50);
     flush(target);
@@ -968,10 +1023,10 @@ void Cinematic::drawAscent(sf::RenderTarget& target, float t)
     plate(target, m_bell, bellAt, 0.46f, sf::Color(140, 152, 160), sway * 0.3f);
 
     // FORE.
-    plate(target, m_ledge, { -380.0f, Top - 200.0f + std::fmod(-m_scroll * 900.0f, 1400.0f) },
-          1.6f, Shade);
-    plate(target, m_ledge, { W + 380.0f, Top - 800.0f + std::fmod(-m_scroll * 900.0f, 1400.0f) },
-          1.6f, Shade, -10.0f);
+    fore(target, { -380.0f, Top - 200.0f + std::fmod(-m_scroll * 900.0f, 1400.0f) },
+         1.6f, Shade);
+    fore(target, { W + 380.0f, Top - 800.0f + std::fmod(-m_scroll * 900.0f, 1400.0f) },
+         1.6f, Shade, -10.0f);
 
     motes(m_total, { 0.0f, 1200.0f * away }, 70.0f, fade(Sky, 0.18f), 60);
     flush(target);
@@ -1036,8 +1091,8 @@ void Cinematic::drawDaylight(sf::RenderTarget& target, float t)
     plate(target, m_bell, bellAt, 0.68f, sf::Color(168, 180, 186));
 
     // FORE. The last of the dark leaving the bottom of frame.
-    plate(target, m_ledge, { W * 0.14f, ledgeAt(1.7f) + 70.0f * ease(t) }, 1.7f,
-          sf::Color(8, 12, 16));
+    fore(target, { W * 0.14f, ledgeAt(1.7f) + 70.0f * ease(t) }, 1.7f,
+         sf::Color(8, 12, 16));
 
     motes(m_total, { 10.0f, -320.0f }, 18.0f, fade(sf::Color(226, 214, 180), 0.30f), 80);
     flush(target);
@@ -1124,10 +1179,10 @@ void Cinematic::drawCount(sf::RenderTarget& target, float t)
           4.0f);
 
     // FORE. The camera is standing behind the rail watching this.
-    plate(target, m_ledge, { W * 0.24f + pan * ForePan * 0.2f, ledgeAt(1.6f, 30.0f) }, 1.6f,
-          sf::Color(22, 26, 32));
-    plate(target, m_ledge, { W * 0.92f + pan * ForePan * 0.2f, ledgeAt(1.8f, 44.0f) }, 1.8f,
-          sf::Color(18, 22, 28), 6.0f);
+    fore(target, { W * 0.24f + pan * ForePan * 0.2f, ledgeAt(1.6f, 30.0f) }, 1.6f,
+         sf::Color(22, 26, 32));
+    fore(target, { W * 0.92f + pan * ForePan * 0.2f, ledgeAt(1.8f, 44.0f) }, 1.8f,
+         sf::Color(18, 22, 28), 6.0f);
 
     // At the end of it, a light on the water beyond the deck edge, which is
     // the next shot arriving before the cut does.
@@ -1218,8 +1273,8 @@ void Cinematic::drawFall(sf::RenderTarget& target, float)
     flush(target);
 
     plate(target, m_bell, bellAt, 0.46f, sf::Color(140, 152, 160), sway * 0.3f);
-    plate(target, m_ledge, { -380.0f, Top - 120.0f + std::fmod(m_scroll * 900.0f, 1400.0f) },
-          1.6f, Shade);
+    fore(target, { -380.0f, Top - 120.0f + std::fmod(m_scroll * 900.0f, 1400.0f) },
+         1.6f, Shade);
 
     motes(m_total, { 0.0f, -1500.0f }, 90.0f, fade(Sky, 0.22f), 70);
     flush(target);
@@ -1240,8 +1295,8 @@ void Cinematic::drawClimb(sf::RenderTarget& target, float)
     flush(target);
 
     plate(target, m_bell, bellAt, 0.46f, sf::Color(140, 152, 160), sway * 0.3f);
-    plate(target, m_ledge, { W + 380.0f, Top - 300.0f + std::fmod(-m_scroll * 900.0f, 1400.0f) },
-          1.6f, Shade, -10.0f);
+    fore(target, { W + 380.0f, Top - 300.0f + std::fmod(-m_scroll * 900.0f, 1400.0f) },
+         1.6f, Shade, -10.0f);
 
     motes(m_total, { 0.0f, 1200.0f }, 70.0f, fade(Sky, 0.18f), 60);
     flush(target);
